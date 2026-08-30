@@ -6,19 +6,33 @@ defmodule Mix.Tasks.Sprite.Up do
   complete development environment for this application:
 
     1. creates the sprite (`--name`, default: the repository name)
-    2. installs PostgreSQL and runs it as the `postgres` Sprite service
-       (`postgres`/`postgres` on `localhost:5432`, matching `config/dev.exs`)
-    3. installs the Elixir version pinned in `mise.toml`
-    4. gives the sprite GitHub access and clones this repository's current
+    2. installs PostgreSQL with PostGIS and runs it as the `postgres` Sprite
+       service (`postgres`/`postgres` on `localhost:5432`, matching
+       `config/dev.exs`; the first migration's `CREATE EXTENSION postgis`
+       needs the extension packages)
+    3. downloads the checksum-pinned S3Mock standalone jar — the same app as
+       the `adobe/s3mock` container image README § Setup runs locally; sprites
+       have no container runtime — and runs it as the `s3mock` Sprite service
+       on `localhost:9090` so presigned uploads round-trip without a real
+       bucket
+    4. installs the Elixir version pinned in `mise.toml`
+    5. gives the sprite GitHub access and clones this repository's current
        branch into `/home/sprite/<repo>`: by default a key pair generated
        inside the sprite is registered as a write-enabled deploy key on the
        repository with `gh`; `--ssh-key PATH` copies an existing private key
        instead (required for non-GitHub remotes). Your git identity is copied
        either way
-    5. runs `mix setup`
-    6. runs `mix phx.server` as the `phoenix` Sprite service and routes the
-       sprite's URL to it
-    7. takes a checkpoint of the running app
+    6. runs `mix setup`
+    7. runs `mix phx.server` as the `phoenix` Sprite service — with
+       `AWS_*`/`BUCKET_NAME` pointed at S3Mock — and routes the sprite's URL
+       to it
+    8. takes a checkpoint of the running app
+
+  Services are only ever created, never redefined: a sprite provisioned
+  before the `s3mock` service existed keeps its old `phoenix` definition
+  (uploads fail there for lack of the storage environment). Run
+  `sprite-env services delete phoenix` from a console and re-run
+  `mix sprite.up`, or recreate the sprite with `mix sprite.down`.
 
   Claude Code is preinstalled in the sprite but not signed in; run
   `mix sprite.connect -- claude` and use `/login`.
@@ -43,7 +57,14 @@ defmodule Mix.Tasks.Sprite.Up do
 
   @switches [ssh_key: :string, checkpoint: :boolean]
   @sprite_key ".ssh/id_ed25519"
-  @apt_packages ~w(postgresql build-essential inotify-tools)
+  # postgresql-postgis is the distro metapackage pulling the postgis extension
+  # for the packaged server; default-jre-headless runs the S3Mock jar.
+  @apt_packages ~w(postgresql postgresql-postgis default-jre-headless build-essential inotify-tools)
+
+  # config/dev.exs's default BUCKET_NAME; S3Mock accepts any credentials.
+  @bucket "mc-emcomm-dev"
+  @s3mock_version "4.11.0"
+  @s3mock_sha256 "30916126e4cf559ca3fd25a1ff481eb64f7bfd2e05eb1ea83600999774f63f84"
 
   @impl Mix.Task
   def run(argv) do
@@ -61,6 +82,7 @@ defmodule Mix.Tasks.Sprite.Up do
 
     install_packages(sprite)
     ensure_postgres(sprite)
+    ensure_s3mock(sprite)
     install_elixir(sprite, elixir)
     install_ssh_key(sprite, ssh_key, origin)
     configure_git(sprite)
@@ -178,6 +200,46 @@ defmodule Mix.Tasks.Sprite.Up do
     ]
 
     ~s(--cmd /usr/bin/sudo --args "#{Enum.join(args, ",")}")
+  end
+
+  defp ensure_s3mock(sprite) do
+    Sprite.step("Configuring S3Mock #{@s3mock_version}")
+
+    dir = Path.join(Sprite.home(), ".local/share/s3mock")
+    jar = Path.join(dir, "s3mock-#{@s3mock_version}-exec.jar")
+
+    url =
+      "https://repo1.maven.org/maven2/com/adobe/testing/s3mock/#{@s3mock_version}/" <>
+        "s3mock-#{@s3mock_version}-exec.jar"
+
+    Sprite.stream!(
+      sprite,
+      """
+      set -euo pipefail
+      if echo "$SHA256  $JAR" | sha256sum --check --quiet - 2>/dev/null; then
+        echo "already downloaded"
+      else
+        echo "downloading $URL"
+        mkdir -p "$(dirname "$JAR")"
+        curl -fsSL -o "$JAR.partial" "$URL"
+        echo "$SHA256  $JAR.partial" | sha256sum --check --quiet -
+        mv "$JAR.partial" "$JAR"
+      fi
+      """,
+      env: [{"JAR", jar}, {"URL", url}, {"SHA256", @s3mock_sha256}]
+    )
+
+    env = [
+      "COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS=#{@bucket}",
+      # A persistent store instead of S3Mock's default tmpdir, so objects
+      # survive service restarts and checkpoint restores alongside the
+      # database rows that reference them.
+      "COM_ADOBE_TESTING_S3MOCK_STORE_ROOT=#{dir}/store",
+      "COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT=true"
+    ]
+
+    flags = ~s(--cmd /usr/bin/java --args "-jar,#{jar}" --env "#{Enum.join(env, ",")}")
+    Sprite.ensure_service!(sprite, Sprite.s3mock_service(), flags)
   end
 
   defp install_elixir(sprite, version) do
@@ -340,9 +402,22 @@ defmodule Mix.Tasks.Sprite.Up do
   defp ensure_phoenix(sprite, dest) do
     Sprite.step("Configuring the Phoenix service")
 
+    # req_s3 reads the AWS_* variables straight from the process environment,
+    # and presigning raises without them (README § Setup). S3Mock accepts any
+    # non-empty credentials.
+    env = [
+      "AWS_ACCESS_KEY_ID=s3mock",
+      "AWS_SECRET_ACCESS_KEY=s3mock",
+      "AWS_REGION=us-east-1",
+      "AWS_ENDPOINT_URL_S3=http://localhost:#{Sprite.s3mock_port()}",
+      "BUCKET_NAME=#{@bucket}"
+    ]
+
     flags =
       ~s(--cmd /.sprite/bin/mix --args phx.server --dir "#{dest}" ) <>
-        "--needs #{Sprite.postgres_service()} --http-port #{Sprite.http_port()}"
+        ~s(--env "#{Enum.join(env, ",")}" ) <>
+        "--needs #{Sprite.postgres_service()},#{Sprite.s3mock_service()} " <>
+        "--http-port #{Sprite.http_port()}"
 
     Sprite.ensure_service!(sprite, Sprite.phoenix_service(), flags)
   end
@@ -354,6 +429,7 @@ defmodule Mix.Tasks.Sprite.Up do
 
       App:         #{Sprite.url(sprite)}
                    (org members only; `sprite url update --auth public -s #{sprite.name}` opens it up)
+      Storage:     S3Mock on localhost:#{Sprite.s3mock_port()} (bucket #{@bucket}; uploads round-trip)
       Console:     mix sprite.connect
       Claude:      mix sprite.connect -- claude   then /login (not signed in yet)
       Sync:        mix sprite.sync (latest origin default branch, app restarted)

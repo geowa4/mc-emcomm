@@ -15,7 +15,9 @@ defmodule Mix.Sprite do
   @home "/home/sprite"
   @postgres_service "postgres"
   @phoenix_service "phoenix"
+  @s3mock_service "s3mock"
   @http_port 4000
+  @s3mock_port 9090
   @quick_timeout :timer.minutes(2)
   @idle_timeout :timer.minutes(15)
   @switches [name: :string]
@@ -23,7 +25,9 @@ defmodule Mix.Sprite do
   def home, do: @home
   def postgres_service, do: @postgres_service
   def phoenix_service, do: @phoenix_service
+  def s3mock_service, do: @s3mock_service
   def http_port, do: @http_port
+  def s3mock_port, do: @s3mock_port
 
   ## Task plumbing
 

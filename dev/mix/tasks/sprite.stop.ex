@@ -1,10 +1,10 @@
 defmodule Mix.Tasks.Sprite.Stop do
-  @shortdoc "Stops the Phoenix and PostgreSQL services in the app's Sprite"
+  @shortdoc "Stops the Phoenix, S3Mock, and PostgreSQL services in the app's Sprite"
 
   @moduledoc """
-  Stops the `phoenix` and `postgres` services created by `mix sprite.up`. The
-  sprite itself keeps existing (and pauses on its own once idle); re-run
-  `mix sprite.up` to start the services again.
+  Stops the `phoenix`, `s3mock`, and `postgres` services created by
+  `mix sprite.up`. The sprite itself keeps existing (and pauses on its own
+  once idle); re-run `mix sprite.up` to start the services again.
 
       mix sprite.stop [--name NAME]
   """
@@ -17,8 +17,9 @@ defmodule Mix.Tasks.Sprite.Stop do
     {opts, _args} = Sprite.parse_args(argv)
     sprite = Sprite.existing_sprite!(opts)
 
-    # The app first, so nothing is left holding database connections.
+    # The app first, so nothing is left holding database or S3 connections.
     Sprite.stop_service!(sprite, Sprite.phoenix_service())
+    Sprite.stop_service!(sprite, Sprite.s3mock_service())
     Sprite.stop_service!(sprite, Sprite.postgres_service())
   end
 end
