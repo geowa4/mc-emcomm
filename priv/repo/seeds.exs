@@ -54,7 +54,12 @@ approve = fn member, actor ->
   end
 end
 
-# ## Admin + members across roles and quadrants
+# ## Admin + members across positions and quadrants
+#
+# All people are fictional analogues that mirror the real roster's *shape*
+# (every filled position, including one person holding Vice-President and
+# Emergency Coordinator at once). Real people are entered in production via
+# the admin UI, never seeded.
 
 admin_user = get_or_create_user.("admin@monroecountyemcomm.org", true)
 
@@ -62,61 +67,95 @@ admin_member =
   get_or_create_member.(admin_user, %{name: "Alex Rivera", call_sign: "W2ADM", quadrant: :NE})
   |> then(&approve.(&1, admin_user))
 
-Members.update_role(admin_member, %{role: :emergency_coordinator})
-
 member_specs = [
   %{
     email: "president@monroecountyemcomm.org",
     name: "Jordan Blake",
     call_sign: "W2PRE",
-    role: :president,
+    positions: ["President"],
     quadrant: :NE
+  },
+  %{
+    email: "vice-president@monroecountyemcomm.org",
+    name: "Devon Marsh",
+    call_sign: "W2VEC",
+    positions: ["Vice-President", "Emergency Coordinator"],
+    quadrant: :SE
   },
   %{
     email: "secretary@monroecountyemcomm.org",
     name: "Sam Okafor",
     call_sign: "W2SEC",
-    role: :secretary,
+    positions: ["Secretary"],
     quadrant: :NW
   },
   %{
     email: "treasurer@monroecountyemcomm.org",
     name: "Casey Nguyen",
     call_sign: "W2TRE",
-    role: :treasurer,
+    positions: ["Treasurer"],
     quadrant: :SE
+  },
+  %{
+    email: "director1@monroecountyemcomm.org",
+    name: "Rowan Ellis",
+    call_sign: "W2DL1",
+    positions: ["Director-at-Large"],
+    quadrant: :NW
+  },
+  %{
+    email: "director2@monroecountyemcomm.org",
+    name: "Harper Quinn",
+    call_sign: "W2DL2",
+    positions: ["Director-at-Large"],
+    quadrant: :SW
   },
   %{
     email: "member1@monroecountyemcomm.org",
     name: "Riley Thompson",
     call_sign: "W2ME1",
-    role: :member,
+    positions: [],
     quadrant: :SW
   },
   %{
     email: "member2@monroecountyemcomm.org",
     name: "Morgan Alvarez",
     call_sign: "W2ME2",
-    role: :member,
+    positions: [],
     quadrant: :out_of_county
   },
   %{
     email: "pending@monroecountyemcomm.org",
     name: "Taylor Kim",
     call_sign: "W2PND",
-    role: :member,
+    positions: [],
     quadrant: :NE,
     skip_approval: true
   }
 ]
+
+position_ids_by_name =
+  McEmcomm.Members.Position
+  |> Repo.all()
+  |> Map.new(&{&1.name, &1.id})
+
+set_positions = fn member, position_names ->
+  ids = Enum.map(position_names, &Map.fetch!(position_ids_by_name, &1))
+  {:ok, member} = Members.update_member_positions(member, ids)
+  member
+end
+
+# The admin covers the third Director-at-Large seat; Assistant Emergency
+# Coordinator is deliberately vacant (as in the real roster) so the public
+# About page exercises its "Vacant" rendering.
+set_positions.(admin_member, ["Director-at-Large"])
 
 members =
   Enum.map(member_specs, fn spec ->
     user = get_or_create_user.(spec.email, false)
     member = get_or_create_member.(user, Map.take(spec, [:name, :call_sign, :quadrant]))
     member = if spec[:skip_approval], do: member, else: approve.(member, admin_user)
-    if member.role != spec.role, do: Members.update_role(member, %{role: spec.role})
-    %{member | role: spec.role}
+    set_positions.(member, spec.positions)
   end)
 
 # ## Capabilities catalog

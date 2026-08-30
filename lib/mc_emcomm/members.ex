@@ -16,6 +16,7 @@ defmodule McEmcomm.Members do
   alias McEmcomm.Courses
   alias McEmcomm.Members.Member
   alias McEmcomm.Members.MembershipAudit
+  alias McEmcomm.Members.Position
   alias McEmcomm.Repo
   alias McEmcomm.Storage
 
@@ -54,20 +55,11 @@ defmodule McEmcomm.Members do
     |> Repo.update()
   end
 
-  def change_role(%Member{} = member, attrs) do
-    Member.role_changeset(member, attrs)
-  end
-
-  def update_role(%Member{} = member, attrs) do
-    member
-    |> Member.role_changeset(attrs)
-    |> Repo.update()
-  end
-
   def list_members(opts \\ []) do
     Member
     |> maybe_filter_status(opts[:status])
     |> order_by([m], asc: m.name)
+    |> preload(positions: ^positions_query())
     |> Repo.all()
   end
 
@@ -76,18 +68,37 @@ defmodule McEmcomm.Members do
   end
 
   @doc """
-  Members whose role is not the default `:member` — used to render
-  leadership on the public About page.
+  Every leadership position in display order, each with its approved
+  holders preloaded — used to render leadership on the public About page,
+  where an unfilled position still appears (as vacant).
   """
-  def list_leadership do
-    Member
-    |> where([m], m.role != :member and m.status == :approved)
-    |> order_by([m], asc: m.role)
+  def list_positions do
+    holders = from m in Member, where: m.status == :approved, order_by: m.name
+
+    Position
+    |> order_by([p], asc: p.sort_order)
+    |> preload(members: ^holders)
     |> Repo.all()
+  end
+
+  @doc """
+  Replaces a member's leadership positions with the given position ids,
+  admin-only. A member with no positions is an ordinary member.
+  """
+  def update_member_positions(%Member{} = member, position_ids) do
+    positions = Repo.all(from p in Position, where: p.id in ^position_ids)
+
+    member
+    |> Repo.preload(:positions)
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.put_assoc(:positions, positions)
+    |> Repo.update()
   end
 
   defp maybe_filter_status(query, nil), do: query
   defp maybe_filter_status(query, status), do: where(query, [m], m.status == ^status)
+
+  defp positions_query, do: from(p in Position, order_by: p.sort_order)
 
   @doc """
   Transitions a member's status, admin-only, writing a `membership_audit`

@@ -1,10 +1,9 @@
 defmodule McEmcommWeb.AdminLive.MemberIndex do
-  @moduledoc "Membership approvals, role editing, and the membership_audit trail (§9 Admin approval)."
+  @moduledoc "Membership approvals, position editing, and the membership_audit trail (§9 Admin approval)."
 
   use McEmcommWeb, :live_view
 
   alias McEmcomm.Members
-  alias McEmcomm.Members.Member
   alias McEmcommWeb.ParamHelpers
 
   @impl true
@@ -13,6 +12,7 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
      assign(socket,
        page_title: "Members",
        members: Members.list_members(),
+       positions: Members.list_positions(),
        reason_for: nil,
        audit_for: nil
      )}
@@ -28,13 +28,22 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
         <:col :let={m} label="Name">{m.name}</:col>
         <:col :let={m} label="Call sign">{m.call_sign}</:col>
         <:col :let={m} label="Status"><span class="badge badge-sm">{m.status}</span></:col>
-        <:col :let={m} label="Role">
-          <form id={"role-form-#{m.id}"} phx-change="update_role" phx-value-id={m.id}>
-            <select name="role" class="select select-sm">
-              <option :for={role <- Member.roles()} value={role} selected={role == m.role}>
-                {Phoenix.Naming.humanize(role)}
-              </option>
-            </select>
+        <:col :let={m} label="Positions">
+          <form id={"positions-form-#{m.id}"} phx-change="update_positions" phx-value-id={m.id}>
+            <input type="hidden" name="position_ids[]" value="" />
+            <label
+              :for={position <- @positions}
+              class="label cursor-pointer justify-start gap-2 py-0.5 text-sm"
+            >
+              <input
+                type="checkbox"
+                name="position_ids[]"
+                value={position.id}
+                checked={position.id in Enum.map(m.positions, & &1.id)}
+                class="checkbox checkbox-xs"
+              />
+              {position.name}
+            </label>
           </form>
         </:col>
         <:action :let={m}>
@@ -125,9 +134,15 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
     {:noreply, assign(socket, audit_for: ParamHelpers.id(id))}
   end
 
-  def handle_event("update_role", %{"id" => id, "role" => role}, socket) do
+  def handle_event("update_positions", %{"id" => id} = params, socket) do
+    position_ids =
+      params
+      |> Map.get("position_ids", [])
+      |> Enum.map(&ParamHelpers.id/1)
+      |> Enum.reject(&is_nil/1)
+
     member = Members.get_member!(id)
-    Members.update_role(member, %{role: role})
+    {:ok, _} = Members.update_member_positions(member, position_ids)
     {:noreply, assign(socket, members: Members.list_members())}
   end
 

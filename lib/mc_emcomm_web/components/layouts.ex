@@ -39,7 +39,7 @@ defmodule McEmcommWeb.Layouts do
       <div class="flex-1">
         <a href="/" class="flex-1 flex w-fit items-center gap-2">
           <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">Monroe County EmComm</span>
+          <span class="text-sm font-semibold">Monroe County ARES/RACES</span>
         </a>
       </div>
       <div class="flex-none">
@@ -78,6 +78,53 @@ defmodule McEmcommWeb.Layouts do
         {render_slot(@inner_block)}
       </div>
     </main>
+
+    <footer id="site-footer" class="px-4 py-8 sm:px-6 lg:px-8 border-t border-base-300">
+      <div class="mx-auto max-w-4xl text-center space-y-3 text-sm text-base-content/70">
+        <ul class="flex flex-wrap justify-center gap-x-6 gap-y-2">
+          <li>
+            <a class="link link-hover" href="mailto:webmaster@monroecountyemcomm.org">Email Us</a>
+          </li>
+          <li>
+            <a
+              class="link link-hover"
+              href="https://www.facebook.com/MCARESNY"
+              target="_blank"
+              rel="noopener"
+            >
+              Facebook
+            </a>
+          </li>
+          <li>
+            <a class="link link-hover" href="https://x.com/MCARESNY" target="_blank" rel="noopener">
+              X
+            </a>
+          </li>
+          <li>
+            <a
+              class="link link-hover"
+              href="https://groups.io/g/MonroeCountyEmcomm"
+              target="_blank"
+              rel="noopener"
+            >
+              Groups.io
+            </a>
+          </li>
+          <li>
+            <a
+              class="link link-hover"
+              href="https://calendar.google.com/calendar/u/0?cid=Y180N2EzNGE5MDZmMzRiYTI3YzZjYWNkZTdhMTY4YTExMDk1NzE2MDAzNTgxN2I0MDhkMjU1M2I2MjQzNGZjM2Y3QGdyb3VwLmNhbGVuZGFyLmdvb2dsZS5jb20"
+              target="_blank"
+              rel="noopener"
+            >
+              Calendar
+            </a>
+          </li>
+        </ul>
+        <p>&copy; {Date.utc_today().year} Monroe County ARES/RACES. All rights reserved.</p>
+        <p class="italic">When All Else Fails, Amateur Radio</p>
+      </div>
+    </footer>
 
     <.flash_group flash={@flash} />
     """

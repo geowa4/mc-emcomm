@@ -13,7 +13,7 @@ defmodule McEmcomm.Accounts.UserNotifier do
     email =
       new()
       |> to(recipient)
-      |> from({"McEmcomm", Application.fetch_env!(:mc_emcomm, :mail_from)})
+      |> from({"Monroe County ARES/RACES", Application.fetch_env!(:mc_emcomm, :mail_from)})
       |> subject(subject)
       |> text_body(body)
 

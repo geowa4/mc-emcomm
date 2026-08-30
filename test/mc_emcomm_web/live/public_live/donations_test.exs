@@ -6,7 +6,7 @@ defmodule McEmcommWeb.PublicLive.DonationsTest do
   test "renders the donation options", %{conn: conn} do
     {:ok, _lv, html} = live(conn, ~p"/donations")
 
-    assert html =~ "Support Monroe County EmComm"
+    assert html =~ "Support Monroe County ARES/RACES"
     assert html =~ "Donate online via Zeffy"
   end
 end

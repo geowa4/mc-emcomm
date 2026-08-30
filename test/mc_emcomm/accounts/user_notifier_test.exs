@@ -9,7 +9,10 @@ defmodule McEmcomm.Accounts.UserNotifierTest do
     user = %McEmcomm.Accounts.User{email: "person@example.com"}
 
     assert {:ok, email} = UserNotifier.deliver_login_instructions(user, "https://example.com/x")
-    assert email.from == {"McEmcomm", Application.fetch_env!(:mc_emcomm, :mail_from)}
+
+    assert email.from ==
+             {"Monroe County ARES/RACES", Application.fetch_env!(:mc_emcomm, :mail_from)}
+
     assert_email_sent(email)
   end
 end

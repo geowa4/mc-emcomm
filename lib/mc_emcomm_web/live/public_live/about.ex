@@ -5,14 +5,14 @@ defmodule McEmcommWeb.PublicLive.About do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, page_title: "About", leadership: Members.list_leadership())}
+    {:ok, assign(socket, page_title: "About", positions: Members.list_positions())}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <.header>About Monroe County EmComm</.header>
+      <.header>About Monroe County ARES/RACES</.header>
 
       <p>
         Monroe County ARES (Amateur Radio Emergency Service) is an organized group of licensed
@@ -29,18 +29,23 @@ defmodule McEmcommWeb.PublicLive.About do
       </p>
 
       <h2 class="text-xl font-semibold mt-6">Leadership</h2>
-      <ul :if={@leadership != []} class="list bg-base-100 rounded-box border border-base-300">
-        <li :for={member <- @leadership} class="list-row">
+      <ul id="leadership-list" class="list bg-base-100 rounded-box border border-base-300">
+        <li :for={position <- @positions} id={"position-#{position.id}"} class="list-row">
           <div>
-            <div class="font-semibold">{format_role(member.role)}</div>
-            <div class="text-sm text-base-content/70">
+            <div class="font-semibold">{position.name}</div>
+            <div :if={position.members == []} class="text-sm text-base-content/50 italic">
+              Vacant
+            </div>
+            <div
+              :for={member <- position.members}
+              class="text-sm text-base-content/70"
+            >
               {member.name}
               <span :if={member.call_sign}>· {member.call_sign}</span>
             </div>
           </div>
         </li>
       </ul>
-      <p :if={@leadership == []} class="text-base-content/70">Leadership roster coming soon.</p>
 
       <h2 class="text-xl font-semibold mt-6">Meetings</h2>
       <p>
@@ -69,12 +74,18 @@ defmodule McEmcommWeb.PublicLive.About do
         Membership is open to all licensed Amateur Radio operators committed to public service,
         from newly licensed technicians to seasoned extra class operators.
         <.link navigate={~p"/users/register"} class="link link-primary">Register</.link>
-        to apply — new accounts are reviewed by an EmComm admin before approval.
+        to apply — new accounts are reviewed by an EmComm admin before approval — or email <a
+          class="link"
+          href="mailto:secretary@monroecountyemcomm.org"
+        >secretary@monroecountyemcomm.org</a>.
       </p>
 
       <h2 class="text-xl font-semibold mt-6">Contact</h2>
       <address class="not-italic space-y-1">
-        <p>Monroe County ARES/RACES · #1148 1100 Jefferson Road, Suite 12 · Rochester, NY 14623</p>
+        <p>
+          Monroe County Amateur Radio Emergency Services, Inc. · 1100 Jefferson Rd., Suite 12
+          #1148 · Rochester, NY 14623
+        </p>
         <p>
           General inquiries:
           <a class="link" href="mailto:secretary@monroecountyemcomm.org">secretary@monroecountyemcomm.org</a>
@@ -84,15 +95,47 @@ defmodule McEmcommWeb.PublicLive.About do
           <a class="link" href="mailto:webmaster@monroecountyemcomm.org">webmaster@monroecountyemcomm.org</a>
         </p>
       </address>
+
+      <h2 class="text-xl font-semibold mt-6">Social Media &amp; Community</h2>
+      <ul id="social-links" class="list-disc list-inside space-y-1">
+        <li>
+          Facebook:
+          <a class="link" href="https://www.facebook.com/MCARESNY" target="_blank" rel="noopener">
+            Monroe County ARES
+          </a>
+        </li>
+        <li>
+          X:
+          <a class="link" href="https://x.com/MCARESNY" target="_blank" rel="noopener">
+            @MCARESNY
+          </a>
+        </li>
+        <li>
+          Groups.io:
+          <a class="link" href="https://groups.io/g/MonroeCountyEmcomm" target="_blank" rel="noopener">
+            Monroe County Emcomm
+          </a>
+        </li>
+        <li>
+          Google Calendar:
+          <a
+            class="link"
+            href="https://calendar.google.com/calendar/u/0?cid=Y180N2EzNGE5MDZmMzRiYTI3YzZjYWNkZTdhMTY4YTExMDk1NzE2MDAzNTgxN2I0MDhkMjU1M2I2MjQzNGZjM2Y3QGdyb3VwLmNhbGVuZGFyLmdvb2dsZS5jb20"
+            target="_blank"
+            rel="noopener"
+          >
+            Subscribe to our calendar
+          </a>
+        </li>
+      </ul>
+
+      <h2 class="text-xl font-semibold mt-6">Emergency Communications</h2>
+      <p>
+        For actual emergency communications needs, please contact your local emergency
+        management agency. Monroe County ARES/RACES operates under the direction of served
+        agencies during emergency situations.
+      </p>
     </Layouts.app>
     """
-  end
-
-  defp format_role(role) do
-    role
-    |> to_string()
-    |> String.replace("_", " ")
-    |> String.split(" ")
-    |> Enum.map_join(" ", &String.capitalize/1)
   end
 end

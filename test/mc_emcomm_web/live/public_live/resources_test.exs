@@ -9,6 +9,12 @@ defmodule McEmcommWeb.PublicLive.ResourcesTest do
 
   setup :verify_on_exit!
 
+  test "links to the shared Google Drive folder", %{conn: conn} do
+    {:ok, lv, _html} = live(conn, ~p"/resources")
+
+    assert has_element?(lv, "#drive-folder-link")
+  end
+
   test "anonymous visitors never see a members-only document, not even its title", %{conn: conn} do
     McEmcommFixtures.document_fixture(%{title: "Public Doc", members_only: false})
     McEmcommFixtures.document_fixture(%{title: "Members Doc", members_only: true})

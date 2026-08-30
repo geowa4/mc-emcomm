@@ -31,6 +31,7 @@ defmodule McEmcommWeb.PublicLive.Training do
           >
             IS-100.C: Introduction to the Incident Command System
           </a>
+          — learn the fundamentals of ICS for effective emergency response coordination.
         </li>
         <li>
           <a
@@ -41,6 +42,7 @@ defmodule McEmcommWeb.PublicLive.Training do
           >
             IS-200.C: Basic Incident Command System for Initial Response
           </a>
+          — build on ICS basics with skills for initial response operations.
         </li>
         <li>
           <a
@@ -51,6 +53,7 @@ defmodule McEmcommWeb.PublicLive.Training do
           >
             IS-700.B: An Introduction to the National Incident Management System
           </a>
+          — understand NIMS and its role in national emergency management.
         </li>
         <li>
           <a
@@ -61,6 +64,7 @@ defmodule McEmcommWeb.PublicLive.Training do
           >
             IS-800.D: National Response Framework, An Introduction
           </a>
+          — learn about the NRF and how communities respond to disasters.
         </li>
       </ul>
 
@@ -75,11 +79,14 @@ defmodule McEmcommWeb.PublicLive.Training do
           >
             ARRL Emergency Communications Training
           </a>
+          — ARRL's comprehensive emergency operations courses, including integrated FEMA and
+          Skywarn training.
         </li>
         <li>
           <a class="link" href="https://www.auxcommusa.org/training" target="_blank" rel="noopener">
             AuxComm Training
           </a>
+          — auxiliary communications training program for emergency communicators.
         </li>
       </ul>
 
@@ -87,11 +94,18 @@ defmodule McEmcommWeb.PublicLive.Training do
       <p>
         All courses listed above are available online at no cost and can be completed at your
         own pace. We encourage new members to complete IS-100, IS-200, IS-700, and IS-800 as a
-        foundation for emergency communications work. Approved members can record completed
-        courses and certifications, with evidence uploads, from their <.link
-          navigate={~p"/app/profile"}
-          class="link link-primary"
-        >profile</.link>.
+        foundation for emergency communications work.
+      </p>
+      <p :if={@current_scope}>
+        Approved members can record completed courses and certifications, with evidence
+        uploads, from their <.link navigate={~p"/app/profile"} class="link link-primary">profile</.link>.
+      </p>
+      <p class="text-base-content/70">
+        For questions about training requirements or to share your completed certifications
+        with the organization, please contact <a
+          class="link"
+          href="mailto:secretary@monroecountyemcomm.org"
+        >secretary@monroecountyemcomm.org</a>.
       </p>
     </Layouts.app>
     """

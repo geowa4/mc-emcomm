@@ -59,6 +59,57 @@ defmodule McEmcomm.MembersTest do
     end
   end
 
+  describe "positions" do
+    test "list_positions/0 returns every position in sort order, vacancies included" do
+      positions = Members.list_positions()
+
+      assert Enum.map(positions, & &1.name) == [
+               "President",
+               "Vice-President",
+               "Secretary",
+               "Treasurer",
+               "Emergency Coordinator",
+               "Assistant Emergency Coordinator",
+               "Director-at-Large"
+             ]
+
+      assert Enum.all?(positions, &(&1.members == []))
+    end
+
+    test "update_member_positions/2 lets one member hold several positions" do
+      member = McEmcommFixtures.member_fixture()
+
+      [vp, ec] =
+        Members.list_positions()
+        |> Enum.filter(&(&1.name in ["Vice-President", "Emergency Coordinator"]))
+
+      assert {:ok, _} = Members.update_member_positions(member, [vp.id, ec.id])
+
+      held =
+        Members.list_positions()
+        |> Enum.filter(fn p -> Enum.any?(p.members, &(&1.id == member.id)) end)
+        |> Enum.map(& &1.name)
+
+      assert held == ["Vice-President", "Emergency Coordinator"]
+
+      assert {:ok, _} = Members.update_member_positions(member, [ec.id])
+
+      assert [%{name: "Emergency Coordinator"}] =
+               Members.list_positions()
+               |> Enum.filter(fn p -> Enum.any?(p.members, &(&1.id == member.id)) end)
+    end
+
+    test "list_positions/0 only includes approved holders" do
+      pending = McEmcommFixtures.pending_member_fixture()
+      president = Enum.find(Members.list_positions(), &(&1.name == "President"))
+
+      {:ok, _} = Members.update_member_positions(pending, [president.id])
+
+      president_after = Enum.find(Members.list_positions(), &(&1.name == "President"))
+      assert president_after.members == []
+    end
+  end
+
   describe "transition_status/4 — illegal transitions" do
     illegal = [
       {:pending, :inactive},

@@ -65,15 +65,34 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     assert Members.get_member!(member.id).status == :pending
   end
 
-  test "changing a member's role", %{conn: conn} do
+  test "assigning and removing a member's positions", %{conn: conn} do
     member = McEmcommFixtures.member_fixture()
+    positions = Members.list_positions()
+    treasurer = Enum.find(positions, &(&1.name == "Treasurer"))
+    ec = Enum.find(positions, &(&1.name == "Emergency Coordinator"))
+
     {:ok, lv, _html} = live(conn, ~p"/admin/members")
 
     lv
-    |> element("form[phx-value-id='#{member.id}']")
-    |> render_change(%{"role" => "treasurer"})
+    |> element("#positions-form-#{member.id}")
+    |> render_change(%{"position_ids" => ["", "#{treasurer.id}", "#{ec.id}"]})
 
-    assert Members.get_member!(member.id).role == :treasurer
+    assert position_names(member) == ["Emergency Coordinator", "Treasurer"]
+
+    lv
+    |> element("#positions-form-#{member.id}")
+    |> render_change(%{"position_ids" => [""]})
+
+    assert position_names(member) == []
+  end
+
+  defp position_names(member) do
+    member.id
+    |> Members.get_member!()
+    |> McEmcomm.Repo.preload(:positions)
+    |> Map.fetch!(:positions)
+    |> Enum.map(& &1.name)
+    |> Enum.sort()
   end
 
   test "viewing the audit trail", %{conn: conn} do

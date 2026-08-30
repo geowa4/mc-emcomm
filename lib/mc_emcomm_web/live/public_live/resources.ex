@@ -30,9 +30,47 @@ defmodule McEmcommWeb.PublicLive.Resources do
       <.header>Resources</.header>
 
       <p>
-        Operational resources for Monroe County EmComm members, particularly those serving in
-        net control and emergency communication roles.
+        Operational resources for Monroe County ARES/RACES members, particularly those serving
+        in net control and emergency communication roles.
       </p>
+
+      <h2 class="text-xl font-semibold mt-6">Operational Resources</h2>
+      <p>
+        Our operational resources are maintained in a shared Google Drive folder for easy
+        access and collaboration:
+      </p>
+      <p>
+        <a
+          id="drive-folder-link"
+          class="btn btn-primary"
+          href="https://drive.google.com/drive/folders/1rn-REahGMMtXxvXvK9lOqRb0DIv3kko7?usp=drive_link"
+          target="_blank"
+          rel="noopener"
+        >
+          View documents on Google Drive
+        </a>
+      </p>
+      <p>The folder contains essential documents and resources for our organization:</p>
+      <ul class="list-disc list-inside space-y-1">
+        <li>
+          Net control operations: net control station scripts and procedures, standard forms
+          for emergency communications, check-in sheets and logging templates, and ARRL
+          radiogram forms
+        </li>
+        <li>
+          Organizational documents: organizational structure and hierarchy, training
+          requirements and procedures, code of conduct, and operating procedures and protocols
+        </li>
+        <li>Additional resources: training materials, guides, and reference documents</li>
+      </ul>
+      <p class="text-base-content/70">
+        If you have trouble accessing the folder or need additional materials, please contact <a
+          class="link"
+          href="mailto:secretary@monroecountyemcomm.org"
+        >secretary@monroecountyemcomm.org</a>.
+      </p>
+
+      <h2 class="text-xl font-semibold mt-6">Published Documents</h2>
 
       <ul :if={@documents != []} class="list bg-base-100 rounded-box border border-base-300 mt-4">
         <li :for={doc <- @documents} class="list-row items-center">

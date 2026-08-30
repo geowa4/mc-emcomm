@@ -6,13 +6,10 @@ defmodule McEmcomm.Members.Member do
 
   @quadrants ~w(NE NW SE SW out_of_county)a
   @license_classes ~w(technician general amateur_extra advanced novice)a
-  @roles ~w(president vice_president secretary treasurer emergency_coordinator
-            assistant_emergency_coordinator director_at_large member)a
   @statuses ~w(pending approved rejected inactive)a
 
   def quadrants, do: @quadrants
   def license_classes, do: @license_classes
-  def roles, do: @roles
   def statuses, do: @statuses
 
   schema "members" do
@@ -22,11 +19,14 @@ defmodule McEmcomm.Members.Member do
     field :qth_point, Geo.PostGIS.Geometry
     field :quadrant, Ecto.Enum, values: @quadrants
     field :license_class, Ecto.Enum, values: @license_classes
-    field :role, Ecto.Enum, values: @roles, default: :member
     field :status, Ecto.Enum, values: @statuses, default: :pending
 
     belongs_to :user, McEmcomm.Accounts.User
     has_many :started_net_sessions, McEmcomm.Net.NetSession, foreign_key: :started_by_member_id
+
+    many_to_many :positions, McEmcomm.Members.Position,
+      join_through: McEmcomm.Members.MemberPosition,
+      on_replace: :delete
 
     timestamps(type: :utc_datetime)
   end
@@ -44,13 +44,6 @@ defmodule McEmcomm.Members.Member do
     ])
     |> validate_required([:name])
     |> validate_call_sign()
-  end
-
-  @doc "Changeset for admin-only fields (role)."
-  def role_changeset(member, attrs) do
-    member
-    |> cast(attrs, [:role])
-    |> validate_required([:role])
   end
 
   @doc "Changeset used when creating a member record on registration."

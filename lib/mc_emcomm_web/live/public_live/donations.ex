@@ -10,7 +10,7 @@ defmodule McEmcommWeb.PublicLive.Donations do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <.header>Support Monroe County EmComm</.header>
+      <.header>Support Monroe County ARES/RACES</.header>
 
       <p>
         Your donations help Monroe County ARES/RACES maintain our capability to provide
@@ -49,8 +49,15 @@ defmodule McEmcommWeb.PublicLive.Donations do
         Rochester, NY 14623
       </address>
 
+      <p class="mt-4">
+        You can also donate in person by attending one of our monthly meetings — contact us
+        for meeting details and location.
+      </p>
+
       <p class="mt-6 text-base-content/70">
-        Questions? Contact <a class="link" href="mailto:secretary@monroecountyemcomm.org">secretary@monroecountyemcomm.org</a>.
+        Questions? Contact
+        <a class="link" href="mailto:secretary@monroecountyemcomm.org">secretary@monroecountyemcomm.org</a>
+        or <a class="link" href="mailto:webmaster@monroecountyemcomm.org">webmaster@monroecountyemcomm.org</a>.
       </p>
     </Layouts.app>
     """
