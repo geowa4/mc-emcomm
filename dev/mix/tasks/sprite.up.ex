@@ -6,15 +6,18 @@ defmodule Mix.Tasks.Sprite.Up do
   complete development environment for this application:
 
     1. creates the sprite (`--name`, default: the repository name)
-    2. installs PostgreSQL with PostGIS and runs it as the `postgres` Sprite
-       service (`postgres`/`postgres` on `localhost:5432`, matching
-       `config/dev.exs`; the first migration's `CREATE EXTENSION postgis`
-       needs the extension packages)
+    2. installs PostgreSQL 17 with PostGIS from the PGDG apt repository — the
+       major Fly Managed Postgres runs, matching CI and local dev; the first
+       migration's `CREATE EXTENSION postgis` needs the extension packages —
+       and runs it as the `postgres` Sprite service (`postgres`/`postgres` on
+       `localhost:5432`, matching `config/dev.exs`)
     3. downloads the checksum-pinned S3Mock standalone jar — the same app as
-       the `adobe/s3mock` container image README § Setup runs locally; sprites
-       have no container runtime — and runs it as the `s3mock` Sprite service
-       on `localhost:9090` so presigned uploads round-trip without a real
-       bucket
+       the `adobe/s3mock` container image README § Setup runs locally — and
+       runs it as the `s3mock` Sprite service on `localhost:9090` so
+       presigned uploads round-trip without a real bucket. Containers are not
+       an option here: rootless podman cannot reach `/dev/fuse` or
+       `/dev/net/tun` in a sprite, and rootful hits unreliable cgroup
+       controller delegation
     4. installs the Elixir version pinned in `mise.toml`
     5. gives the sprite GitHub access and clones this repository's current
        branch into `/home/sprite/<repo>`: by default a key pair generated
@@ -57,9 +60,13 @@ defmodule Mix.Tasks.Sprite.Up do
 
   @switches [ssh_key: :string, checkpoint: :boolean]
   @sprite_key ".ssh/id_ed25519"
-  # postgresql-postgis is the distro metapackage pulling the postgis extension
-  # for the packaged server; default-jre-headless runs the S3Mock jar.
-  @apt_packages ~w(postgresql postgresql-postgis default-jre-headless build-essential inotify-tools)
+  # postgresql-common ships the PGDG repo setup script ensure_postgres runs;
+  # default-jre-headless runs the S3Mock jar.
+  @apt_packages ~w(postgresql-common default-jre-headless build-essential inotify-tools)
+
+  # The major Fly Managed Postgres runs, matching CI's postgis/postgis:17
+  # service container and the local podman container (CONTRIBUTING § Setup).
+  @postgres_major "17"
 
   # config/dev.exs's default BUCKET_NAME; S3Mock accepts any credentials.
   @bucket "mc-emcomm-dev"
@@ -157,27 +164,43 @@ defmodule Mix.Tasks.Sprite.Up do
   end
 
   defp ensure_postgres(sprite) do
-    Sprite.step("Configuring PostgreSQL")
+    Sprite.step("Configuring PostgreSQL #{@postgres_major} with PostGIS")
 
-    version =
-      Sprite.sh!(sprite, """
-      set -euo pipefail
-      version=$(pg_lsclusters -h | awk 'NR == 1 { print $1 }')
-      hba="/etc/postgresql/$version/main/pg_hba.conf"
-      # Inside a sprite `localhost` also resolves to an IPv6 address that the
-      # packaged pg_hba.conf does not cover.
-      grep -q '^host all all all scram-sha-256' "$hba" ||
-        echo 'host all all all scram-sha-256' | sudo tee -a "$hba" >/dev/null
-      echo "$version"
-      """)
+    Sprite.stream!(sprite, """
+    set -euo pipefail
+    if dpkg -s postgresql-#{@postgres_major} postgresql-#{@postgres_major}-postgis-3 >/dev/null 2>&1; then
+      echo "already installed"
+      exit 0
+    fi
+    sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+    sudo apt-get install -y -qq postgresql-#{@postgres_major} postgresql-#{@postgres_major}-postgis-3
+    """)
+
+    Sprite.sh!(sprite, """
+    set -euo pipefail
+    port=$(pg_lsclusters -h | awk '$1 == "#{@postgres_major}" && $2 == "main" { print $3 }')
+    if [ "$port" != "5432" ]; then
+      echo "Cluster #{@postgres_major}/main is on port ${port:-none}, not 5432 (another cluster" \\
+        "holds it?); recreate the sprite with mix sprite.down && mix sprite.up"
+      exit 1
+    fi
+    hba="/etc/postgresql/#{@postgres_major}/main/pg_hba.conf"
+    # Inside a sprite `localhost` also resolves to an IPv6 address that the
+    # packaged pg_hba.conf does not cover.
+    grep -q '^host all all all scram-sha-256' "$hba" ||
+      echo 'host all all all scram-sha-256' | sudo tee -a "$hba" >/dev/null
+    """)
 
     # The packaged cluster must only ever run under the Sprite service manager;
     # make sure the package's own init did not leave it running.
     if Sprite.service_status(sprite, Sprite.postgres_service()) == nil do
-      Sprite.sh!(sprite, "sudo pg_ctlcluster #{version} main stop >/dev/null 2>&1 || true")
+      Sprite.sh!(
+        sprite,
+        "sudo pg_ctlcluster #{@postgres_major} main stop >/dev/null 2>&1 || true"
+      )
     end
 
-    Sprite.ensure_service!(sprite, Sprite.postgres_service(), postgres_flags(version))
+    Sprite.ensure_service!(sprite, Sprite.postgres_service(), postgres_flags(@postgres_major))
 
     Sprite.sh!(sprite, """
     set -euo pipefail
