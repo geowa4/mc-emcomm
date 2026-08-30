@@ -210,7 +210,23 @@ defmodule McEmcomm.MixProject do
       # attacker-controlled header values (structured headers, Cookie, Link),
       # which the `mix sprite.*` tasks never send. Affected: gun 2.5.0,
       # cowlib 2.19.0 (latest as of 2026-08).
-      ignore_advisories: ["CVE-2026-43966", "CVE-2026-43969", "CVE-2026-43971"]
+      #
+      # hackney comes in solely through ua_inspector, which uses it only in
+      # the offline `mix ua_inspector.download` task (fetching its parser
+      # database from a fixed GitHub URL, not part of request handling).
+      # McEmcomm never calls UAInspector.parse/1 or otherwise touches
+      # hackney at runtime, so its CRLF-injection/SSRF/TLS-timeout
+      # advisories have no exercised code path here. Affected: hackney
+      # 1.25.0 (latest as of 2026-08).
+      ignore_advisories: [
+        "CVE-2026-43966",
+        "CVE-2026-43969",
+        "CVE-2026-43971",
+        "CVE-2026-47069",
+        "CVE-2026-47071",
+        "CVE-2026-47075",
+        "CVE-2026-47076"
+      ]
     ]
   end
 
