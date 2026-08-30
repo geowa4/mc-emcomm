@@ -4,8 +4,13 @@ defmodule McEmcomm.McEmcommFixtures do
   alias McEmcomm.Accounts.Scope
   alias McEmcomm.AccountsFixtures
   alias McEmcomm.Assets
+  alias McEmcomm.Capabilities
+  alias McEmcomm.Certifications
+  alias McEmcomm.Content
+  alias McEmcomm.Courses
   alias McEmcomm.Exercises
   alias McEmcomm.Members
+  alias McEmcomm.Net
   alias McEmcomm.Repo
 
   @doc "A user + approved member, plus the admin user who approved them."
@@ -84,5 +89,52 @@ defmodule McEmcomm.McEmcommFixtures do
 
     {:ok, exercise} = Exercises.create_exercise_with_locations(exercise_attrs, [location_attrs])
     exercise
+  end
+
+  def document_fixture(attrs \\ %{}) do
+    {:ok, document} =
+      Content.create_document(
+        Map.merge(
+          %{
+            title: "Test Document #{System.unique_integer()}",
+            key: "documents/test-#{System.unique_integer()}.pdf",
+            filename: "test.pdf",
+            content_type: "application/pdf"
+          },
+          attrs
+        )
+      )
+
+    document
+  end
+
+  def capability_fixture(attrs \\ %{}) do
+    {:ok, capability} =
+      Capabilities.create_capability(
+        Map.merge(%{name: "Test Capability #{System.unique_integer()}"}, attrs)
+      )
+
+    capability
+  end
+
+  def course_fixture(attrs \\ %{}) do
+    {:ok, course} =
+      Courses.create_course(Map.merge(%{name: "Test Course #{System.unique_integer()}"}, attrs))
+
+    course
+  end
+
+  def certification_fixture(attrs \\ %{}) do
+    {:ok, certification} =
+      Certifications.create_certification(
+        Map.merge(%{name: "Test Certification #{System.unique_integer()}"}, attrs)
+      )
+
+    certification
+  end
+
+  def net_session_fixture(member) do
+    {:ok, session} = Net.start_session(member, %{"name" => "Test Net #{System.unique_integer()}"})
+    session
   end
 end

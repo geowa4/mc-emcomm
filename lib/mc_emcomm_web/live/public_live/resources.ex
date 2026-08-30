@@ -14,7 +14,7 @@ defmodule McEmcommWeb.PublicLive.Resources do
     {:ok,
      assign(socket,
        page_title: "Resources",
-       documents: Content.list_documents(active_only: true),
+       documents: Content.list_documents(active_only: true, members_only_allowed: true),
        can_download?: can_download?
      )}
   end

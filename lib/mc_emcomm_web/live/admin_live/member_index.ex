@@ -28,7 +28,7 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
         <:col :let={m} label="Call sign">{m.call_sign}</:col>
         <:col :let={m} label="Status"><span class="badge badge-sm">{m.status}</span></:col>
         <:col :let={m} label="Role">
-          <form phx-change="update_role" phx-value-id={m.id}>
+          <form id={"role-form-#{m.id}"} phx-change="update_role" phx-value-id={m.id}>
             <select name="role" class="select select-sm">
               <option :for={role <- Member.roles()} value={role} selected={role == m.role}>
                 {Phoenix.Naming.humanize(role)}

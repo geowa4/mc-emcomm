@@ -60,7 +60,14 @@ defmodule McEmcomm.MixProject do
         McEmcomm.AccountsFixtures,
         McEmcomm.ResendHelpers,
         McEmcomm.ResendMock,
-        McEmcommWeb.FailingBodyAdapter
+        McEmcommWeb.FailingBodyAdapter,
+        McEmcomm.McEmcommFixtures,
+        McEmcomm.StorageMock,
+        # Real ReqS3/network calls — tests stub McEmcomm.Storage.Client via
+        # McEmcomm.StorageMock instead (§18); this module is never exercised.
+        McEmcomm.Storage.S3,
+        # `Postgrex.Types.define/3`-generated boilerplate, no logic of its own.
+        McEmcomm.PostgrexTypes
       ]
     ]
   end

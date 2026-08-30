@@ -11,7 +11,7 @@ defmodule McEmcommWeb.AdminLive.DocumentIndex do
      socket
      |> assign(
        page_title: "Documents",
-       documents: Content.list_documents(),
+       documents: Content.list_documents(members_only_allowed: true),
        form: to_form(Content.change_document(%Document{}))
      )
      |> allow_upload(:file, accept: :any, max_entries: 1, external: &presign_entry/2)}
@@ -79,7 +79,7 @@ defmodule McEmcommWeb.AdminLive.DocumentIndex do
           {:ok, _} ->
             {:noreply,
              assign(socket,
-               documents: Content.list_documents(),
+               documents: Content.list_documents(members_only_allowed: true),
                form: to_form(Content.change_document(%Document{}))
              )}
 
@@ -95,12 +95,12 @@ defmodule McEmcommWeb.AdminLive.DocumentIndex do
   def handle_event("toggle_active", %{"id" => id}, socket) do
     document = Content.get_document!(id)
     Content.update_document(document, %{active: !document.active})
-    {:noreply, assign(socket, documents: Content.list_documents())}
+    {:noreply, assign(socket, documents: Content.list_documents(members_only_allowed: true))}
   end
 
   def handle_event("delete", %{"id" => id}, socket) do
     Content.get_document!(id) |> Content.delete_document()
-    {:noreply, assign(socket, documents: Content.list_documents())}
+    {:noreply, assign(socket, documents: Content.list_documents(members_only_allowed: true))}
   end
 
   defp presign_entry(entry, socket) do

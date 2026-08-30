@@ -25,6 +25,6 @@ defmodule McEmcomm.Net.NetSession do
   end
 
   def end_changeset(net_session, ended_at \\ DateTime.utc_now()) do
-    change(net_session, ended_at: ended_at)
+    change(net_session, ended_at: DateTime.truncate(ended_at, :second))
   end
 end
