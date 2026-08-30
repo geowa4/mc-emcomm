@@ -19,7 +19,16 @@ defmodule McEmcommWeb.SightingLive.Show do
   @impl true
   def mount(%{"public_id" => public_id}, session, socket) do
     asset = Assets.get_asset_by_public_id(public_id)
-    sighting_id = session["sighting_id"]
+
+    # The sighting must be the one this session's scan of *this* asset
+    # created; a session left over from another asset does not carry over.
+    sighting =
+      asset &&
+        Sightings.get_for_session(
+          session["sighting_id"],
+          session["sighting_session_token"],
+          asset.id
+        )
 
     cond do
       is_nil(asset) or not asset.active ->
@@ -28,7 +37,7 @@ defmodule McEmcommWeb.SightingLive.Show do
          |> put_flash(:error, "That asset couldn't be found.")
          |> push_navigate(to: ~p"/")}
 
-      is_nil(sighting_id) ->
+      is_nil(sighting) ->
         {:ok,
          socket
          |> put_flash(
@@ -38,8 +47,6 @@ defmodule McEmcommWeb.SightingLive.Show do
          |> push_navigate(to: ~p"/")}
 
       true ->
-        sighting = Sightings.get!(sighting_id)
-
         {:ok,
          assign(socket,
            page_title: asset.name,

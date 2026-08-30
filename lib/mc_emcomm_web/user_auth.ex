@@ -18,10 +18,14 @@ defmodule McEmcommWeb.UserAuth do
   # the session validity setting in UserToken.
   @max_cookie_age_in_days 14
   @remember_me_cookie "_mc_emcomm_web_user_remember_me"
+  # The remember-me cookie carries a live session token, so it is marked
+  # Secure wherever the app is served over HTTPS (see :secure_cookies in
+  # config/prod.exs).
   @remember_me_options [
     sign: true,
     max_age: @max_cookie_age_in_days * 24 * 60 * 60,
-    same_site: "Lax"
+    same_site: "Lax",
+    secure: Application.compile_env(:mc_emcomm, :secure_cookies, false)
   ]
 
   # How old the session token should be before a new one is issued. When a request is made

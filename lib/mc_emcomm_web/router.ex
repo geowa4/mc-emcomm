@@ -1,6 +1,7 @@
 defmodule McEmcommWeb.Router do
   use McEmcommWeb, :router
 
+  import McEmcommWeb.MemberAuth, only: [require_admin_user: 2]
   import McEmcommWeb.UserAuth
 
   pipeline :browser do
@@ -121,13 +122,16 @@ defmodule McEmcommWeb.Router do
   #   pipe_through :api
   # end
 
-  ## LiveDashboard, behind authentication in every environment.
+  ## LiveDashboard, behind admin authentication in every environment.
   #
-  # Any registered user can reach it. Before exposing a production deployment
-  # to untrusted sign-ups, add an admin check to this pipeline.
+  # It exposes process state, ETS contents, and the application environment
+  # (Resend API key, webhook secret, database URL in production), so being
+  # logged in is not enough: registration is open to the public. Reaching a
+  # LiveView in another `live_session` always costs a full HTTP request, so
+  # this pipeline is the only way in.
 
   scope "/dev" do
-    pipe_through [:browser, :require_authenticated_user]
+    pipe_through [:browser, :require_authenticated_user, :require_admin_user]
 
     import Phoenix.LiveDashboard.Router
 

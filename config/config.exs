@@ -39,6 +39,11 @@ config :mc_emcomm, McEmcommWeb.Endpoint,
   pubsub_server: McEmcomm.PubSub,
   live_view: [signing_salt: "HuHRlVnG"]
 
+# Session and remember-me cookies are marked Secure only where the app is
+# served over HTTPS; config/prod.exs turns this on. Dev and test serve plain
+# HTTP on localhost, where a Secure cookie would never be stored.
+config :mc_emcomm, :secure_cookies, false
+
 # Configure LiveView
 config :phoenix_live_view,
   # the attribute set on all root tags. Used for Phoenix.LiveView.ColocatedCSS.
