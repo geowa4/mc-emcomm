@@ -1,0 +1,27 @@
+# Phoenix-specific static analysis, run in CI as `mix sobelow --config`.
+#
+# `exit: "low"` makes any finding fail the build. The entries below are
+# findings that were reviewed and accepted, not noise that was silenced —
+# revisit them whenever the app grows a new `raw/1` call, a route outside
+# `:protect_from_forgery`, or a secret in configuration.
+[
+  verbose: false,
+  private: false,
+  skip: true,
+  router: "lib/mc_emcomm_web/router.ex",
+  exit: "low",
+  ignore: [
+    # POST /webhooks/resend deliberately carries no CSRF token: it is an
+    # inbound server-to-server delivery authenticated by its Svix HMAC
+    # signature in McEmcommWeb.Plugs.VerifyResendSignature.
+    "Config.CSRFRoute",
+    # The one raw/1 in the app renders a QR SVG that EQRCode builds from a
+    # server-side URL, never from user input
+    # (McEmcommWeb.AdminLive.InventoryIndex.qr_svg/1).
+    "XSS.Raw"
+  ],
+  # Dev and test configuration carry the generated secret_key_base that
+  # `mix phx.new` ships. Every production secret is read from the environment
+  # in config/runtime.exs, which this list does not cover.
+  ignore_files: ["config/dev.exs", "config/test.exs"]
+]

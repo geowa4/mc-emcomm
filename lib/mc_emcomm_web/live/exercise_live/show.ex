@@ -4,6 +4,7 @@ defmodule McEmcommWeb.ExerciseLive.Show do
   alias McEmcomm.Exercises
   alias McEmcomm.Storage
   alias McEmcommWeb.MapHelpers
+  alias McEmcommWeb.ParamHelpers
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -113,9 +114,15 @@ defmodule McEmcommWeb.ExerciseLive.Show do
   end
 
   def handle_event("download_attachment", %{"id" => id}, socket) do
-    attachment = Enum.find(socket.assigns.exercise.attachments, &(&1.id == String.to_integer(id)))
-    url = Storage.presign_download_url(attachment.key)
-    {:noreply, redirect(socket, external: url)}
+    id = ParamHelpers.id(id)
+
+    case Enum.find(socket.assigns.exercise.attachments, &(&1.id == id)) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "That attachment is no longer available.")}
+
+      attachment ->
+        {:noreply, redirect(socket, external: Storage.presign_download_url(attachment.key))}
+    end
   end
 
   defp markers_json(exercise) do

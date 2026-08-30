@@ -14,7 +14,11 @@ defmodule McEmcommWeb.PublicLive.Resources do
     {:ok,
      assign(socket,
        page_title: "Resources",
-       documents: Content.list_documents(active_only: true, members_only_allowed: true),
+       # A visitor who cannot download a members-only document is not shown
+       # one either: the titles and filenames are themselves operational
+       # detail, and the tier matrix (spec §3) puts gated documents out of
+       # public reach entirely.
+       documents: Content.list_documents(active_only: true, members_only_allowed: can_download?),
        can_download?: can_download?
      )}
   end
@@ -40,21 +44,18 @@ defmodule McEmcommWeb.PublicLive.Resources do
             </div>
           </div>
           <div>
-            <button
-              :if={@can_download? or not doc.members_only}
-              class="btn btn-sm btn-outline"
-              phx-click="download"
-              phx-value-id={doc.id}
-            >
+            <button class="btn btn-sm btn-outline" phx-click="download" phx-value-id={doc.id}>
               Download
             </button>
-            <span :if={!@can_download? and doc.members_only} class="text-sm text-base-content/50">
-              <.link navigate={~p"/users/log-in"} class="link">Log in</.link> to download
-            </span>
           </div>
         </li>
       </ul>
       <p :if={@documents == []} class="text-base-content/70 mt-4">No resources published yet.</p>
+
+      <p :if={!@can_download?} id="members-only-note" class="text-sm text-base-content/70 mt-4">
+        Approved members have further operational resources.
+        <.link navigate={~p"/users/log-in"} class="link">Log in</.link> to see them.
+      </p>
     </Layouts.app>
     """
   end

@@ -6,6 +6,7 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
   alias McEmcomm.Exercises.ExerciseLocation
   alias McEmcomm.Storage
   alias McEmcommWeb.MapHelpers
+  alias McEmcommWeb.ParamHelpers
 
   @impl true
   def mount(_params, _session, socket) do
@@ -236,7 +237,8 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
 
   def handle_event("delete_location", %{"id" => id}, socket) do
     exercise = socket.assigns.exercise
-    location = Enum.find(exercise.locations, &(&1.id == String.to_integer(id)))
+    id = ParamHelpers.id(id)
+    location = Enum.find(exercise.locations, &(&1.id == id))
     location && Exercises.delete_exercise_location(location)
     exercise = Exercises.get_exercise!(exercise.id)
     {:noreply, assign(socket, exercise: exercise, markers_json: markers_json(exercise))}
@@ -244,7 +246,8 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
 
   def handle_event("delete_attachment", %{"id" => id}, socket) do
     exercise = socket.assigns.exercise
-    att = Enum.find(exercise.attachments, &(&1.id == String.to_integer(id)))
+    id = ParamHelpers.id(id)
+    att = Enum.find(exercise.attachments, &(&1.id == id))
     att && Exercises.delete_exercise_attachment(att)
     {:noreply, assign(socket, exercise: Exercises.get_exercise!(exercise.id))}
   end

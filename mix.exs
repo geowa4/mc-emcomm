@@ -145,6 +145,11 @@ defmodule McEmcomm.MixProject do
       # Dev / test tooling
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      # Security scanning, both run in CI: mix_audit checks the lock against
+      # the advisory database (`mix hex.audit` only reports retired packages),
+      # sobelow is Phoenix-specific static analysis (see .sobelow-conf).
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.15", only: [:dev, :test], runtime: false},
       {:igniter, "~> 0.8", only: [:dev, :test]},
       {:usage_rules, "~> 1.2", only: [:dev, :test]},
       {:tidewave, "~> 0.9", only: :dev},

@@ -11,6 +11,7 @@ defmodule McEmcommWeb.Router do
     plug :put_root_layout, html: {McEmcommWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug McEmcommWeb.Plugs.ContentSecurityPolicy
     plug :fetch_current_scope_for_user
   end
 
@@ -135,13 +136,28 @@ defmodule McEmcommWeb.Router do
 
     import Phoenix.LiveDashboard.Router
 
-    live_dashboard "/dashboard", metrics: McEmcommWeb.Telemetry, ecto_repos: [McEmcomm.Repo]
+    # LiveDashboard renders an inline script and stylesheet of its own; this
+    # points it at the nonce McEmcommWeb.Plugs.ContentSecurityPolicy assigned.
+    live_dashboard "/dashboard",
+      metrics: McEmcommWeb.Telemetry,
+      ecto_repos: [McEmcomm.Repo],
+      csp_nonce_assign_key: %{img: :csp_nonce, style: :csp_nonce, script: :csp_nonce}
   end
 
   # Enable the Swoosh mailbox preview in development
   if Application.compile_env(:mc_emcomm, :dev_routes) do
+    # The preview is third-party HTML with inline scripts of its own, which our
+    # nonce cannot reach, so it gets the browser stack without the CSP. This
+    # whole block is compiled in dev only.
+    pipeline :dev_browser do
+      plug :accepts, ["html"]
+      plug :fetch_session
+      plug :protect_from_forgery
+      plug :put_secure_browser_headers
+    end
+
     scope "/dev" do
-      pipe_through :browser
+      pipe_through :dev_browser
 
       forward "/mailbox", Plug.Swoosh.MailboxPreview
     end

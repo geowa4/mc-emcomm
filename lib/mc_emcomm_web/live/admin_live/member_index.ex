@@ -5,6 +5,7 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
 
   alias McEmcomm.Members
   alias McEmcomm.Members.Member
+  alias McEmcommWeb.ParamHelpers
 
   @impl true
   def mount(_params, _session, socket) do
@@ -115,11 +116,13 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
         socket
       ) do
     socket = assign(socket, reason_for: nil)
-    transition(socket, Members.get_member!(id), String.to_existing_atom(to), reason)
+    # `to` stays a string: Members.transition_status/4 validates it against the
+    # legal transitions before it ever becomes an atom.
+    transition(socket, Members.get_member!(id), to, reason)
   end
 
   def handle_event("show_audit", %{"id" => id}, socket) do
-    {:noreply, assign(socket, audit_for: String.to_integer(id))}
+    {:noreply, assign(socket, audit_for: ParamHelpers.id(id))}
   end
 
   def handle_event("update_role", %{"id" => id, "role" => role}, socket) do

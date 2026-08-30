@@ -41,10 +41,15 @@ jobs:
           restore-keys: ${{ runner.os }}-mix-
       - run: mix deps.get
       - run: mix hex.audit
+      # hex.audit only reports retired packages; deps.audit checks the lock
+      # against the advisory database.
+      - run: mix deps.audit
       - run: mix format --check-formatted
       - run: mix deps.unlock --check-unused
       - run: mix compile --warnings-as-errors
       - run: mix credo --strict
+      # Phoenix-specific static analysis; accepted findings live in .sobelow-conf.
+      - run: mix sobelow --config
       # AGENTS.md <-> CLAUDE.md bridge guard
       - name: Verify CLAUDE.md bridge
         run: grep -qxF '@AGENTS.md' CLAUDE.md
