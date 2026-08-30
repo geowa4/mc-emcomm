@@ -118,12 +118,10 @@ defmodule McEmcomm.Members do
     }
 
     audit_changeset = MembershipAudit.changeset(%MembershipAudit{}, audit_attrs)
+    member_changeset = Member.status_changeset(member, String.to_existing_atom(to_status))
 
     Ecto.Multi.new()
-    |> Ecto.Multi.update(
-      :member,
-      Member.status_changeset(member, String.to_existing_atom(to_status))
-    )
+    |> Ecto.Multi.update(:member, member_changeset)
     |> Ecto.Multi.insert(:audit, audit_changeset)
     |> Repo.transaction()
     |> case do

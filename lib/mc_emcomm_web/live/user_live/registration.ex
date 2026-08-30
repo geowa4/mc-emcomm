@@ -109,8 +109,10 @@ defmodule McEmcommWeb.UserLive.Registration do
     if changeset.valid? do
       data = Ecto.Changeset.apply_changes(changeset)
 
+      user_changeset = User.email_changeset(%User{}, %{email: data.email})
+
       Ecto.Multi.new()
-      |> Ecto.Multi.insert(:user, User.email_changeset(%User{}, %{email: data.email}))
+      |> Ecto.Multi.insert(:user, user_changeset)
       |> Ecto.Multi.insert(:member, fn %{user: user} ->
         Member.registration_changeset(%Member{}, %{
           user_id: user.id,

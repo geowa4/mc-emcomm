@@ -72,8 +72,10 @@ defmodule McEmcomm.Exercises do
   def create_exercise_with_locations(exercise_attrs, location_attrs_list) do
     location_attrs_list = default_single_location_name(location_attrs_list)
 
+    exercise_changeset = Exercise.changeset(%Exercise{}, exercise_attrs)
+
     Ecto.Multi.new()
-    |> Ecto.Multi.insert(:exercise, Exercise.changeset(%Exercise{}, exercise_attrs))
+    |> Ecto.Multi.insert(:exercise, exercise_changeset)
     |> Ecto.Multi.run(:locations, fn repo, %{exercise: exercise} ->
       results =
         Enum.map(location_attrs_list, fn attrs ->
