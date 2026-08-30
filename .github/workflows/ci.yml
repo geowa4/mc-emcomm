@@ -40,10 +40,9 @@ jobs:
           key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
       - run: mix deps.get
-      - run: mix hex.audit
-      # hex.audit only reports retired packages; deps.audit checks the lock
-      # against the advisory database.
-      - run: mix deps.audit
+      # Retired packages (hex.audit) and advisories against the lock
+      # (deps.audit); the `audit` alias runs both.
+      - run: mix audit
       - run: mix format --check-formatted
       - run: mix deps.unlock --check-unused
       - run: mix compile --warnings-as-errors
