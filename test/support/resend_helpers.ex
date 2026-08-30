@@ -1,14 +1,9 @@
 defmodule McEmcomm.ResendHelpers do
   @moduledoc """
-  Test helpers for the Resend integration: Svix-style signing of webhook
-  payloads and builders for Receiving API objects and webhook events.
+  Test helpers for the Resend webhook integration: Svix-style signing of
+  webhook payloads and a builder for webhook events.
   """
   import Plug.Conn
-
-  @doc "A unique sender address, so concurrent tests never share a PubSub topic."
-  def unique_address(prefix \\ "sender") do
-    "#{prefix}-#{System.unique_integer([:positive])}@example.com"
-  end
 
   @doc "Signs `body` the way Svix/Resend do and puts the three headers on `conn`."
   def sign_webhook(conn, body, opts \\ []) do
@@ -57,24 +52,5 @@ defmodule McEmcomm.ResendHelpers do
       )
 
     %{"type" => "email.received", "created_at" => data["created_at"], "data" => data}
-  end
-
-  @doc "Builds a received-email object as returned by `GET /emails/receiving`."
-  def received_email(attrs \\ %{}) do
-    Map.merge(
-      %{
-        "id" => "em_" <> Integer.to_string(System.unique_integer([:positive])),
-        "from" => "alice@example.com",
-        "to" => ["inbound@mc-emcomm.example"],
-        "subject" => "Hello",
-        "created_at" => "2026-08-25T12:00:00.000Z",
-        "bcc" => [],
-        "cc" => [],
-        "reply_to" => [],
-        "message_id" => "<abc@example.com>",
-        "attachments" => []
-      },
-      Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
-    )
   end
 end

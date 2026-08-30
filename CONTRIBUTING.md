@@ -32,15 +32,13 @@ live in AGENTS.md; this file holds the detail those rules point to.
 ## Testing
 
 - Run all tests: `mix test`
-- Run one file: `mix test test/mc_emcomm_web/live/inbox_live_test.exs`
-- Run one test: `mix test test/mc_emcomm_web/live/inbox_live_test.exs:42`
+- Run one file: `mix test test/mc_emcomm_web/controllers/webhook_controller_test.exs`
+- Run one test: `mix test test/mc_emcomm_web/controllers/webhook_controller_test.exs:42`
 - Re-run only failures: `mix test --failed`
 - Coverage report: `mix test --cover` (CI enforces the threshold set in `mix.exs`)
 - Stack: ExUnit, Ecto SQL Sandbox, Mox, StreamData, `Phoenix.LiveViewTest`,
-  PhoenixTest. `Req.Test` stubs the HTTP behind `McEmcomm.Resend` (see
-  `config/test.exs`); consumers of the Receiving API depend on the
-  `McEmcomm.Resend.Client` behaviour and are tested against `McEmcomm.ResendMock`
-  (Mox, defined in `test/support/mocks.ex`, wired via `:resend_client`).
+  PhoenixTest. External HTTP dependencies are stubbed behind behaviours with
+  Mox mocks (defined in `test/support/mocks.ex`).
 
 ## Database & migrations
 
@@ -59,8 +57,8 @@ live in AGENTS.md; this file holds the detail those rules point to.
 
 ## Inbound webhooks
 
-- Resend `email.received` events are metadata-only; full content, when needed, is
-  fetched from the Receiving API using the event's email id.
+- Resend `email.received` events are metadata-only; full content, when needed,
+  can be fetched from the Receiving API using the event's email id.
 - Signatures are verified manually with the Svix scheme: HMAC-SHA256 over
   `id.timestamp.body`, `whsec_`-stripped base64-decoded key, constant-time
   comparison, ±300s timestamp tolerance. The absence of a `svix` dependency is
@@ -68,12 +66,9 @@ live in AGENTS.md; this file holds the detail those rules point to.
 - Events are deduplicated on `svix-id` via the `webhook_events` table; handlers
   return 200 fast. Only the `svix-id` (and event type) is persisted — email
   metadata is never stored in the database.
-- After dedupe, `McEmcomm.Inbound` broadcasts the event metadata over
-  `Phoenix.PubSub` on a per-sender topic (`inbound_emails:<normalized from>`).
-  The `/inbox` LiveView subscribes for the logged-in user's address, backfills
-  history from `GET /emails/receiving`, and keeps everything in process memory.
-- `From`-based matching is spoofable; it demonstrates data flow and must never
-  be used as an authentication or authorization signal.
+- After dedupe, events are dispatched asynchronously to
+  `McEmcomm.Inbound.handle_event/1`, currently a no-op extension point for
+  future processing.
 - Endpoint: `POST /webhooks/resend`. Point the Resend webhook at
   `https://<host>/webhooks/resend` and set `RESEND_WEBHOOK_SECRET`.
 

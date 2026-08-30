@@ -27,16 +27,8 @@ config :mc_emcomm, McEmcommWeb.Endpoint,
 # In test we don't send emails
 config :mc_emcomm, McEmcomm.Mailer, adapter: Swoosh.Adapters.Test
 
-# Resend: a fixed webhook secret for signature tests and a Req.Test plug so
-# McEmcomm.Resend never reaches the network.
-config :mc_emcomm,
-  resend_api_key: "re_test_key",
-  resend_webhook_secret: "whsec_" <> Base.encode64("test-webhook-secret")
-
-config :mc_emcomm, McEmcomm.Resend, req_options: [plug: {Req.Test, McEmcomm.Resend}, retry: false]
-
-# Consumers of the Receiving API go through a Mox mock (defined in test/support/mocks.ex).
-config :mc_emcomm, :resend_client, McEmcomm.ResendMock
+# Resend: a fixed webhook secret for signature tests.
+config :mc_emcomm, resend_webhook_secret: "whsec_" <> Base.encode64("test-webhook-secret")
 
 # Storage: ReqS3.presign_form/1 and presign_url/1 are always stubbed in tests (§18)
 # via a Mox mock instead of reaching Tigris.

@@ -172,7 +172,6 @@ defmodule McEmcommWeb.Router do
       on_mount: [{McEmcommWeb.UserAuth, :require_authenticated}] do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
-      live "/inbox", InboxLive, :index
     end
 
     post "/users/update-password", UserSessionController, :update_password

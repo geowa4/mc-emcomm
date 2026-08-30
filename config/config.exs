@@ -61,10 +61,10 @@ config :mc_emcomm, McEmcomm.Mailer, adapter: Swoosh.Adapters.Resend
 config :mc_emcomm, mail_from: "contact@example.com"
 config :swoosh, api_client: Swoosh.ApiClient.Req
 
-# Resend Receiving API client (McEmcomm.Resend) and inbound webhook verification
-# (McEmcommWeb.Plugs.VerifyResendSignature). Both values come from the
-# environment in config/runtime.exs; the defaults here only make the keys exist.
-config :mc_emcomm, resend_api_key: nil, resend_webhook_secret: nil
+# Inbound webhook verification (McEmcommWeb.Plugs.VerifyResendSignature). The
+# value comes from the environment in config/runtime.exs; the default here only
+# makes the key exist.
+config :mc_emcomm, resend_webhook_secret: nil
 
 # Prometheus metrics are served by a dedicated Bandit listener on a private
 # port (see McEmcommWeb.MetricsEndpoint). PromEx's Cowboy-based metrics server

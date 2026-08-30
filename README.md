@@ -39,7 +39,6 @@ specification this application implements.
   presigned forms/URLs
 - `eqrcode` for QR generation, `ua_inspector` for lazy user-agent parsing
 - Resend outbound email (Swoosh) and a signature-verified inbound webhook
-  feeding an authenticated `/inbox` LiveView over PubSub
 - Health endpoints, Prometheus on a private port, OpenTelemetry, JSON logs
 - A five-layer quality gate under `mix precommit`; Dialyzer in CI
 - Fly.io blue-green deployment with a release migrator (not yet provisioned

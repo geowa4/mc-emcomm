@@ -148,11 +148,9 @@ if config_env() == :prod do
 
   # ## Mailer, Resend and inbound webhooks
   #
-  # RESEND_API_KEY feeds both the Swoosh adapter (outbound mail) and
-  # McEmcomm.Resend, the Req-based Receiving API client used by the /inbox
-  # LiveView. RESEND_WEBHOOK_SECRET verifies inbound webhook signatures.
+  # RESEND_API_KEY feeds the Swoosh adapter (outbound mail).
+  # RESEND_WEBHOOK_SECRET verifies inbound webhook signatures.
   config :mc_emcomm, McEmcomm.Mailer, api_key: System.fetch_env!("RESEND_API_KEY")
-  config :mc_emcomm, resend_api_key: System.fetch_env!("RESEND_API_KEY")
   # MAIL_FROM must be an address on a domain verified in Resend.
   config :mc_emcomm, mail_from: System.fetch_env!("MAIL_FROM")
   config :mc_emcomm, resend_webhook_secret: System.fetch_env!("RESEND_WEBHOOK_SECRET")
@@ -186,11 +184,9 @@ if config_env() == :prod do
 end
 
 if config_env() == :dev do
-  # Optional in dev: set RESEND_API_KEY / RESEND_WEBHOOK_SECRET to exercise the
-  # /inbox LiveView and the webhook against a real Resend account. Outbound
-  # mail stays on the local adapter regardless.
+  # Optional in dev: set RESEND_WEBHOOK_SECRET to exercise the webhook against
+  # a real Resend account. Outbound mail stays on the local adapter regardless.
   config :mc_emcomm,
-    resend_api_key: System.get_env("RESEND_API_KEY"),
     resend_webhook_secret:
       System.get_env("RESEND_WEBHOOK_SECRET", "whsec_" <> Base.encode64("dev-webhook-secret"))
 end
