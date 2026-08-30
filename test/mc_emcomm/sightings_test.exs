@@ -128,6 +128,35 @@ defmodule McEmcomm.SightingsTest do
       assert attendance.sighting_id == submitted.id
     end
 
+    test "a submitter cannot mark their own sighting verified" do
+      sighting = visited_sighting_fixture()
+
+      assert {:ok, updated} =
+               Sightings.submit(sighting, %{
+                 "call_sign" => "N0CALL",
+                 "verified" => "true"
+               })
+
+      refute updated.verified
+    end
+
+    test "a submitter cannot pick the member, exercise, or location the sighting links to" do
+      member = McEmcommFixtures.member_fixture(%{call_sign: "W2OWN"})
+      exercise = McEmcommFixtures.exercise_fixture()
+      sighting = visited_sighting_fixture()
+
+      assert {:ok, updated} =
+               Sightings.submit(sighting, %{
+                 "call_sign" => "N0CALL",
+                 "member_id" => member.id,
+                 "exercise_id" => exercise.id
+               })
+
+      assert is_nil(updated.member_id)
+      assert is_nil(updated.exercise_id)
+      assert is_nil(updated.exercise_location_id)
+    end
+
     test "no attendance is created without a geofence match" do
       member = McEmcommFixtures.member_fixture(%{call_sign: "W2NOM"})
       exercise = McEmcommFixtures.exercise_fixture()
@@ -231,6 +260,45 @@ defmodule McEmcomm.SightingsTest do
       untouched = Sightings.get!(recent_sighting.id)
       assert untouched.remote_ip != nil
       assert is_nil(untouched.scrubbed_at)
+    end
+  end
+
+  describe "get_for_session/3" do
+    test "returns the sighting when the id, token, and asset all match" do
+      sighting = visited_sighting_fixture()
+
+      assert %{id: id} =
+               Sightings.get_for_session(
+                 sighting.id,
+                 sighting.session_token,
+                 sighting.asset_id
+               )
+
+      assert id == sighting.id
+    end
+
+    test "returns nil for a sighting recorded against a different asset" do
+      sighting = visited_sighting_fixture()
+      other_asset = McEmcommFixtures.asset_fixture()
+
+      refute Sightings.get_for_session(
+               sighting.id,
+               sighting.session_token,
+               other_asset.id
+             )
+    end
+
+    test "returns nil when the session token does not match" do
+      sighting = visited_sighting_fixture()
+
+      refute Sightings.get_for_session(sighting.id, "not-the-token", sighting.asset_id)
+    end
+
+    test "returns nil for a missing id or token" do
+      sighting = visited_sighting_fixture()
+
+      refute Sightings.get_for_session(nil, sighting.session_token, sighting.asset_id)
+      refute Sightings.get_for_session(sighting.id, nil, sighting.asset_id)
     end
   end
 

@@ -30,7 +30,11 @@ config :mc_emcomm,
   nominatim_user_agent:
     System.get_env("MC_EMCOMM_NOMINATIM_USER_AGENT", "mc_emcomm (dev; contact@example.com)"),
   map_tile_url:
-    System.get_env("MC_EMCOMM_MAP_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+    System.get_env("MC_EMCOMM_MAP_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png"),
+  # AWS_ENDPOINT_URL_S3 is read by req_s3 itself; it is mirrored here so the
+  # Content-Security-Policy can name the bucket origin the browser talks to
+  # directly — presigned <img> URLs, and `external:` uploads posted by XHR.
+  storage_url: System.get_env("AWS_ENDPOINT_URL_S3")
 
 # ## Using releases
 #

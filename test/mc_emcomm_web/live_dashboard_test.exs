@@ -3,13 +3,23 @@ defmodule McEmcommWeb.LiveDashboardTest do
 
   import Phoenix.LiveViewTest
 
+  alias McEmcomm.McEmcommFixtures
+
   test "requires a logged-in user", %{conn: conn} do
     assert {:error, {:redirect, %{to: to}}} = live(conn, ~p"/dev/dashboard")
     assert to == ~p"/users/log-in"
   end
 
-  test "renders the dashboard for a logged-in user", %{conn: conn} do
+  test "a non-admin user is turned away", %{conn: conn} do
     %{conn: conn} = register_and_log_in_user(%{conn: conn})
+
+    assert {:error, {:redirect, %{to: to}}} = live(conn, ~p"/dev/dashboard")
+    assert to == ~p"/"
+  end
+
+  test "renders the dashboard for an admin", %{conn: conn} do
+    admin = McEmcommFixtures.admin_scope_fixture().user
+    conn = log_in_user(conn, admin)
 
     {:ok, lv, _html} =
       conn

@@ -11,7 +11,33 @@ defmodule McEmcommWeb.MemberAuth do
 
   use McEmcommWeb, :verified_routes
 
+  import Phoenix.Controller, only: [put_flash: 3, redirect: 2]
+  import Plug.Conn, only: [halt: 1]
+
   alias McEmcomm.Accounts.Scope
+
+  @doc """
+  Plug for non-LiveView routes that require an administrator.
+
+  Used for LiveDashboard, which exposes process state, ETS contents, and the
+  application environment (which in production holds the Resend API key, the
+  webhook secret, and the database URL). Registration is open to the public,
+  so authentication alone is not a sufficient gate there.
+
+  Runs after `McEmcommWeb.UserAuth.fetch_current_scope_for_user/2`, which the
+  `:browser` pipeline already includes.
+  """
+  @spec require_admin_user(Plug.Conn.t(), keyword()) :: Plug.Conn.t()
+  def require_admin_user(conn, _opts) do
+    if Scope.admin?(conn.assigns[:current_scope]) do
+      conn
+    else
+      conn
+      |> put_flash(:error, "You must be an administrator to access this page.")
+      |> redirect(to: ~p"/")
+      |> halt()
+    end
+  end
 
   @doc false
   def on_mount(:require_member, params, session, socket) do

@@ -86,7 +86,15 @@ defmodule McEmcomm.Sightings.Sighting do
     cast(sighting, attrs, @geolocation_fields)
   end
 
-  @doc "Update point 2 — form submission."
+  @doc """
+  Update point 2 — form submission.
+
+  `attrs` carries the submitter's own form params, so only fields the
+  submitter may set are cast here. `verified` is admin-only and is written
+  through `McEmcomm.Sightings.verify/2`; `member_id`, `exercise_id` and
+  `exercise_location_id` are resolved server-side in
+  `McEmcomm.Sightings.submit/3` and put on the attrs there.
+  """
   def submit_changeset(sighting, attrs) do
     sighting
     |> cast(attrs, [
@@ -95,7 +103,6 @@ defmodule McEmcomm.Sightings.Sighting do
       :claimed_responsibility,
       :member_id,
       :submitted_at,
-      :verified,
       :exercise_id,
       :exercise_location_id
     ])

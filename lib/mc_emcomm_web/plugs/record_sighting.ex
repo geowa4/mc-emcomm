@@ -17,8 +17,14 @@ defmodule McEmcommWeb.Plugs.RecordSighting do
 
   def call(%Plug.Conn{path_params: %{"public_id" => public_id}} = conn, _opts) do
     case Assets.get_asset_by_public_id(public_id) do
+      # No row is written for an unknown or retired asset, and any sighting
+      # left in the session by an earlier scan is dropped so the LiveView
+      # cannot fall back to it for a different asset.
       nil ->
-        conn
+        forget_sighting(conn)
+
+      %{active: false} ->
+        forget_sighting(conn)
 
       asset ->
         session_token = Base.url_encode64(:crypto.strong_rand_bytes(24))
@@ -45,6 +51,12 @@ defmodule McEmcommWeb.Plugs.RecordSighting do
   end
 
   def call(conn, _opts), do: conn
+
+  defp forget_sighting(conn) do
+    conn
+    |> delete_session(:sighting_id)
+    |> delete_session(:sighting_session_token)
+  end
 
   defp remote_ip(conn) do
     case get_req_header_value(conn, "fly-client-ip") || first_forwarded_for(conn) do

@@ -9,19 +9,31 @@ defmodule McEmcommWeb.PublicLive.ResourcesTest do
 
   setup :verify_on_exit!
 
-  test "anonymous visitors see members-only documents gated, not downloadable", %{conn: conn} do
+  test "anonymous visitors never see a members-only document, not even its title", %{conn: conn} do
     McEmcommFixtures.document_fixture(%{title: "Public Doc", members_only: false})
     McEmcommFixtures.document_fixture(%{title: "Members Doc", members_only: true})
 
     {:ok, lv, html} = live(conn, ~p"/resources")
 
     assert html =~ "Public Doc"
-    assert html =~ "Members Doc"
-    assert html =~ "Log in"
+    refute html =~ "Members Doc"
+    assert lv |> element("#members-only-note") |> has_element?()
     assert lv |> element("button", "Download") |> has_element?()
   end
 
-  test "anonymous download attempt on a members-only document is refused", %{conn: conn} do
+  test "an approved member sees both, and the note is gone", %{conn: conn} do
+    McEmcommFixtures.document_fixture(%{title: "Public Doc", members_only: false})
+    McEmcommFixtures.document_fixture(%{title: "Members Doc", members_only: true})
+    member = McEmcommFixtures.member_fixture()
+
+    {:ok, lv, html} = conn |> log_in_user(member.user) |> live(~p"/resources")
+
+    assert html =~ "Public Doc"
+    assert html =~ "Members Doc"
+    refute lv |> element("#members-only-note") |> has_element?()
+  end
+
+  test "anonymous download attempt on an unlisted members-only document is refused", %{conn: conn} do
     document = McEmcommFixtures.document_fixture(%{members_only: true})
     {:ok, lv, _html} = live(conn, ~p"/resources")
 

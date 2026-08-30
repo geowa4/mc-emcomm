@@ -20,6 +20,10 @@ config :mc_emcomm, McEmcommWeb.Endpoint,
     ]
   ]
 
+# Production is HTTPS-only (force_ssl above), so cookies carry the Secure
+# attribute and are never sent over a plaintext request.
+config :mc_emcomm, :secure_cookies, true
+
 # Disable Swoosh Local Memory Storage
 config :swoosh, local: false
 

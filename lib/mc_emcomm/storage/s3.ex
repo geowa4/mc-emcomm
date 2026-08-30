@@ -13,6 +13,12 @@ defmodule McEmcomm.Storage.S3 do
 
   @download_expires_seconds 300
 
+  # Mirrors Phoenix.LiveView's default `:max_file_size` for `allow_upload/3`.
+  # `external:` uploads go straight to the bucket, so without a
+  # content-length-range condition in the POST policy the browser-side limit
+  # would be the only bound on what lands there.
+  @max_upload_bytes 8_000_000
+
   @impl true
   def presign_upload(key, content_type) do
     form =
@@ -20,6 +26,7 @@ defmodule McEmcomm.Storage.S3 do
         bucket: bucket(),
         key: key,
         content_type: content_type,
+        max_size: @max_upload_bytes,
         expires_in: :timer.hours(1)
       )
 

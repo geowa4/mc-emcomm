@@ -145,6 +145,11 @@ defmodule McEmcomm.MixProject do
       # Dev / test tooling
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      # Security scanning, both run in CI: mix_audit checks the lock against
+      # the advisory database (`mix hex.audit` only reports retired packages),
+      # sobelow is Phoenix-specific static analysis (see .sobelow-conf).
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.15", only: [:dev, :test], runtime: false},
       {:igniter, "~> 0.8", only: [:dev, :test]},
       {:usage_rules, "~> 1.2", only: [:dev, :test]},
       {:tidewave, "~> 0.9", only: :dev},
@@ -173,6 +178,14 @@ defmodule McEmcomm.MixProject do
         "tailwind mc_emcomm --minify",
         "esbuild mc_emcomm --minify",
         "phx.digest"
+      ],
+      # Both dependency audits in one step. They cover different ground —
+      # hex.audit reports retired packages, deps.audit reports advisories —
+      # and each identifies an acknowledged advisory its own way; see
+      # acknowledged_advisory_ids/0.
+      audit: [
+        "hex.audit",
+        "deps.audit --ignore-advisory-ids #{Enum.join(acknowledged_advisory_ids(), ",")}"
       ],
       precommit: [
         "format --check-formatted",
@@ -235,6 +248,21 @@ defmodule McEmcomm.MixProject do
         "CVE-2026-47076"
       ]
     ]
+  end
+
+  # The GHSA counterparts of the CVEs `hex/0` acknowledges, for `mix deps.audit`
+  # (`mix hex.audit` matches advisories by CVE, mix_audit by GHSA id, so the
+  # same reviewed set has to be spelled both ways). The cowlib entries above
+  # have no counterpart here: mix_audit's advisory database does not carry them
+  # today, and one appearing later is worth seeing rather than pre-silencing.
+  defp acknowledged_advisory_ids do
+    ~w(
+      GHSA-w4f7-4cxr-rv3c
+      GHSA-gp9c-pm5m-5cxr
+      GHSA-j9wq-vxxc-94wf
+      GHSA-mp55-p8c9-rfw2
+      GHSA-pj7v-xfvx-wmjq
+    )
   end
 
   # usage_rules keeps the dependency usage rules in AGENTS.md's managed section

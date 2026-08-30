@@ -55,6 +55,19 @@ defmodule McEmcommWeb.AppLive.ProfileTest do
     assert Capabilities.list_member_capabilities(member.id) == []
   end
 
+  test "an event naming a course the page never rendered is ignored", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    # The id is interpolated into the per-record upload name, so an unknown one
+    # would mint an atom and then raise on the missing upload config.
+    render_submit(lv, "save_course", %{"course_id" => "987654321"})
+    render_submit(lv, "save_course", %{"course_id" => "../../etc"})
+
+    assert Courses.list_member_courses(member.id) == []
+  end
+
   test "saving a course records completion", %{conn: conn} do
     member = McEmcommFixtures.member_fixture()
     course = McEmcommFixtures.course_fixture(%{name: "IS-100"})

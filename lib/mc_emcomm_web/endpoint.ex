@@ -4,11 +4,16 @@ defmodule McEmcommWeb.Endpoint do
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
+  #
+  # `secure:` is on wherever the app is served over HTTPS (see
+  # :secure_cookies in config/prod.exs). Dev and test run over plain HTTP on
+  # localhost, where a browser would drop a Secure cookie outright.
   @session_options [
     store: :cookie,
     key: "_mc_emcomm_key",
     signing_salt: "OKzLTE5q",
-    same_site: "Lax"
+    same_site: "Lax",
+    secure: Application.compile_env(:mc_emcomm, :secure_cookies, false)
   ]
 
   # Long polling is disabled as defense in depth for CVE-2026-32689

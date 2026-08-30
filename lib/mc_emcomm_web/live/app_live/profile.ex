@@ -8,6 +8,7 @@ defmodule McEmcommWeb.AppLive.Profile do
   alias McEmcomm.Members.Member
   alias McEmcomm.Storage
   alias McEmcommWeb.MapHelpers
+  alias McEmcommWeb.ParamHelpers
 
   @impl true
   def mount(_params, _session, socket) do
@@ -264,8 +265,31 @@ defmodule McEmcommWeb.AppLive.Profile do
   end
 
   def handle_event("toggle_capability", %{"id" => id}, socket) do
+    case ParamHelpers.known_id(socket.assigns.capabilities, id) do
+      nil -> {:noreply, socket}
+      capability_id -> toggle_capability(socket, capability_id)
+    end
+  end
+
+  # The id is checked against the courses this socket rendered before it is
+  # used: `course_upload_name/1` interpolates it into an atom, so an arbitrary
+  # id would both create atoms without bound and raise on an unknown upload.
+  def handle_event("save_course", %{"course_id" => course_id} = params, socket) do
+    case ParamHelpers.known_id(socket.assigns.courses, course_id) do
+      nil -> {:noreply, socket}
+      course_id -> save_course(socket, course_id, params)
+    end
+  end
+
+  def handle_event("save_certification", %{"certification_id" => cert_id} = params, socket) do
+    case ParamHelpers.known_id(socket.assigns.certifications, cert_id) do
+      nil -> {:noreply, socket}
+      cert_id -> save_certification(socket, cert_id, params)
+    end
+  end
+
+  defp toggle_capability(socket, capability_id) do
     member = socket.assigns.member
-    capability_id = String.to_integer(id)
 
     case Enum.find(socket.assigns.member_capabilities, &(&1.capability_id == capability_id)) do
       nil ->
@@ -279,9 +303,8 @@ defmodule McEmcommWeb.AppLive.Profile do
      assign(socket, member_capabilities: Capabilities.list_member_capabilities(member.id))}
   end
 
-  def handle_event("save_course", %{"course_id" => course_id} = params, socket) do
+  defp save_course(socket, course_id, params) do
     member = socket.assigns.member
-    course_id = String.to_integer(course_id)
 
     evidence =
       consume_uploaded_entries(socket, course_upload_name(course_id), fn %{key: key}, entry ->
@@ -317,9 +340,8 @@ defmodule McEmcommWeb.AppLive.Profile do
     end
   end
 
-  def handle_event("save_certification", %{"certification_id" => cert_id} = params, socket) do
+  defp save_certification(socket, cert_id, params) do
     member = socket.assigns.member
-    cert_id = String.to_integer(cert_id)
 
     task_book =
       consume_uploaded_entries(socket, task_book_upload_name(cert_id), fn %{key: key}, entry ->

@@ -37,6 +37,16 @@ defmodule McEmcommWeb.ExerciseLive.ShowTest do
     assert attendance.source == :manual
   end
 
+  test "a download event carrying a junk id is declined, not crashed on", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    exercise = McEmcommFixtures.exercise_fixture()
+
+    {:ok, lv, _html} = conn |> log_in_user(member.user) |> live(~p"/app/exercises/#{exercise.id}")
+
+    assert render_click(lv, "download_attachment", %{"id" => "not-an-id"}) =~
+             "no longer available"
+  end
+
   test "downloading an attachment redirects to a presigned URL", %{conn: conn} do
     member = McEmcommFixtures.member_fixture()
     exercise = McEmcommFixtures.exercise_fixture()

@@ -1,6 +1,7 @@
 defmodule McEmcommWeb.Router do
   use McEmcommWeb, :router
 
+  import McEmcommWeb.MemberAuth, only: [require_admin_user: 2]
   import McEmcommWeb.UserAuth
 
   pipeline :browser do
@@ -10,6 +11,7 @@ defmodule McEmcommWeb.Router do
     plug :put_root_layout, html: {McEmcommWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug McEmcommWeb.Plugs.ContentSecurityPolicy
     plug :fetch_current_scope_for_user
   end
 
@@ -121,23 +123,41 @@ defmodule McEmcommWeb.Router do
   #   pipe_through :api
   # end
 
-  ## LiveDashboard, behind authentication in every environment.
+  ## LiveDashboard, behind admin authentication in every environment.
   #
-  # Any registered user can reach it. Before exposing a production deployment
-  # to untrusted sign-ups, add an admin check to this pipeline.
+  # It exposes process state, ETS contents, and the application environment
+  # (Resend API key, webhook secret, database URL in production), so being
+  # logged in is not enough: registration is open to the public. Reaching a
+  # LiveView in another `live_session` always costs a full HTTP request, so
+  # this pipeline is the only way in.
 
   scope "/dev" do
-    pipe_through [:browser, :require_authenticated_user]
+    pipe_through [:browser, :require_authenticated_user, :require_admin_user]
 
     import Phoenix.LiveDashboard.Router
 
-    live_dashboard "/dashboard", metrics: McEmcommWeb.Telemetry, ecto_repos: [McEmcomm.Repo]
+    # LiveDashboard renders an inline script and stylesheet of its own; this
+    # points it at the nonce McEmcommWeb.Plugs.ContentSecurityPolicy assigned.
+    live_dashboard "/dashboard",
+      metrics: McEmcommWeb.Telemetry,
+      ecto_repos: [McEmcomm.Repo],
+      csp_nonce_assign_key: %{img: :csp_nonce, style: :csp_nonce, script: :csp_nonce}
   end
 
   # Enable the Swoosh mailbox preview in development
   if Application.compile_env(:mc_emcomm, :dev_routes) do
+    # The preview is third-party HTML with inline scripts of its own, which our
+    # nonce cannot reach, so it gets the browser stack without the CSP. This
+    # whole block is compiled in dev only.
+    pipeline :dev_browser do
+      plug :accepts, ["html"]
+      plug :fetch_session
+      plug :protect_from_forgery
+      plug :put_secure_browser_headers
+    end
+
     scope "/dev" do
-      pipe_through :browser
+      pipe_through :dev_browser
 
       forward "/mailbox", Plug.Swoosh.MailboxPreview
     end

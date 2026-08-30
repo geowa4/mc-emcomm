@@ -48,6 +48,9 @@ defmodule McEmcomm.Sightings do
 
   ## Update point 2 — form submit
 
+  # The only fields the sighting form itself owns; see `submit/3`.
+  @submitter_fields ~w(call_sign note claimed_responsibility)
+
   @doc """
   Applies the sighting-form submission: links a member (by call sign, or the
   given `current_member` when the submitter is logged in), geofence-matches
@@ -69,10 +72,16 @@ defmodule McEmcomm.Sightings do
     submit_attrs =
       attrs
       |> Map.new(fn {k, v} -> {to_string(k), v} end)
-      |> Map.put("submitted_at", now)
-      |> Map.put("member_id", matched_member && matched_member.id)
-      |> Map.put("exercise_id", exercise_id)
-      |> Map.put("exercise_location_id", exercise_location_id)
+      # `attrs` is the submitter's own form payload, which a client can shape
+      # freely over the socket. Only the three fields the form owns survive;
+      # everything else on the sighting is resolved here or is admin-only.
+      |> Map.take(@submitter_fields)
+      |> Map.merge(%{
+        "submitted_at" => now,
+        "member_id" => matched_member && matched_member.id,
+        "exercise_id" => exercise_id,
+        "exercise_location_id" => exercise_location_id
+      })
 
     sighting
     |> Sighting.submit_changeset(submit_attrs)
@@ -118,6 +127,32 @@ defmodule McEmcomm.Sightings do
   ## Reads
 
   def get!(id), do: Repo.get!(Sighting, id)
+
+  @doc """
+  The update-point-0 sighting for `asset_id`, looked up by the id and token
+  `McEmcommWeb.Plugs.RecordSighting` put in the plug session.
+
+  Returns nil unless both match: the token proves the session is the one the
+  row was created for, and the `asset_id` check stops a session carried over
+  from an earlier scan attaching a submission to a different asset.
+  """
+  @spec get_for_session(term(), term(), integer()) :: Sighting.t() | nil
+  def get_for_session(id, token, asset_id) when is_integer(id) and is_binary(token) do
+    with %Sighting{asset_id: ^asset_id} = sighting <- Repo.get(Sighting, id),
+         true <- session_token_matches?(sighting, token) do
+      sighting
+    else
+      _mismatch -> nil
+    end
+  end
+
+  def get_for_session(_id, _token, _asset_id), do: nil
+
+  defp session_token_matches?(%Sighting{session_token: stored}, token) when is_binary(stored) do
+    Plug.Crypto.secure_compare(token, stored)
+  end
+
+  defp session_token_matches?(_sighting, _token), do: false
 
   def get_by_session_token(token) do
     Repo.get_by(Sighting, session_token: token)

@@ -53,16 +53,16 @@ should follow in this repository.
 
 You need a PostGIS-enabled Postgres, not plain Postgres — this project
 stores `geography(Point,4326)` columns and geofence-matches with
-`ST_DWithin`/`ST_Distance`. On Apple Silicon, the official
-`postgis/postgis` image has no arm64 build; `imresamu/postgis` is a
-multi-arch mirror of the same Postgres 17 + PostGIS 3.5 combination CI uses:
+`ST_DWithin`/`ST_Distance`. The official `postgis/postgis` image has no
+arm64 build, so on Apple Silicon pin the platform and let it run under
+emulation:
 
-    docker run -d --name mc-emcomm-pg \
-      -e POSTGRES_PASSWORD=postgres -p 5433:5432 imresamu/postgis:17-3.5
+    podman run -d --name mc-emcomm-pg --platform linux/amd64 \
+      -e POSTGRES_PASSWORD=postgres -p 5433:5432 postgis/postgis:17-3.6-alpine
 
-Config reads the port from `PGPORT` (default `5432`, matching CI's
-`postgis/postgis:17-3.5` service container); export it once per shell if
-your local Postgres isn't on the default port:
+Config reads the port from `PGPORT` (default `5432`; CI runs the same
+Postgres 17 major via its `postgis/postgis:17-3.5` service container);
+export it once per shell if your local Postgres isn't on the default port:
 
     export PGPORT=5433
     mix setup            # deps, db create+migrate+seed, assets
@@ -77,10 +77,26 @@ few sample assets. The seed output prints the admin login.
 
 Uploads need a Tigris/S3-compatible bucket to actually round-trip; without
 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_ENDPOINT_URL_S3` /
-`BUCKET_NAME` set, presigning raises — fine for browsing everything else,
-just skip file uploads locally until those are set. Tests never touch real
-storage: `McEmcomm.Storage` dispatches to `McEmcomm.StorageMock` in test
-(`config/test.exs`), so `ReqS3` is never called.
+`BUCKET_NAME` set, presigning raises — fine for browsing everything else.
+For local uploads, [S3Mock](https://github.com/adobe/S3Mock) covers all
+three operations the app performs (presigned POST form, presigned GET,
+presigned DELETE) with path-style URLs:
+
+    podman run -d --name mc-emcomm-s3 -p 9090:9090 \
+      -e COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS=mc-emcomm-dev \
+      -t adobe/s3mock
+
+    AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1 \
+      AWS_ENDPOINT_URL_S3=http://localhost:9090 BUCKET_NAME=mc-emcomm-dev \
+      mix phx.server
+
+Two things S3Mock does not do: validate signatures (any credentials pass),
+or enforce POST policy conditions — an upload over the presign's
+`content-length-range` cap is accepted where Tigris rejects it with 400.
+Storage lives in the container's tmpdir and is wiped when it stops. Tests
+never touch real storage: `McEmcomm.Storage` dispatches to
+`McEmcomm.StorageMock` in test (`config/test.exs`), so `ReqS3` is never
+called.
 
 ## Environment variables
 
