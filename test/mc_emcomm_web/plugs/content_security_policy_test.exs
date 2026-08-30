@@ -1,5 +1,6 @@
 defmodule McEmcommWeb.Plugs.ContentSecurityPolicyTest do
-  use ExUnit.Case, async: true
+  # Sync: the storage-origin test rewrites the :storage_url app env.
+  use ExUnit.Case, async: false
 
   import Plug.Test
 
@@ -55,5 +56,40 @@ defmodule McEmcommWeb.Plugs.ContentSecurityPolicyTest do
 
     assert "https://#{tile_origin}" in directives["img-src"]
     refute Enum.any?(directives["img-src"], &String.contains?(&1, "{z}"))
+  end
+
+  test "names the storage origin for presigned images and direct uploads when configured" do
+    previous = Application.fetch_env(:mc_emcomm, :storage_url)
+
+    on_exit(fn ->
+      case previous do
+        {:ok, value} -> Application.put_env(:mc_emcomm, :storage_url, value)
+        :error -> Application.delete_env(:mc_emcomm, :storage_url)
+      end
+    end)
+
+    Application.put_env(:mc_emcomm, :storage_url, "https://t3.storage.dev")
+
+    directives = :get |> conn("/") |> ContentSecurityPolicy.call(@opts) |> directives()
+
+    assert "https://t3.storage.dev" in directives["img-src"]
+    assert "https://t3.storage.dev" in directives["connect-src"]
+  end
+
+  test "omits the storage origin entirely when no bucket is configured" do
+    previous = Application.fetch_env(:mc_emcomm, :storage_url)
+
+    on_exit(fn ->
+      case previous do
+        {:ok, value} -> Application.put_env(:mc_emcomm, :storage_url, value)
+        :error -> Application.delete_env(:mc_emcomm, :storage_url)
+      end
+    end)
+
+    Application.delete_env(:mc_emcomm, :storage_url)
+
+    directives = :get |> conn("/") |> ContentSecurityPolicy.call(@opts) |> directives()
+
+    assert directives["connect-src"] == ["'self'"]
   end
 end
