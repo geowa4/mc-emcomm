@@ -59,12 +59,25 @@ defmodule McEmcommWeb.Layouts do
             <.theme_toggle />
           </li>
           <li :if={@current_scope && @current_scope.user}>
-            <.link href={~p"/users/settings"} class="btn btn-ghost btn-sm">Settings</.link>
-          </li>
-          <li :if={@current_scope && @current_scope.user}>
-            <.link href={~p"/users/log-out"} method="delete" class="btn btn-ghost btn-sm">
-              Log out
-            </.link>
+            <div class="dropdown dropdown-end">
+              <button id="user-menu" tabindex="0" class="btn btn-ghost btn-sm">
+                {display_name(@current_scope)}
+                <.icon name="hero-chevron-down-micro" class="size-4" />
+              </button>
+              <ul
+                tabindex="0"
+                class="dropdown-content menu bg-base-100 rounded-box z-20 mt-1 w-40 p-2 shadow"
+              >
+                <li>
+                  <.link id="user-menu-settings" href={~p"/users/settings"}>Settings</.link>
+                </li>
+                <li>
+                  <.link id="user-menu-log-out" href={~p"/users/log-out"} method="delete">
+                    Log out
+                  </.link>
+                </li>
+              </ul>
+            </div>
           </li>
           <li :if={!(@current_scope && @current_scope.user)}>
             <a href={~p"/users/log-in"} class="btn btn-primary btn-sm">Log in</a>
@@ -129,6 +142,10 @@ defmodule McEmcommWeb.Layouts do
     <.flash_group flash={@flash} />
     """
   end
+
+  defp display_name(%{member: %{call_sign: call_sign}}) when is_binary(call_sign), do: call_sign
+  defp display_name(%{member: %{name: name}}) when is_binary(name), do: name
+  defp display_name(%{user: user}), do: user.email |> String.split("@") |> hd()
 
   @doc """
   Shows the flash group with standard titles and content.

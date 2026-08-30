@@ -73,7 +73,8 @@ defmodule McEmcommWeb.ConnCase do
   def assert_logged_in_menu(conn, user) do
     response = conn |> get(~p"/") |> html_response(200)
 
-    assert response =~ user.email
+    [email_local_part, _domain] = String.split(user.email, "@")
+    assert response =~ email_local_part
     assert response =~ ~p"/users/settings"
     assert response =~ ~p"/users/log-out"
   end
