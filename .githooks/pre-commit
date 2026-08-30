@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Fast subset of `mix precommit`. Enable with: git config core.hooksPath .githooks
+set -e
+mix format --check-formatted
+mix credo --strict

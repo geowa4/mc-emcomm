@@ -1,0 +1,66 @@
+# Continuous deployment to Fly.io. Inert until the repository is configured
+# (see CONTRIBUTING.md § Continuous deployment):
+#
+#   - variable FLY_APP       the Fly app name; the job is skipped when unset
+#   - secret   FLY_API_TOKEN a deploy token scoped to that app
+#
+# The app name comes from the variable, not from fly.toml, so this file needs
+# no edits from the rename task and the template can deploy its own
+# reference instance.
+name: Deploy
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+
+# The token only reads the repository; deployment authority comes from
+# FLY_API_TOKEN. Set explicitly so the template stays least-privilege in
+# repositories whose default workflow permissions are write.
+permissions:
+  contents: read
+
+# One deploy at a time. A queued deploy waits for the running one instead of
+# cancelling it: interrupting a blue-green rollout leaves both colours up.
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    # Automatic deploys require a successful CI run for a push to this
+    # repository's default branch; manual dispatch deploys whichever ref was
+    # selected, bounded by the production environment's deployment branch
+    # policy (CONTRIBUTING.md § Continuous deployment). workflow_run executes with this repository's secrets no matter
+    # what triggered CI, and head_branch alone is not enough: a pull request
+    # from a fork reports the fork's branch name, which can be anything.
+    # Requiring a push event from this repository rules forks out entirely.
+    if: >-
+      vars.FLY_APP != '' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == github.event.repository.default_branch))
+    environment:
+      name: production
+      url: https://${{ vars.FLY_APP }}.fly.dev
+    env:
+      FLY_APP: ${{ vars.FLY_APP }}
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - name: Require FLY_API_TOKEN
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::FLY_APP is set but the FLY_API_TOKEN secret is missing (CONTRIBUTING.md § Continuous deployment)"
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+        with:
+          # workflow_run checks out the default branch by default; deploy the
+          # commit CI actually verified.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
+      - run: flyctl deploy --remote-only --app "$FLY_APP" --build-arg GIT_SHA="$(git rev-parse HEAD)"

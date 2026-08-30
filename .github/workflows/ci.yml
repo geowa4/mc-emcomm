@@ -1,0 +1,73 @@
+name: CI
+on:
+  push:
+    branches: [main, trunk]
+  pull_request:
+
+# CI never writes to the repository. Set explicitly so the template stays
+# least-privilege in repositories whose default workflow permissions are write.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      MIX_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/my_app_test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.20.3"
+          otp-version: "28.3"
+      - uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+      - run: mix deps.get
+      - run: mix hex.audit
+      - run: mix format --check-formatted
+      - run: mix deps.unlock --check-unused
+      - run: mix compile --warnings-as-errors
+      - run: mix credo --strict
+      # AGENTS.md <-> CLAUDE.md bridge guard
+      - name: Verify CLAUDE.md bridge
+        run: grep -qxF '@AGENTS.md' CLAUDE.md
+      # usage_rules drift guard: exits non-zero if a sync would change AGENTS.md.
+      - name: Verify usage_rules sync is current
+        run: mix usage_rules.sync --check
+      - run: mix test --cover
+
+  dialyzer:
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: dev
+    steps:
+      - uses: actions/checkout@v7
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.20.3"
+          otp-version: "28.3"
+      - uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+            priv/plts
+          key: ${{ runner.os }}-plt-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-plt-
+      - run: mix deps.get
+      - run: mix dialyzer --format github

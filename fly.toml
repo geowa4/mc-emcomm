@@ -1,0 +1,57 @@
+# Fly.io configuration. Re-verify stanzas against the current Fly docs when
+# bumping flyctl; the schema drifts over time. Fly app names cannot contain
+# underscores, so `app` and PHX_HOST use the kebab-case name; `mix my_app.rename`
+# rewrites both.
+app = "my-app"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+
+[build]
+
+[deploy]
+  strategy = "bluegreen"
+  release_command = "/app/bin/migrate"
+
+[env]
+  PHX_HOST = "my-app.fly.dev"
+  PORT = "8080"
+  METRICS_PORT = "9091"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  # Mandatory: auto_stop_machines would otherwise stop the health probe,
+  # PromEx and any schedulers.
+  min_machines_running = 1
+  processes = ["app"]
+
+  # Readiness gates routing (blue-green waits for this to pass).
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "10s"
+    method = "GET"
+    timeout = "2s"
+    path = "/healthz/ready"
+
+# Liveness is observed independently of routing.
+[checks]
+  [checks.live]
+    type = "http"
+    port = 8080
+    grace_period = "10s"
+    interval = "15s"
+    timeout = "2s"
+    method = "GET"
+    path = "/healthz/live"
+
+# Scraped over the private network every 15s; never listed as a public service.
+[metrics]
+  port = 9091
+  path = "/metrics"
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
