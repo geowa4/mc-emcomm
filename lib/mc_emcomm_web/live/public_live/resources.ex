@@ -54,7 +54,8 @@ defmodule McEmcommWeb.PublicLive.Resources do
 
       <p :if={!@can_download?} id="members-only-note" class="text-sm text-base-content/70 mt-4">
         Approved members have further operational resources.
-        <.link navigate={~p"/users/log-in"} class="link">Log in</.link> to see them.
+        <.link navigate={~p"/users/log-in"} class="link">Log in</.link>
+        to see them.
       </p>
     </Layouts.app>
     """
