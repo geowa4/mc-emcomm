@@ -27,31 +27,6 @@ defmodule McEmcommWeb.NetLive.ShowTest do
     assert render(other_lv) =~ "W2OTH"
   end
 
-  test "a member who did not start the net cannot end it", %{conn: conn} do
-    starter = McEmcommFixtures.member_fixture()
-    other_member = McEmcommFixtures.member_fixture(%{call_sign: "W2OTH"})
-    session = McEmcommFixtures.net_session_fixture(starter)
-
-    {:ok, lv, html} = conn |> log_in_user(other_member.user) |> live(~p"/app/net/#{session.id}")
-
-    # The control is not rendered for them, and the event is refused even if
-    # they push it straight over the socket.
-    refute html =~ "End net"
-
-    assert render_click(lv, "end_session", %{}) =~ "Only the operator who started this net"
-    assert render(lv) =~ "checkin-form"
-  end
-
-  test "an admin can end someone else's net", %{conn: conn} do
-    starter = McEmcommFixtures.member_fixture()
-    admin = McEmcommFixtures.admin_scope_fixture().user
-    session = McEmcommFixtures.net_session_fixture(starter)
-
-    {:ok, lv, _html} = conn |> log_in_user(admin) |> live(~p"/app/net/#{session.id}")
-
-    refute render_click(lv, "end_session", %{}) =~ "checkin-form"
-  end
-
   test "ending a net removes the check-in form", %{conn: conn} do
     member = McEmcommFixtures.member_fixture()
     session = McEmcommFixtures.net_session_fixture(member)

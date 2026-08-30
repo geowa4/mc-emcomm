@@ -1,7 +1,6 @@
 defmodule McEmcommWeb.NetLive.Show do
   use McEmcommWeb, :live_view
 
-  alias McEmcomm.Accounts.Scope
   alias McEmcomm.Net
   alias McEmcomm.Net.NetCheckin
 
@@ -15,7 +14,6 @@ defmodule McEmcommWeb.NetLive.Show do
      assign(socket,
        page_title: session.name || "Net ##{session.id}",
        session: session,
-       may_end?: may_end?(socket.assigns.current_scope, session),
        checkin_form: to_form(Net.change_checkin(%NetCheckin{}))
      )}
   end
@@ -29,7 +27,7 @@ defmodule McEmcommWeb.NetLive.Show do
         <:subtitle>Started {Calendar.strftime(@session.started_at, "%Y-%m-%d %H:%M")}</:subtitle>
         <:actions>
           <.button
-            :if={is_nil(@session.ended_at) and @may_end?}
+            :if={is_nil(@session.ended_at)}
             phx-click="end_session"
             class="btn btn-outline btn-sm"
           >
@@ -81,12 +79,8 @@ defmodule McEmcommWeb.NetLive.Show do
   end
 
   def handle_event("end_session", _params, socket) do
-    if socket.assigns.may_end? do
-      {:ok, session} = Net.end_session(socket.assigns.session)
-      {:noreply, assign(socket, session: %{socket.assigns.session | ended_at: session.ended_at})}
-    else
-      {:noreply, put_flash(socket, :error, "Only the operator who started this net can end it.")}
-    end
+    {:ok, session} = Net.end_session(socket.assigns.session)
+    {:noreply, assign(socket, session: %{socket.assigns.session | ended_at: session.ended_at})}
   end
 
   @impl true
@@ -94,13 +88,4 @@ defmodule McEmcommWeb.NetLive.Show do
     session = socket.assigns.session
     {:noreply, assign(socket, session: %{session | checkins: session.checkins ++ [checkin]})}
   end
-
-  # Every approved member may take check-ins on any net, but closing one out
-  # belongs to the operator who started it (or to an admin).
-  defp may_end?(scope, session) do
-    Scope.admin?(scope) or started_net?(scope, session)
-  end
-
-  defp started_net?(%Scope{member: %{id: id}}, %{started_by_member_id: id}), do: true
-  defp started_net?(_scope, _session), do: false
 end
