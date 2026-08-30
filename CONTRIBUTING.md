@@ -6,9 +6,13 @@ live in AGENTS.md; this file holds the detail those rules point to.
 ## Setup
 
 - Toolchain: Erlang/OTP 28 and Elixir 1.20 (pinned in `mise.toml`; `mise install`).
-  PostgreSQL 17 on `localhost:5432` with `postgres`/`postgres`
-  (for example `podman run -d --name base-phoenix-pg -e POSTGRES_PASSWORD=postgres
-  -p 5432:5432 -v base-phoenix-pgdata:/var/lib/postgresql/data postgres:17`).
+  PostGIS-enabled PostgreSQL 17 with `postgres`/`postgres` — plain Postgres will
+  not run this app (the first migration creates the `postgis` extension). Run it
+  with podman; the official image has no arm64 build, so pin the platform on
+  Apple Silicon (for example `podman run -d --name mc-emcomm-pg
+  --platform linux/amd64 -e POSTGRES_PASSWORD=postgres -p 5433:5432
+  -v mc-emcomm-pgdata:/var/lib/postgresql/data postgis/postgis:17-3.6-alpine`,
+  then `export PGPORT=5433`; config defaults to `localhost:5432`).
 - Install and set up everything: `mix setup`
 - Create/migrate/seed the database: `mix ecto.setup`
 - Drop and recreate the database: `mix ecto.reset`
