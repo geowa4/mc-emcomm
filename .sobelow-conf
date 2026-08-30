@@ -3,7 +3,12 @@
 # `exit: "low"` makes any finding fail the build. The entries below are
 # findings that were reviewed and accepted, not noise that was silenced —
 # revisit them whenever the app grows a new `raw/1` call, a route outside
-# `:protect_from_forgery`, or a secret in configuration.
+# `:protect_from_forgery`, a secret in configuration, or another interpolated
+# atom.
+#
+# These live here rather than as `@sobelow_skip` attributes next to the code
+# they cover: an unused module attribute is a compiler warning, and CI builds
+# with `--warnings-as-errors`.
 [
   verbose: false,
   private: false,
@@ -11,6 +16,22 @@
   router: "lib/mc_emcomm_web/router.ex",
   exit: "low",
   ignore: [
+    # Config.CSP reads the router for a `put_secure_browser_headers` call
+    # carrying a policy map. This app sends its policy from a dedicated plug
+    # instead (McEmcommWeb.Plugs.ContentSecurityPolicy), because the policy
+    # needs a per-request nonce and the origins of two runtime-configured
+    # services — neither of which a compile-time map can hold. The header is
+    # covered by McEmcommWeb.Plugs.ContentSecurityPolicyTest, which asserts
+    # more than this check would. The dev-only `:dev_browser` pipeline is
+    # deliberately without a CSP; see the router.
+    "Config.CSP",
+    # DOS.BinToAtom flags the per-record upload names in
+    # McEmcommWeb.AppLive.Profile (`:"course_evidence_#{id}"`), which
+    # LiveView needs as atoms to give each course and certification row its
+    # own upload config. The ids reaching them are first narrowed by
+    # McEmcommWeb.ParamHelpers.known_id/2 to records the socket rendered, so
+    # the atoms are bounded by the catalog rather than by event payloads.
+    "DOS.BinToAtom",
     # POST /webhooks/resend deliberately carries no CSRF token: it is an
     # inbound server-to-server delivery authenticated by its Svix HMAC
     # signature in McEmcommWeb.Plugs.VerifyResendSignature.
