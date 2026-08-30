@@ -243,16 +243,28 @@ provision one as a complete copy of this development environment via the
   API token from https://sprites.dev/account exported as `SPRITES_TOKEN`. The
   CLI's own token is stored encrypted, so the SDK cannot reuse it.
 - Create and provision: `mix sprite.up [--name NAME] [--ssh-key PATH]`.
-  It creates the sprite (default name: the repository name), installs PostgreSQL
-  and runs it as the `postgres` service (`postgres`/`postgres` on `localhost:5432`),
-  installs the Elixir pinned in `mise.toml`, generates a key pair in the
-  sprite and registers it as a write-enabled deploy key on the GitHub repo with
-  `gh` (or copies `--ssh-key PATH`; required for non-GitHub remotes), copies
-  your git identity, clones the current branch into `/home/sprite/<repo>`, runs
-  `mix setup`, runs `mix phx.server` as the `phoenix` service routed to the
-  sprite's URL, and takes a checkpoint of the running app. Every step is
-  idempotent; re-run it to resume after a failure or to restart the services
-  (a checkpoint is only taken when none with the same comment exists yet).
+  It creates the sprite (default name: the repository name), installs
+  PostgreSQL 17 with PostGIS from the PGDG apt repository (the major Fly
+  Managed Postgres runs, matching CI and local dev; the first migration's
+  `CREATE EXTENSION postgis` needs the extension packages) and runs it as the
+  `postgres` service (`postgres`/`postgres` on `localhost:5432`), downloads
+  the checksum-pinned S3Mock standalone jar — the same app as the
+  `adobe/s3mock` container in README § Setup — and runs it as the `s3mock`
+  service on `localhost:9090` with a persistent store under
+  `~/.local/share/s3mock`, installs the Elixir pinned in `mise.toml`,
+  generates a key pair in the sprite and registers it as a write-enabled
+  deploy key on the GitHub repo with `gh` (or copies `--ssh-key PATH`;
+  required for non-GitHub remotes), copies your git identity, clones the
+  current branch into `/home/sprite/<repo>`, runs `mix setup`, runs
+  `mix phx.server` as the `phoenix` service routed to the sprite's URL — with
+  `AWS_*`/`BUCKET_NAME` pointed at S3Mock so presigned uploads round-trip —
+  and takes a checkpoint of the running app. Every step is idempotent; re-run
+  it to resume after a failure or to restart the services (a checkpoint is
+  only taken when none with the same comment exists yet). Services are only
+  created, never redefined: a sprite provisioned before the `s3mock` service
+  existed keeps its old `phoenix` definition until you
+  `sprite-env services delete phoenix` from a console and re-run
+  `mix sprite.up` (or recreate the sprite).
 - Open a session: `mix sprite.connect` starts a login shell in the repository
   directory; `mix sprite.connect -- claude` (or any command) runs that instead.
   It hands the terminal to `sprite exec --tty`, so Ctrl-\ detaches and
@@ -274,10 +286,16 @@ provision one as a complete copy of this development environment via the
   `mix sprite.checkpoint list`, `mix sprite.checkpoint restore ID`. Checkpoints
   capture the filesystem only; restoring restarts the environment and brings the
   services back from their definitions.
-- Known differences from local: the sprite image ships Ubuntu 26.04, so its
-  packaged PostgreSQL is 18 (Fly Managed Postgres is 17; nothing here depends on
-  18-only features), and the sprite's Erlang/OTP 28.x build is used rather than
-  the exact patch pinned in `mise.toml`. The sprite's URL is reachable by
+- Known differences from local: PostgreSQL 17 and PostGIS come from PGDG apt
+  packages rather than the `postgis/postgis:17-3.6` container (same majors),
+  and the sprite's Erlang/OTP 28.x build is used rather than the exact patch
+  pinned in `mise.toml`. S3Mock runs as the standalone jar behind the
+  `adobe/s3mock` image — its known local limits (no signature validation, no
+  POST policy enforcement) apply in the sprite too, but its store is
+  persistent instead of tmpdir-backed. Containers themselves don't work in a
+  sprite (verified empirically): rootless podman is blocked from `/dev/fuse`
+  and `/dev/net/tun`, and rootful podman fails intermittently on cgroup
+  controller delegation. The sprite's URL is reachable by
   org members only until `sprite url update --auth public -s NAME`. A copied
   `--ssh-key` must not have a passphrase (nothing can enter it in the sprite).
   Destroying a sprite any other way than `mix sprite.down` leaves its deploy
