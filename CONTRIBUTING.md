@@ -28,14 +28,14 @@ live in AGENTS.md; this file holds the detail those rules point to.
 ## Testing
 
 - Run all tests: `mix test`
-- Run one file: `mix test test/my_app_web/live/inbox_live_test.exs`
-- Run one test: `mix test test/my_app_web/live/inbox_live_test.exs:42`
+- Run one file: `mix test test/mc_emcomm_web/live/inbox_live_test.exs`
+- Run one test: `mix test test/mc_emcomm_web/live/inbox_live_test.exs:42`
 - Re-run only failures: `mix test --failed`
 - Coverage report: `mix test --cover` (CI enforces the threshold set in `mix.exs`)
 - Stack: ExUnit, Ecto SQL Sandbox, Mox, StreamData, `Phoenix.LiveViewTest`,
-  PhoenixTest. `Req.Test` stubs the HTTP behind `MyApp.Resend` (see
+  PhoenixTest. `Req.Test` stubs the HTTP behind `McEmcomm.Resend` (see
   `config/test.exs`); consumers of the Receiving API depend on the
-  `MyApp.Resend.Client` behaviour and are tested against `MyApp.ResendMock`
+  `McEmcomm.Resend.Client` behaviour and are tested against `McEmcomm.ResendMock`
   (Mox, defined in `test/support/mocks.ex`, wired via `:resend_client`).
 
 ## Database & migrations
@@ -49,8 +49,8 @@ live in AGENTS.md; this file holds the detail those rules point to.
   later migration.
 - Set `lock_timeout` / `statement_timeout` for potentially slow DDL.
 - The Ecto `migration_lock` default (`:table_lock`) is kept; `:pg_advisory_lock`
-  is an opt-in for teams that need it (`config :my_app, MyApp.Repo, migration_lock: :pg_advisory_lock`).
-- Migrations run in prod via `MyApp.Release.migrate/0` (the Fly release command),
+  is an opt-in for teams that need it (`config :mc_emcomm, McEmcomm.Repo, migration_lock: :pg_advisory_lock`).
+- Migrations run in prod via `McEmcomm.Release.migrate/0` (the Fly release command),
   never `mix ecto.migrate` on a prod box.
 
 ## Inbound webhooks
@@ -64,7 +64,7 @@ live in AGENTS.md; this file holds the detail those rules point to.
 - Events are deduplicated on `svix-id` via the `webhook_events` table; handlers
   return 200 fast. Only the `svix-id` (and event type) is persisted — email
   metadata is never stored in the database.
-- After dedupe, `MyApp.Inbound` broadcasts the event metadata over
+- After dedupe, `McEmcomm.Inbound` broadcasts the event metadata over
   `Phoenix.PubSub` on a per-sender topic (`inbound_emails:<normalized from>`).
   The `/inbox` LiveView subscribes for the logged-in user's address, backfills
   history from `GET /emails/receiving`, and keeps everything in process memory.
@@ -101,7 +101,7 @@ live in AGENTS.md; this file holds the detail those rules point to.
 ### First deploy
 
 Fly app names cannot contain underscores, so `fly.toml` uses the kebab-case
-form of the app name (`app` and `PHX_HOST`); `mix my_app.rename` rewrites both.
+form of the app name (`app` and `PHX_HOST`); `mix mc_emcomm.rename` rewrites both.
 
 ```sh
 fly apps create <app> --org <org>
@@ -159,7 +159,7 @@ the template does nothing on push:
   job fails with an explicit error if `FLY_APP` is set but the token is missing.
 
 The workflow reads the app name from the variable rather than from `fly.toml`,
-so `mix my_app.rename` does not touch it and the template itself can deploy its
+so `mix mc_emcomm.rename` does not touch it and the template itself can deploy its
 reference instance without renaming.
 
 ```sh

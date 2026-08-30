@@ -1,20 +1,21 @@
-defmodule MyApp.AccountsFixtures do
+defmodule McEmcomm.AccountsFixtures do
   @moduledoc """
   This module defines test helpers for creating
-  entities via the `MyApp.Accounts` context.
+  entities via the `McEmcomm.Accounts` context.
   """
 
   import Ecto.Query
 
-  alias MyApp.Accounts
-  alias MyApp.Accounts.Scope
+  alias McEmcomm.Accounts
+  alias McEmcomm.Accounts.Scope
 
   def unique_user_email, do: "user#{System.unique_integer()}@example.com"
   def valid_user_password, do: "hello world!"
 
   def valid_user_attributes(attrs \\ %{}) do
     Enum.into(attrs, %{
-      email: unique_user_email()
+      email: unique_user_email(),
+      name: "Test Member"
     })
   end
 
@@ -71,7 +72,7 @@ defmodule MyApp.AccountsFixtures do
   end
 
   def override_token_authenticated_at(token, authenticated_at) when is_binary(token) do
-    MyApp.Repo.update_all(
+    McEmcomm.Repo.update_all(
       from(t in Accounts.UserToken,
         where: t.token == ^token
       ),
@@ -81,14 +82,14 @@ defmodule MyApp.AccountsFixtures do
 
   def generate_user_magic_link_token(user) do
     {encoded_token, user_token} = Accounts.UserToken.build_email_token(user, "login")
-    MyApp.Repo.insert!(user_token)
+    McEmcomm.Repo.insert!(user_token)
     {encoded_token, user_token.token}
   end
 
   def offset_user_token(token, amount_to_add, unit) do
     dt = DateTime.add(DateTime.utc_now(:second), amount_to_add, unit)
 
-    MyApp.Repo.update_all(
+    McEmcomm.Repo.update_all(
       from(ut in Accounts.UserToken, where: ut.token == ^token),
       set: [inserted_at: dt, authenticated_at: dt]
     )

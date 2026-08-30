@@ -1,8 +1,9 @@
-defmodule MyApp.Repo.Migrations.CreateUsersAuthTables do
+defmodule McEmcomm.Repo.Migrations.CreateUsersAuthTables do
   use Ecto.Migration
 
   def change do
     execute "CREATE EXTENSION IF NOT EXISTS citext", ""
+    execute "CREATE EXTENSION IF NOT EXISTS postgis", ""
 
     create table(:users) do
       add :email, :citext, null: false

@@ -1,0 +1,51 @@
+<Layouts.app flash={@flash} current_scope={@current_scope}>
+  <div class="hero bg-base-200 rounded-box">
+    <div class="hero-content text-center py-16">
+      <div class="max-w-2xl">
+        <h1 class="text-4xl font-bold">Monroe County EmComm</h1>
+        <p class="py-6 text-base-content/80">
+          Monroe County ARES/RACES is a group of licensed Amateur Radio operators who
+          volunteer their time, equipment, and expertise to provide emergency communications
+          support to Monroe County, NY and the surrounding area.
+        </p>
+        <div class="flex gap-3 justify-center flex-wrap">
+          <a href={~p"/about"} class="btn btn-primary">Learn more</a>
+          <a href={~p"/users/register"} class="btn btn-outline">Become a member</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid gap-6 sm:grid-cols-2 mt-8">
+    <div class="card bg-base-100 shadow-sm border border-base-300">
+      <div class="card-body">
+        <h2 class="card-title">Who we are</h2>
+        <p>
+          We are part of the Amateur Radio Emergency Service network, providing critical
+          communication capability during emergencies and disasters when normal
+          communication systems fail or become overloaded. Our members come from all walks
+          of life, united by a commitment to public service and amateur radio.
+        </p>
+      </div>
+    </div>
+    <div class="card bg-base-100 shadow-sm border border-base-300">
+      <div class="card-body">
+        <h2 class="card-title">What we do</h2>
+        <ul class="list-disc list-inside space-y-1">
+          <li>Emergency communications backup during disasters and emergencies</li>
+          <li>Public service support for community events, marathons, and gatherings</li>
+          <li>Regular training and exercises to maintain readiness</li>
+          <li>Community outreach and education about amateur radio</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-8 text-center text-base-content/70">
+    <p>
+      We meet monthly except during July, August, and December. To become a member, register
+      an account above — new registrations are reviewed by an EmComm admin before approval.
+    </p>
+    <p class="mt-2 italic">When All Else Fails, Amateur Radio</p>
+  </div>
+</Layouts.app>

@@ -1,4 +1,4 @@
-defmodule MyAppWeb.FailingBodyAdapter do
+defmodule McEmcommWeb.FailingBodyAdapter do
   @moduledoc """
   Stand-in `conn.adapter` whose body read always fails, for exercising the
   `{:error, reason}` branch of body readers. Only `read_req_body/2` is

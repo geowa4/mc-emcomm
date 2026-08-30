@@ -1,0 +1,77 @@
+defmodule McEmcommWeb.AdminLive.Dashboard do
+  use McEmcommWeb, :live_view
+
+  alias McEmcomm.Members
+
+  @impl true
+  def mount(_params, _session, socket) do
+    {:ok,
+     assign(socket, page_title: "Admin", pending_count: length(Members.list_pending_members()))}
+  end
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
+      <.header>Admin</.header>
+
+      <div class="grid gap-4 sm:grid-cols-3 mt-4">
+        <.link navigate={~p"/admin/members"} class="card bg-base-100 shadow-sm border border-base-300">
+          <div class="card-body">
+            <h2 class="card-title">
+              Members
+              <span :if={@pending_count > 0} class="badge badge-warning">{@pending_count} pending</span>
+            </h2>
+            <p>Approvals, roles, and audit trail.</p>
+          </div>
+        </.link>
+        <.link
+          navigate={~p"/admin/exercises"}
+          class="card bg-base-100 shadow-sm border border-base-300"
+        >
+          <div class="card-body">
+            <h2 class="card-title">Exercises</h2>
+          </div>
+        </.link>
+        <.link
+          navigate={~p"/admin/inventory"}
+          class="card bg-base-100 shadow-sm border border-base-300"
+        >
+          <div class="card-body">
+            <h2 class="card-title">Inventory &amp; QR codes</h2>
+          </div>
+        </.link>
+        <.link
+          navigate={~p"/admin/capabilities"}
+          class="card bg-base-100 shadow-sm border border-base-300"
+        >
+          <div class="card-body">
+            <h2 class="card-title">Capabilities catalog</h2>
+          </div>
+        </.link>
+        <.link navigate={~p"/admin/courses"} class="card bg-base-100 shadow-sm border border-base-300">
+          <div class="card-body">
+            <h2 class="card-title">Courses catalog</h2>
+          </div>
+        </.link>
+        <.link
+          navigate={~p"/admin/certifications"}
+          class="card bg-base-100 shadow-sm border border-base-300"
+        >
+          <div class="card-body">
+            <h2 class="card-title">Certifications catalog</h2>
+          </div>
+        </.link>
+        <.link
+          navigate={~p"/admin/documents"}
+          class="card bg-base-100 shadow-sm border border-base-300"
+        >
+          <div class="card-body">
+            <h2 class="card-title">Documents</h2>
+          </div>
+        </.link>
+      </div>
+    </Layouts.app>
+    """
+  end
+end

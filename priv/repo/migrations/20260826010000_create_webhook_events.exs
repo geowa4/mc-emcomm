@@ -1,4 +1,4 @@
-defmodule MyApp.Repo.Migrations.CreateWebhookEvents do
+defmodule McEmcomm.Repo.Migrations.CreateWebhookEvents do
   use Ecto.Migration
 
   def change do

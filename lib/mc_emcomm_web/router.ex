@@ -1,0 +1,174 @@
+defmodule McEmcommWeb.Router do
+  use McEmcommWeb, :router
+
+  import McEmcommWeb.UserAuth
+
+  pipeline :browser do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {McEmcommWeb.Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug :fetch_current_scope_for_user
+  end
+
+  pipeline :api do
+    plug :accepts, ["json"]
+  end
+
+  # Inbound webhooks are authenticated by signature, not by session.
+  pipeline :resend_webhook do
+    plug :accepts, ["json"]
+    plug McEmcommWeb.Plugs.VerifyResendSignature
+  end
+
+  # Update point 0 (spec §9): records the sighting row before the LiveView
+  # plug, from the disconnected conn, so the visit is captured even if the
+  # socket never connects.
+  pipeline :record_sighting do
+    plug McEmcommWeb.Plugs.RecordSighting
+  end
+
+  scope "/", McEmcommWeb do
+    pipe_through :browser
+
+    get "/", PageController, :home
+  end
+
+  ## Public (§8 :public live_session)
+
+  scope "/", McEmcommWeb do
+    pipe_through :browser
+
+    live_session :public,
+      on_mount: [{McEmcommWeb.UserAuth, :mount_current_scope}] do
+      live "/about", PublicLive.About, :show
+      live "/training", PublicLive.Training, :show
+      live "/resources", PublicLive.Resources, :show
+      live "/calendar", PublicLive.Calendar, :show
+      live "/donations", PublicLive.Donations, :show
+      live "/exercises", ExerciseLive.PublicIndex, :index
+      live "/exercises/:id", ExerciseLive.PublicShow, :show
+    end
+  end
+
+  scope "/", McEmcommWeb do
+    pipe_through [:browser, :record_sighting]
+
+    live_session :sighting,
+      on_mount: [{McEmcommWeb.UserAuth, :mount_current_scope}] do
+      live "/a/:public_id/s", SightingLive.Show, :show
+    end
+  end
+
+  ## Member portal (§8 :member live_session, approved members + admins)
+
+  scope "/app", McEmcommWeb do
+    pipe_through :browser
+
+    live_session :member,
+      on_mount: [{McEmcommWeb.MemberAuth, :require_member}] do
+      live "/", AppLive.Dashboard, :show
+      live "/profile", AppLive.Profile, :show
+      live "/exercises", ExerciseLive.Index, :index
+      live "/exercises/:id", ExerciseLive.Show, :show
+      live "/inventory", InventoryLive.Index, :index
+      live "/inventory/:public_id", InventoryLive.Show, :show
+      live "/net", NetLive.Console, :index
+      live "/net/:id", NetLive.Show, :show
+    end
+  end
+
+  ## Admin console (§8 :admin live_session)
+
+  scope "/admin", McEmcommWeb do
+    pipe_through :browser
+
+    live_session :admin,
+      on_mount: [{McEmcommWeb.MemberAuth, :require_admin}] do
+      live "/", AdminLive.Dashboard, :show
+      live "/members", AdminLive.MemberIndex, :index
+      live "/exercises", AdminLive.ExerciseIndex, :index
+      live "/exercises/new", AdminLive.ExerciseIndex, :new
+      live "/exercises/:id/edit", AdminLive.ExerciseIndex, :edit
+      live "/inventory", AdminLive.InventoryIndex, :index
+      live "/capabilities", AdminLive.CapabilityIndex, :index
+      live "/courses", AdminLive.CourseIndex, :index
+      live "/certifications", AdminLive.CertificationIndex, :index
+      live "/documents", AdminLive.DocumentIndex, :index
+    end
+  end
+
+  ## Health checks (no session, no CSRF; liveness has no dependencies)
+
+  scope "/healthz", McEmcommWeb do
+    get "/live", HealthController, :live
+    get "/ready", HealthController, :ready
+    get "/version", HealthController, :version
+  end
+
+  ## Inbound webhooks
+
+  scope "/webhooks", McEmcommWeb do
+    pipe_through :resend_webhook
+
+    post "/resend", WebhookController, :resend
+  end
+
+  # Other scopes may use custom stacks.
+  # scope "/api", McEmcommWeb do
+  #   pipe_through :api
+  # end
+
+  ## LiveDashboard, behind authentication in every environment.
+  #
+  # Any registered user can reach it. Before exposing a production deployment
+  # to untrusted sign-ups, add an admin check to this pipeline.
+
+  scope "/dev" do
+    pipe_through [:browser, :require_authenticated_user]
+
+    import Phoenix.LiveDashboard.Router
+
+    live_dashboard "/dashboard", metrics: McEmcommWeb.Telemetry, ecto_repos: [McEmcomm.Repo]
+  end
+
+  # Enable the Swoosh mailbox preview in development
+  if Application.compile_env(:mc_emcomm, :dev_routes) do
+    scope "/dev" do
+      pipe_through :browser
+
+      forward "/mailbox", Plug.Swoosh.MailboxPreview
+    end
+  end
+
+  ## Authentication routes
+
+  scope "/", McEmcommWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :require_authenticated_user,
+      on_mount: [{McEmcommWeb.UserAuth, :require_authenticated}] do
+      live "/users/settings", UserLive.Settings, :edit
+      live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
+      live "/inbox", InboxLive, :index
+    end
+
+    post "/users/update-password", UserSessionController, :update_password
+  end
+
+  scope "/", McEmcommWeb do
+    pipe_through [:browser]
+
+    live_session :current_user,
+      on_mount: [{McEmcommWeb.UserAuth, :mount_current_scope}] do
+      live "/users/register", UserLive.Registration, :new
+      live "/users/log-in", UserLive.Login, :new
+      live "/users/log-in/:token", UserLive.Confirmation, :new
+    end
+
+    post "/users/log-in", UserSessionController, :create
+    delete "/users/log-out", UserSessionController, :delete
+  end
+end

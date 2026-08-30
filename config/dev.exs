@@ -1,11 +1,12 @@
 import Config
 
 # Configure your database
-config :my_app, MyApp.Repo,
+config :mc_emcomm, McEmcomm.Repo,
   username: "postgres",
   password: "postgres",
   hostname: "localhost",
-  database: "my_app_dev",
+  port: String.to_integer(System.get_env("PGPORT", "5432")),
+  database: "mc_emcomm_dev",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
@@ -16,7 +17,7 @@ config :my_app, MyApp.Repo,
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
-config :my_app, MyAppWeb.Endpoint,
+config :mc_emcomm, McEmcommWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {127, 0, 0, 1}],
@@ -25,8 +26,8 @@ config :my_app, MyAppWeb.Endpoint,
   debug_errors: true,
   secret_key_base: "lG75GSnbrRmx8U7z1/Dzcku0SHHsycBABmDanzcby9yCf1YM85PvgJaN98QfEkxb",
   watchers: [
-    esbuild: {Esbuild, :install_and_run, [:my_app, ~w(--sourcemap=inline --watch)]},
-    tailwind: {Tailwind, :install_and_run, [:my_app, ~w(--watch)]}
+    esbuild: {Esbuild, :install_and_run, [:mc_emcomm, ~w(--sourcemap=inline --watch)]},
+    tailwind: {Tailwind, :install_and_run, [:mc_emcomm, ~w(--watch)]}
   ]
 
 # ## SSL Support
@@ -53,7 +54,12 @@ config :my_app, MyAppWeb.Endpoint,
 # different ports.
 
 # Enable dev routes for dashboard and mailbox
-config :my_app, dev_routes: true
+config :mc_emcomm, dev_routes: true
+
+# Object storage: point at a real Tigris/S3-compatible bucket by setting
+# AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_ENDPOINT_URL_S3 / BUCKET_NAME
+# in the environment; uploads simply fail without them until you do.
+config :mc_emcomm, s3_bucket: System.get_env("BUCKET_NAME", "mc-emcomm-dev")
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"
@@ -74,7 +80,7 @@ config :phoenix_live_view,
   enable_expensive_runtime_checks: true
 
 # Deliver mail to the local mailbox (/dev/mailbox) instead of Resend.
-config :my_app, MyApp.Mailer, adapter: Swoosh.Adapters.Local
+config :mc_emcomm, McEmcomm.Mailer, adapter: Swoosh.Adapters.Local
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false

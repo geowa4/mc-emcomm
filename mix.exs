@@ -1,9 +1,9 @@
-defmodule MyApp.MixProject do
+defmodule McEmcomm.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :my_app,
+      app: :mc_emcomm,
       version: "0.1.0",
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -25,7 +25,7 @@ defmodule MyApp.MixProject do
   # Type `mix help compile.app` for more information.
   def application do
     [
-      mod: {MyApp.Application, []},
+      mod: {McEmcomm.Application, []},
       extra_applications: [:logger, :runtime_tools, :os_mon]
     ]
   end
@@ -53,14 +53,14 @@ defmodule MyApp.MixProject do
         Mix.Sprite,
         ~r/^Mix\.Tasks\.Sprite\./,
         # Release-time migrator; runs outside the SQL sandbox.
-        MyApp.Release,
+        McEmcomm.Release,
         # Test scaffolding compiled from test/support.
-        MyApp.DataCase,
-        MyAppWeb.ConnCase,
-        MyApp.AccountsFixtures,
-        MyApp.ResendHelpers,
-        MyApp.ResendMock,
-        MyAppWeb.FailingBodyAdapter
+        McEmcomm.DataCase,
+        McEmcommWeb.ConnCase,
+        McEmcomm.AccountsFixtures,
+        McEmcomm.ResendHelpers,
+        McEmcomm.ResendMock,
+        McEmcommWeb.FailingBodyAdapter
       ]
     ]
   end
@@ -85,6 +85,16 @@ defmodule MyApp.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
+
+      # Geo / PostGIS
+      {:geo, "~> 4.1"},
+      {:geo_postgis, "~> 3.7"},
+
+      # Assets, sightings, uploads
+      {:eqrcode, "~> 0.2.1"},
+      {:ua_inspector, "~> 3.12"},
+      {:req_s3, "~> 0.2"},
+      {:ecto_network, "~> 1.6"},
 
       # Assets (no Node)
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
@@ -151,10 +161,10 @@ defmodule MyApp.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["tailwind my_app", "esbuild my_app"],
+      "assets.build": ["tailwind mc_emcomm", "esbuild mc_emcomm"],
       "assets.deploy": [
-        "tailwind my_app --minify",
-        "esbuild my_app --minify",
+        "tailwind mc_emcomm --minify",
+        "esbuild mc_emcomm --minify",
         "phx.digest"
       ],
       precommit: [
@@ -171,7 +181,7 @@ defmodule MyApp.MixProject do
   # start before the (:temporary) SDK so that it outlives the SDK on shutdown.
   defp releases do
     [
-      my_app: [
+      mc_emcomm: [
         applications: [
           opentelemetry_exporter: :permanent,
           opentelemetry: :temporary

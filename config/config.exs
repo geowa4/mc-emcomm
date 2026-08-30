@@ -7,32 +7,36 @@
 # General application configuration
 import Config
 
-config :my_app, :scopes,
+config :mc_emcomm, :scopes,
   user: [
     default: true,
-    module: MyApp.Accounts.Scope,
+    module: McEmcomm.Accounts.Scope,
     assign_key: :current_scope,
     access_path: [:user, :id],
     schema_key: :user_id,
     schema_type: :id,
     schema_table: :users,
-    test_data_fixture: MyApp.AccountsFixtures,
+    test_data_fixture: McEmcomm.AccountsFixtures,
     test_setup_helper: :register_and_log_in_user
   ]
 
-config :my_app,
-  ecto_repos: [MyApp.Repo],
+config :mc_emcomm,
+  ecto_repos: [McEmcomm.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+# PostGIS geometry columns (geography(Point,4326)) need the geo_postgis
+# Postgrex extension registered on the connection type set.
+config :mc_emcomm, McEmcomm.Repo, types: McEmcomm.PostgrexTypes
+
 # Configure the endpoint
-config :my_app, MyAppWeb.Endpoint,
+config :mc_emcomm, McEmcommWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: MyAppWeb.ErrorHTML, json: MyAppWeb.ErrorJSON],
+    formats: [html: McEmcommWeb.ErrorHTML, json: McEmcommWeb.ErrorJSON],
     layout: false
   ],
-  pubsub_server: MyApp.PubSub,
+  pubsub_server: McEmcomm.PubSub,
   live_view: [signing_salt: "HuHRlVnG"]
 
 # Configure LiveView
@@ -46,23 +50,23 @@ config :phoenix_live_view,
 # client (the API key is read in config/runtime.exs). dev.exs overrides the
 # adapter with Swoosh.Adapters.Local (browse sent mail at /dev/mailbox) and
 # test.exs with Swoosh.Adapters.Test.
-config :my_app, MyApp.Mailer, adapter: Swoosh.Adapters.Resend
+config :mc_emcomm, McEmcomm.Mailer, adapter: Swoosh.Adapters.Resend
 
 # Sender address for account emails; overridden by MAIL_FROM in production.
-config :my_app, mail_from: "contact@example.com"
+config :mc_emcomm, mail_from: "contact@example.com"
 config :swoosh, api_client: Swoosh.ApiClient.Req
 
-# Resend Receiving API client (MyApp.Resend) and inbound webhook verification
-# (MyAppWeb.Plugs.VerifyResendSignature). Both values come from the
+# Resend Receiving API client (McEmcomm.Resend) and inbound webhook verification
+# (McEmcommWeb.Plugs.VerifyResendSignature). Both values come from the
 # environment in config/runtime.exs; the defaults here only make the keys exist.
-config :my_app, resend_api_key: nil, resend_webhook_secret: nil
+config :mc_emcomm, resend_api_key: nil, resend_webhook_secret: nil
 
 # Prometheus metrics are served by a dedicated Bandit listener on a private
-# port (see MyAppWeb.MetricsEndpoint). PromEx's Cowboy-based metrics server
+# port (see McEmcommWeb.MetricsEndpoint). PromEx's Cowboy-based metrics server
 # and Grafana integration are disabled.
-config :my_app, :metrics_port, 9091
+config :mc_emcomm, :metrics_port, 9091
 
-config :my_app, MyApp.PromEx,
+config :mc_emcomm, McEmcomm.PromEx,
   disabled: false,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
@@ -77,7 +81,7 @@ config :opentelemetry, traces_exporter: :none
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.25.4",
-  my_app: [
+  mc_emcomm: [
     args:
       ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js --external:/fonts/* --external:/images/* --alias:@=.),
     cd: Path.expand("../assets", __DIR__),
@@ -87,7 +91,7 @@ config :esbuild,
 # Configure tailwind (the version is required)
 config :tailwind,
   version: "4.3.0",
-  my_app: [
+  mc_emcomm: [
     args: ~w(
       --input=assets/css/app.css
       --output=priv/static/assets/css/app.css

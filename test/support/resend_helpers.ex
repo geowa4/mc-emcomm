@@ -1,4 +1,4 @@
-defmodule MyApp.ResendHelpers do
+defmodule McEmcomm.ResendHelpers do
   @moduledoc """
   Test helpers for the Resend integration: Svix-style signing of webhook
   payloads and builders for Receiving API objects and webhook events.
@@ -14,7 +14,9 @@ defmodule MyApp.ResendHelpers do
   def sign_webhook(conn, body, opts \\ []) do
     id = Keyword.get(opts, :id, "msg_" <> Integer.to_string(System.unique_integer([:positive])))
     ts = Keyword.get(opts, :timestamp, System.system_time(:second))
-    secret = Keyword.get(opts, :secret, Application.fetch_env!(:my_app, :resend_webhook_secret))
+
+    secret =
+      Keyword.get(opts, :secret, Application.fetch_env!(:mc_emcomm, :resend_webhook_secret))
 
     conn
     |> put_req_header("content-type", "application/json")
@@ -26,7 +28,12 @@ defmodule MyApp.ResendHelpers do
     )
   end
 
-  def signature(id, ts, body, secret \\ Application.fetch_env!(:my_app, :resend_webhook_secret)) do
+  def signature(
+        id,
+        ts,
+        body,
+        secret \\ Application.fetch_env!(:mc_emcomm, :resend_webhook_secret)
+      ) do
     key = secret |> String.replace_prefix("whsec_", "") |> Base.decode64!()
     "v1," <> Base.encode64(:crypto.mac(:hmac, :sha256, key, "#{id}.#{ts}.#{body}"))
   end
@@ -39,7 +46,7 @@ defmodule MyApp.ResendHelpers do
           "email_id" => "em_" <> Integer.to_string(System.unique_integer([:positive])),
           "created_at" => "2026-08-25T12:00:00.000Z",
           "from" => "Alice <alice@example.com>",
-          "to" => ["inbound@my-app.example"],
+          "to" => ["inbound@mc-emcomm.example"],
           "bcc" => [],
           "cc" => [],
           "message_id" => "<abc@example.com>",
@@ -58,7 +65,7 @@ defmodule MyApp.ResendHelpers do
       %{
         "id" => "em_" <> Integer.to_string(System.unique_integer([:positive])),
         "from" => "alice@example.com",
-        "to" => ["inbound@my-app.example"],
+        "to" => ["inbound@mc-emcomm.example"],
         "subject" => "Hello",
         "created_at" => "2026-08-25T12:00:00.000Z",
         "bcc" => [],

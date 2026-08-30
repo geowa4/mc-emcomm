@@ -101,7 +101,7 @@ ARG GIT_SHA=unknown
 ENV GIT_SHA=${GIT_SHA}
 
 # Only copy the final release from the build stage
-COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/my_app ./
+COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/mc_emcomm ./
 
 USER nobody
 

@@ -13,27 +13,44 @@ import Config
 # GIT_SHA=...`, see CONTRIBUTING.md § Deployment). It is served at
 # /healthz/version and attached to every trace as service.version.
 git_sha = System.get_env("GIT_SHA", "unknown")
-config :my_app, git_sha: git_sha
-config :opentelemetry, resource: %{service: %{name: "my_app", version: git_sha}}
+config :mc_emcomm, git_sha: git_sha
+config :opentelemetry, resource: %{service: %{name: "mc_emcomm", version: git_sha}}
+
+# ## mc_emcomm application config (§16)
+#
+# QR_BASE_URL is the canonical public origin the sighting QR codes encode
+# (no trailing slash). SIGHTING_RAW_RETENTION_DAYS drives the retention task
+# (§20). NOMINATIM_USER_AGENT identifies the app per the Nominatim usage
+# policy (§13) if geocoding is ever enabled. MAP_TILE_URL is the OSM tile
+# endpoint used by Leaflet (§12).
+config :mc_emcomm,
+  qr_base_url: System.get_env("MC_EMCOMM_QR_BASE_URL", "http://localhost:4000"),
+  sighting_raw_retention_days:
+    String.to_integer(System.get_env("MC_EMCOMM_SIGHTING_RAW_RETENTION_DAYS", "90")),
+  nominatim_user_agent:
+    System.get_env("MC_EMCOMM_NOMINATIM_USER_AGENT", "mc_emcomm (dev; contact@example.com)"),
+  map_tile_url:
+    System.get_env("MC_EMCOMM_MAP_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
 
 # ## Using releases
 #
 # If you use `mix release`, you need to explicitly enable the server
 # by passing the PHX_SERVER=true when you start it:
 #
-#     PHX_SERVER=true bin/my_app start
+#     PHX_SERVER=true bin/mc_emcomm start
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
 if System.get_env("PHX_SERVER") do
-  config :my_app, MyAppWeb.Endpoint, server: true
+  config :mc_emcomm, McEmcommWeb.Endpoint, server: true
 end
 
-config :my_app, MyAppWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+config :mc_emcomm, McEmcommWeb.Endpoint,
+  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
-  config :my_app, MyAppWeb.Endpoint,
+  config :mc_emcomm, McEmcommWeb.Endpoint,
     live_reload: [
       web_console_logger: true,
       patterns: [
@@ -42,8 +59,8 @@ if config_env() == :dev do
         # Gettext translations
         ~r"priv/gettext/.*\.po$"E,
         # Router, Controllers, LiveViews and LiveComponents
-        ~r"lib/my_app_web/router\.ex$"E,
-        ~r"lib/my_app_web/(controllers|live|components)/.*\.(ex|heex)$"E
+        ~r"lib/mc_emcomm_web/router\.ex$"E,
+        ~r"lib/mc_emcomm_web/(controllers|live|components)/.*\.(ex|heex)$"E
       ]
     ]
 end
@@ -58,7 +75,7 @@ if config_env() == :prod do
 
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
-  config :my_app, MyApp.Repo,
+  config :mc_emcomm, McEmcomm.Repo,
     # ssl: true,
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
@@ -80,9 +97,9 @@ if config_env() == :prod do
 
   host = System.get_env("PHX_HOST") || "example.com"
 
-  config :my_app, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+  config :mc_emcomm, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
-  config :my_app, MyAppWeb.Endpoint,
+  config :mc_emcomm, McEmcommWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
       # Enable IPv6 and bind on all interfaces.
@@ -98,7 +115,7 @@ if config_env() == :prod do
   # To get SSL working, you will need to add the `https` key
   # to your endpoint configuration:
   #
-  #     config :my_app, MyAppWeb.Endpoint,
+  #     config :mc_emcomm, McEmcommWeb.Endpoint,
   #       https: [
   #         ...,
   #         port: 443,
@@ -120,7 +137,7 @@ if config_env() == :prod do
   # We also recommend setting `force_ssl` in your config/prod.exs,
   # ensuring no data is ever sent via http, always redirecting to https:
   #
-  #     config :my_app, MyAppWeb.Endpoint,
+  #     config :mc_emcomm, McEmcommWeb.Endpoint,
   #       force_ssl: [hsts: true]
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
@@ -128,18 +145,25 @@ if config_env() == :prod do
   # ## Mailer, Resend and inbound webhooks
   #
   # RESEND_API_KEY feeds both the Swoosh adapter (outbound mail) and
-  # MyApp.Resend, the Req-based Receiving API client used by the /inbox
+  # McEmcomm.Resend, the Req-based Receiving API client used by the /inbox
   # LiveView. RESEND_WEBHOOK_SECRET verifies inbound webhook signatures.
-  config :my_app, MyApp.Mailer, api_key: System.fetch_env!("RESEND_API_KEY")
-  config :my_app, resend_api_key: System.fetch_env!("RESEND_API_KEY")
+  config :mc_emcomm, McEmcomm.Mailer, api_key: System.fetch_env!("RESEND_API_KEY")
+  config :mc_emcomm, resend_api_key: System.fetch_env!("RESEND_API_KEY")
   # MAIL_FROM must be an address on a domain verified in Resend.
-  config :my_app, mail_from: System.fetch_env!("MAIL_FROM")
-  config :my_app, resend_webhook_secret: System.fetch_env!("RESEND_WEBHOOK_SECRET")
+  config :mc_emcomm, mail_from: System.fetch_env!("MAIL_FROM")
+  config :mc_emcomm, resend_webhook_secret: System.fetch_env!("RESEND_WEBHOOK_SECRET")
+
+  # ## Object storage
+  #
+  # The private Tigris bucket (`fly storage create`). AWS_ACCESS_KEY_ID,
+  # AWS_SECRET_ACCESS_KEY, AWS_REGION, AWS_ENDPOINT_URL_S3 drive ReqS3 itself
+  # and are read directly from the environment by req_s3 (§11).
+  config :mc_emcomm, s3_bucket: System.fetch_env!("BUCKET_NAME")
 
   # ## Metrics
   #
   # Private Prometheus listener; scraped by Fly over the private network.
-  config :my_app, :metrics_port, String.to_integer(System.get_env("METRICS_PORT") || "9091")
+  config :mc_emcomm, :metrics_port, String.to_integer(System.get_env("METRICS_PORT") || "9091")
 
   # ## OpenTelemetry
   #
@@ -161,7 +185,7 @@ if config_env() == :dev do
   # Optional in dev: set RESEND_API_KEY / RESEND_WEBHOOK_SECRET to exercise the
   # /inbox LiveView and the webhook against a real Resend account. Outbound
   # mail stays on the local adapter regardless.
-  config :my_app,
+  config :mc_emcomm,
     resend_api_key: System.get_env("RESEND_API_KEY"),
     resend_webhook_secret:
       System.get_env("RESEND_WEBHOOK_SECRET", "whsec_" <> Base.encode64("dev-webhook-secret"))

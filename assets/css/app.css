@@ -2,12 +2,16 @@
    https://tailwindcss.com/docs/configuration */
 
 @import "tailwindcss" source(none);
-@import "phoenix-colocated/my_app/colocated.css";
+@import "phoenix-colocated/mc_emcomm/colocated.css";
+/* Leaflet 1.9.4 (vendored, no Node/npm per spec §12); marker images are
+   served from /images/leaflet/ (see priv/static), rewritten in the vendored
+   copy since this stylesheet is inlined rather than served standalone. */
+@import "../vendor/leaflet/leaflet.css";
 @source "../css";
 @source "../js";
-@source "../../lib/my_app_web";
+@source "../../lib/mc_emcomm_web";
 /* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
-@source "../../_build/dev/phoenix-colocated/my_app/*/";
+@source "../../_build/dev/phoenix-colocated/mc_emcomm/*/";
 
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
    The heroicons installation itself is managed by your mix.exs */
@@ -103,3 +107,9 @@
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
 /* This file is for your main application CSS */
+
+.map-canvas {
+  height: 20rem;
+  width: 100%;
+  border-radius: var(--radius-box);
+}

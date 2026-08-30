@@ -2,4 +2,4 @@
 set -eu
 
 cd -P -- "$(dirname -- "$0")"
-exec ./my_app eval MyApp.Release.migrate
+exec ./mc_emcomm eval McEmcomm.Release.migrate

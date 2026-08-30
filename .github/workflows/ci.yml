@@ -14,7 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       db:
-        image: postgres:17
+        # PostGIS-enabled Postgres (§17) — geofence tests run against real
+        # PostGIS, not a mock.
+        image: postgis/postgis:17-3.5
         env:
           POSTGRES_PASSWORD: postgres
         ports: ["5432:5432"]
@@ -23,7 +25,7 @@ jobs:
           --health-timeout 5s --health-retries 5
     env:
       MIX_ENV: test
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/my_app_test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/mc_emcomm_test
     steps:
       - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1

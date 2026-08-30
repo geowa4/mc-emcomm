@@ -23,7 +23,7 @@ erl_crash.dump
 /tmp/
 
 # Ignore package tarball (built via "mix hex.build").
-my_app-*.tar
+mc_emcomm-*.tar
 
 # Ignore assets that are produced by build tools.
 /priv/static/assets/
@@ -38,3 +38,7 @@ npm-debug.log
 
 # Dialyzer PLTs (cached in CI, keyed on mix.lock).
 /priv/plts/
+
+# The old Hugo site, kept alongside this repo only as content reference
+# (Appendix B); it's its own git repository, not a submodule of this one.
+/monroecountyemcomm.org/

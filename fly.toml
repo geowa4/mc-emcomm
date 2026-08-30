@@ -1,8 +1,8 @@
 # Fly.io configuration. Re-verify stanzas against the current Fly docs when
 # bumping flyctl; the schema drifts over time. Fly app names cannot contain
-# underscores, so `app` and PHX_HOST use the kebab-case name; `mix my_app.rename`
+# underscores, so `app` and PHX_HOST use the kebab-case name; `mix mc_emcomm.rename`
 # rewrites both.
-app = "my-app"
+app = "mc-emcomm"
 primary_region = "iad"
 kill_signal = "SIGTERM"
 
@@ -13,7 +13,7 @@ kill_signal = "SIGTERM"
   release_command = "/app/bin/migrate"
 
 [env]
-  PHX_HOST = "my-app.fly.dev"
+  PHX_HOST = "mc-emcomm.fly.dev"
   PORT = "8080"
   METRICS_PORT = "9091"
 

@@ -1,1 +1,1 @@
-call "%~dp0\my_app" eval MyApp.Release.migrate
+call "%~dp0\mc_emcomm" eval McEmcomm.Release.migrate
