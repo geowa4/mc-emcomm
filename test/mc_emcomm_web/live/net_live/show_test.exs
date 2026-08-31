@@ -89,7 +89,7 @@ defmodule McEmcommWeb.NetLive.ShowTest do
     # Mistyped call sign, matching no member.
     lv |> form("#checkin-form", net_checkin: %{call_sign: "W2OTX"}) |> render_submit()
 
-    [checkin] = McEmcomm.Net.get_session!(session.id).checkins
+    [checkin] = checkins_for(session.id, "W2OTX")
     assert is_nil(checkin.member_id)
 
     lv |> element("#edit-checkin-#{checkin.id}") |> render_click()
@@ -103,7 +103,7 @@ defmodule McEmcommWeb.NetLive.ShowTest do
     assert render(lv) =~ "W2OTH"
     assert render(lv) =~ "corrected"
     # The correction re-links the member record by call sign.
-    [checkin] = McEmcomm.Net.get_session!(session.id).checkins
+    [checkin] = checkins_for(session.id, "W2OTH")
     assert checkin.member_id == other_member.id
     # The second viewer receives the correction over PubSub.
     assert render(other_lv) =~ "W2OTH"
@@ -117,10 +117,10 @@ defmodule McEmcommWeb.NetLive.ShowTest do
 
     lv |> form("#checkin-form", net_checkin: %{call_sign: "W2OTH"}) |> render_submit()
 
-    [checkin] = McEmcomm.Net.get_session!(session.id).checkins
+    [checkin] = checkins_for(session.id, "W2OTH")
     lv |> element("#checkout-checkin-#{checkin.id}") |> render_click()
 
-    [checkin] = McEmcomm.Net.get_session!(session.id).checkins
+    [checkin] = checkins_for(session.id, "W2OTH")
     assert checkin.ended_at
     # The ended check-in no longer offers a leave button.
     refute has_element?(lv, "#checkout-checkin-#{checkin.id}")
@@ -128,7 +128,7 @@ defmodule McEmcommWeb.NetLive.ShowTest do
     # Coming back later is a fresh check-in; the earlier stint stays logged.
     lv |> form("#checkin-form", net_checkin: %{call_sign: "W2OTH"}) |> render_submit()
 
-    checkins = McEmcomm.Net.get_session!(session.id).checkins
+    checkins = checkins_for(session.id, "W2OTH")
     assert length(checkins) == 2
     assert has_element?(lv, "#checkin-row-#{checkin.id}")
     [returned] = Enum.reject(checkins, &(&1.id == checkin.id))
@@ -163,5 +163,9 @@ defmodule McEmcommWeb.NetLive.ShowTest do
     # Other viewers see the ended net without any leave buttons left.
     refute has_element?(other_lv, "#checkin-form")
     refute render(other_lv) =~ "checkout-checkin-"
+  end
+
+  defp checkins_for(session_id, call_sign) do
+    for c <- McEmcomm.Net.get_session!(session_id).checkins, c.call_sign == call_sign, do: c
   end
 end

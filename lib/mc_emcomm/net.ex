@@ -50,7 +50,8 @@ defmodule McEmcomm.Net do
 
   @doc """
   Any approved member may start a net session. A session without a name is
-  named after its start date.
+  named after its start date. The operator calling the net is on frequency
+  from the start, so they are logged as its first check-in.
   """
   def start_session(%Member{status: :approved} = member, attrs) do
     started_at = DateTime.utc_now()
@@ -63,7 +64,25 @@ defmodule McEmcomm.Net do
     %NetSession{}
     |> NetSession.changeset(attrs)
     |> Repo.insert()
+    |> case do
+      {:ok, session} = result ->
+        check_in_net_control(session, member)
+        result
+
+      error ->
+        error
+    end
   end
+
+  # A member without a call sign can still run a net; they just don't appear
+  # in the roster automatically.
+  defp check_in_net_control(session, %Member{call_sign: call_sign})
+       when is_binary(call_sign) and call_sign != "" do
+    {:ok, _checkin} = check_in(session, %{"call_sign" => call_sign})
+    :ok
+  end
+
+  defp check_in_net_control(_session, _member), do: :ok
 
   defp put_default_name(attrs, started_at) do
     case attrs["name"] do
