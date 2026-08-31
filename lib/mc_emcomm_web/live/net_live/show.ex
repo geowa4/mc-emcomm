@@ -79,7 +79,7 @@ defmodule McEmcommWeb.NetLive.Show do
           options={["NE", "NW", "SE", "SW", "out_of_county"]}
         />
         <.input field={@checkin_form[:notes]} label="Notes" />
-        <.button class="btn btn-primary">Check in</.button>
+        <.button class="btn btn-primary mb-3">Check in</.button>
       </.form>
 
       <h2 class="text-lg font-semibold mt-8">Roster</h2>

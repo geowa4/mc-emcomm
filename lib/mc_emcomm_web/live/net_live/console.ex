@@ -32,7 +32,7 @@ defmodule McEmcommWeb.NetLive.Console do
         class="flex gap-2 items-end flex-wrap mt-4"
       >
         <.input field={@start_form[:name]} label="Net name" />
-        <.button class="btn btn-primary">Start new net</.button>
+        <.button class="btn btn-primary mb-3">Start new net</.button>
       </.form>
 
       <h2 class="text-lg font-semibold mt-4">Active sessions</h2>

@@ -124,7 +124,9 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
               label="Radius (m)"
               value="500"
             />
-            <.button class="btn btn-secondary" disabled={is_nil(@pending_point)}>Add location</.button>
+            <.button class="btn btn-secondary mb-3" disabled={is_nil(@pending_point)}>
+              Add location
+            </.button>
           </.form>
 
           <ul class="list bg-base-100 rounded-box border border-base-300 mt-2">
