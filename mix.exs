@@ -52,6 +52,9 @@ defmodule McEmcomm.MixProject do
         # dev/ tooling: exercised only against a real sprite (CONTRIBUTING.md § Sprites).
         Mix.Sprite,
         ~r/^Mix\.Tasks\.Sprite\./,
+        # dev/ tooling: exercised only against a real podman (README § Local setup).
+        Mix.Podman,
+        ~r/^Mix\.Tasks\.Podman\./,
         # Release-time migrator; runs outside the SQL sandbox.
         McEmcomm.Release,
         # Test scaffolding compiled from test/support.

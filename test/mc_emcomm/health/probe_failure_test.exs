@@ -13,6 +13,9 @@ defmodule McEmcomm.Health.ProbeFailureTest do
     # allowance across.
     spawn(fn -> send(parent, {:checked, Probe.check()}) end)
 
-    assert_receive {:checked, false}
+    # Generous timeout: under host load (e.g. the emulated amd64 Postgres
+    # container) the spawned process can take well over the default 100ms to
+    # be scheduled. A wrong `{:checked, true}` still fails the match.
+    assert_receive {:checked, false}, 2_000
   end
 end
