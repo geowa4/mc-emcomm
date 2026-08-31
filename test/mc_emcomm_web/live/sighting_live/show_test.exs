@@ -17,6 +17,29 @@ defmodule McEmcommWeb.SightingLive.ShowTest do
     refute html =~ "Sighting log"
   end
 
+  test "prefills the call sign for a logged-in member", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture(%{call_sign: "W2PRE"})
+    asset = McEmcommFixtures.asset_fixture()
+
+    {:ok, lv, _html} =
+      conn
+      |> log_in_user(member.user)
+      |> live(~p"/a/#{asset.public_id}/s")
+
+    assert has_element?(lv, "#sighting-form input[name='sighting[call_sign]'][value='W2PRE']")
+  end
+
+  test "leaves the call sign empty for an anonymous visitor", %{conn: conn} do
+    asset = McEmcommFixtures.asset_fixture()
+
+    {:ok, lv, _html} = live(conn, ~p"/a/#{asset.public_id}/s")
+
+    refute has_element?(
+             lv,
+             "#sighting-form input[name='sighting[call_sign]'][value]:not([value=''])"
+           )
+  end
+
   test "redirects for an unknown public_id", %{conn: conn} do
     assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, ~p"/a/ZZZZZZ/s")
   end

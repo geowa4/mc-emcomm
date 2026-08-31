@@ -55,12 +55,22 @@ defmodule McEmcommWeb.SightingLive.Show do
            sighting: sighting,
            submitted: not is_nil(sighting.submitted_at),
            form:
-             to_form(%{"call_sign" => "", "note" => "", "claimed_responsibility" => false},
+             to_form(
+               %{
+                 "call_sign" => known_call_sign(socket.assigns.current_scope),
+                 "note" => "",
+                 "claimed_responsibility" => false
+               },
                as: "sighting"
              )
          )}
     end
   end
+
+  defp known_call_sign(%{member: %{call_sign: call_sign}}) when is_binary(call_sign),
+    do: call_sign
+
+  defp known_call_sign(_scope), do: ""
 
   @impl true
   def render(assigns) do
