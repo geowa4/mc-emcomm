@@ -43,7 +43,7 @@ defmodule McEmcommWeb.Layouts do
         </a>
       </div>
       <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-2 sm:space-x-4 items-center text-sm">
+        <ul class="hidden lg:flex px-1 space-x-2 xl:space-x-4 items-center text-sm">
           <li><a href={~p"/about"} class="btn btn-ghost btn-sm">About</a></li>
           <li><a href={~p"/training"} class="btn btn-ghost btn-sm">Training</a></li>
           <li><a href={~p"/resources"} class="btn btn-ghost btn-sm">Resources</a></li>
@@ -86,6 +86,46 @@ defmodule McEmcommWeb.Layouts do
             <a href={~p"/users/log-in"} class="btn btn-primary btn-sm">Log in</a>
           </li>
         </ul>
+        <div class="dropdown dropdown-end lg:hidden">
+          <button id="mobile-menu" tabindex="0" class="btn btn-ghost btn-square" aria-label="Menu">
+            <.icon name="hero-bars-3" class="size-6" />
+          </button>
+          <ul
+            tabindex="0"
+            class="dropdown-content menu bg-base-100 rounded-box z-20 mt-1 w-52 p-2 shadow"
+          >
+            <li><a href={~p"/about"}>About</a></li>
+            <li><a href={~p"/training"}>Training</a></li>
+            <li><a href={~p"/resources"}>Resources</a></li>
+            <li><a href={~p"/exercises"}>Exercises</a></li>
+            <li><a href={~p"/calendar"}>Calendar</a></li>
+            <li :if={@current_scope}>
+              <a href={~p"/app"}>Member Portal</a>
+            </li>
+            <li :if={@current_scope && @current_scope.user && @current_scope.user.is_admin}>
+              <a href={~p"/admin"}>Admin</a>
+            </li>
+            <li class="divider my-1" aria-hidden="true"></li>
+            <li :if={@current_scope && @current_scope.user}>
+              <.link id="mobile-menu-settings" href={~p"/users/settings"}>Settings</.link>
+            </li>
+            <li :if={@current_scope && @current_scope.user}>
+              <.link id="mobile-menu-log-out" href={~p"/users/log-out"} method="delete">
+                Log out
+              </.link>
+            </li>
+            <li :if={!(@current_scope && @current_scope.user)}>
+              <a href={~p"/users/register"}>Register</a>
+            </li>
+            <li :if={!(@current_scope && @current_scope.user)}>
+              <a href={~p"/users/log-in"}>Log in</a>
+            </li>
+            <li class="divider my-1" aria-hidden="true"></li>
+            <li class="p-1">
+              <.theme_toggle />
+            </li>
+          </ul>
+        </div>
       </div>
     </header>
 

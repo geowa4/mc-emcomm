@@ -142,7 +142,11 @@ defmodule McEmcommWeb.AppLive.Profile do
               <span :if={mc.verified} class="badge badge-sm badge-info ml-1">Verified</span>
             </span>
           </div>
-          <form phx-submit="save_course" phx-value-course_id={course.id} class="flex gap-2 items-end">
+          <form
+            phx-submit="save_course"
+            phx-value-course_id={course.id}
+            class="flex flex-wrap gap-2 items-end"
+          >
             <.input
               type="date"
               name="completed_on"

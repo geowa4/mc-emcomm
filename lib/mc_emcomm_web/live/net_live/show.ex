@@ -30,7 +30,7 @@ defmodule McEmcommWeb.NetLive.Show do
             for={@name_form}
             id="net-name-form"
             phx-submit="rename_session"
-            class="flex gap-2 items-center"
+            class="flex flex-wrap gap-2 items-center"
           >
             <.input field={@name_form[:name]} />
             <.button class="btn btn-primary btn-sm">Save</.button>
