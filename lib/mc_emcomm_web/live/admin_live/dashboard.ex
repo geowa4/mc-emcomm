@@ -26,6 +26,15 @@ defmodule McEmcommWeb.AdminLive.Dashboard do
           </div>
         </.link>
         <.link
+          navigate={~p"/admin/positions"}
+          class="card bg-base-100 shadow-sm border border-base-300"
+        >
+          <div class="card-body">
+            <h2 class="card-title">Leadership positions</h2>
+            <p>The catalog of single-holder positions.</p>
+          </div>
+        </.link>
+        <.link
           navigate={~p"/admin/exercises"}
           class="card bg-base-100 shadow-sm border border-base-300"
         >

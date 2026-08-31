@@ -15,6 +15,7 @@ defmodule McEmcomm.Members do
   alias McEmcomm.Certifications
   alias McEmcomm.Courses
   alias McEmcomm.Members.Member
+  alias McEmcomm.Members.MemberPosition
   alias McEmcomm.Members.MembershipAudit
   alias McEmcomm.Members.Position
   alias McEmcomm.Repo
@@ -70,10 +71,15 @@ defmodule McEmcomm.Members do
   @doc """
   Every leadership position in display order, each with its approved
   holders preloaded — used to render leadership on the public About page,
-  where an unfilled position still appears (as vacant).
+  where an unfilled position still appears (as vacant). Pass `holders: :all`
+  to include non-approved holders (the admin positions page).
   """
-  def list_positions do
-    holders = from m in Member, where: m.status == :approved, order_by: m.name
+  def list_positions(opts \\ []) do
+    holders =
+      case opts[:holders] do
+        :all -> from m in Member, order_by: m.name
+        _ -> from m in Member, where: m.status == :approved, order_by: m.name
+      end
 
     Position
     |> order_by([p], asc: p.sort_order)
@@ -82,17 +88,159 @@ defmodule McEmcomm.Members do
   end
 
   @doc """
+  Approved members whose call sign contains the given letters,
+  case-insensitively, ordered by call sign (at most 10) — only approved
+  members can be assigned a position. A blank query matches nobody.
+  """
+  def search_members_by_call_sign(partial) when is_binary(partial) do
+    case String.trim(partial) do
+      "" ->
+        []
+
+      term ->
+        pattern =
+          "%" <>
+            (term
+             |> String.replace("\\", "\\\\")
+             |> String.replace("%", "\\%")
+             |> String.replace("_", "\\_")) <> "%"
+
+        Member
+        |> where([m], m.status == :approved)
+        |> where([m], ilike(m.call_sign, ^pattern))
+        |> order_by([m], asc: m.call_sign)
+        |> limit(10)
+        |> Repo.all()
+    end
+  end
+
+  @doc """
+  Makes the member the holder of the position, keeping their other
+  positions and taking the position over from any current holder. Only
+  approved members can hold positions (`{:error, :not_approved}`).
+  """
+  def assign_position(%Member{} = member, %Position{} = position) do
+    current_ids =
+      member
+      |> Repo.preload(:positions)
+      |> Map.fetch!(:positions)
+      |> Enum.map(& &1.id)
+
+    update_member_positions(member, Enum.uniq([position.id | current_ids]))
+  end
+
+  @doc "Removes the position from whoever holds it, leaving it vacant."
+  def vacate_position(%Position{} = position) do
+    Repo.delete_all(from mp in MemberPosition, where: mp.position_id == ^position.id)
+    :ok
+  end
+
+  def get_position!(id), do: Repo.get!(Position, id)
+
+  def change_position(%Position{} = position, attrs \\ %{}) do
+    Position.changeset(position, attrs)
+  end
+
+  def create_position(attrs) do
+    %Position{} |> Position.changeset(attrs) |> Repo.insert()
+  end
+
+  def update_position(%Position{} = position, attrs) do
+    position |> Position.changeset(attrs) |> Repo.update()
+  end
+
+  @doc """
+  Deletes a position unless a member currently holds it, in which case
+  `{:error, :position_held}` is returned — the admin must vacate it first.
+  """
+  def delete_position(%Position{} = position) do
+    held? = Repo.exists?(from mp in MemberPosition, where: mp.position_id == ^position.id)
+
+    if held? do
+      {:error, :position_held}
+    else
+      Repo.delete(position)
+    end
+  end
+
+  @doc "The sort_order after the current last position, for prefilling the new-position form."
+  def next_position_sort_order do
+    (Repo.aggregate(Position, :max, :sort_order) || 0) + 1
+  end
+
+  @doc """
+  Renumbers every position's sort_order to match the given id order (1..n).
+  The ids must be exactly the current position ids — a drag reorder from a
+  stale list returns `{:error, :stale}` and changes nothing.
+  """
+  def reorder_positions(ids) do
+    current_ids = Repo.all(from p in Position, select: p.id)
+
+    if Enum.sort(ids) == Enum.sort(current_ids) do
+      {:ok, :ok} = Repo.transaction(fn -> renumber_positions(ids) end)
+      :ok
+    else
+      {:error, :stale}
+    end
+  end
+
+  defp renumber_positions(ids) do
+    # Shift everything out of the way first so the intermediate states
+    # never violate the unique index on sort_order.
+    Repo.update_all(from(p in Position, where: p.id in ^ids), inc: [sort_order: 1_000_000])
+
+    ids
+    |> Enum.with_index(1)
+    |> Enum.each(fn {id, index} ->
+      Repo.update_all(from(p in Position, where: p.id == ^id), set: [sort_order: index])
+    end)
+  end
+
+  @doc """
   Replaces a member's leadership positions with the given position ids,
-  admin-only. A member with no positions is an ordinary member.
+  admin-only. Every position is single-holder: assigning a position another
+  member holds takes it over, removing it from that member. A member with no
+  positions is an ordinary member; a member may hold several positions.
+
+  Only approved members may gain positions — `{:error, :not_approved}`
+  otherwise. Removing positions is allowed regardless of status, so a
+  deactivated member's positions can still be cleared.
   """
   def update_member_positions(%Member{} = member, position_ids) do
-    positions = Repo.all(from p in Position, where: p.id in ^position_ids)
+    current_ids =
+      member
+      |> Repo.preload(:positions)
+      |> Map.fetch!(:positions)
+      |> Enum.map(& &1.id)
 
-    member
-    |> Repo.preload(:positions)
-    |> Ecto.Changeset.change()
-    |> Ecto.Changeset.put_assoc(:positions, positions)
-    |> Repo.update()
+    if member.status != :approved and position_ids -- current_ids != [] do
+      {:error, :not_approved}
+    else
+      do_update_member_positions(member, position_ids)
+    end
+  end
+
+  defp do_update_member_positions(member, position_ids) do
+    Ecto.Multi.new()
+    |> Ecto.Multi.delete_all(
+      :taken_over,
+      from(mp in MemberPosition,
+        where: mp.position_id in ^position_ids and mp.member_id != ^member.id
+      )
+    )
+    |> Ecto.Multi.update(:member, fn _changes ->
+      positions = Repo.all(from p in Position, where: p.id in ^position_ids)
+
+      member
+      |> Repo.preload(:positions)
+      |> Ecto.Changeset.change()
+      |> Ecto.Changeset.put_assoc(:positions, positions)
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{member: member}} -> {:ok, member}
+      {:error, _step, error, _changes} -> {:error, error}
+    end
   end
 
   defp maybe_filter_status(query, nil), do: query

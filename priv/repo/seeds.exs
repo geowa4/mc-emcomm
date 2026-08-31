@@ -100,14 +100,14 @@ member_specs = [
     email: "director1@monroecountyemcomm.org",
     name: "Rowan Ellis",
     call_sign: "W2DL1",
-    positions: ["Director-at-Large"],
+    positions: ["Director-at-Large 1"],
     quadrant: :NW
   },
   %{
     email: "director2@monroecountyemcomm.org",
     name: "Harper Quinn",
     call_sign: "W2DL2",
-    positions: ["Director-at-Large"],
+    positions: ["Director-at-Large 2"],
     quadrant: :SW
   },
   %{
@@ -134,6 +134,30 @@ member_specs = [
   }
 ]
 
+# The positions table ships empty (admins manage it at /admin/positions);
+# seed the catalog the member specs above reference.
+position_specs = [
+  {"President", 1},
+  {"Vice-President", 2},
+  {"Secretary", 3},
+  {"Treasurer", 4},
+  {"Emergency Coordinator", 5},
+  {"Assistant Emergency Coordinator", 6},
+  {"Director-at-Large 1", 7},
+  {"Director-at-Large 2", 8},
+  {"Director-at-Large 3", 9}
+]
+
+for {name, sort_order} <- position_specs do
+  case Repo.get_by(McEmcomm.Members.Position, name: name) do
+    nil ->
+      {:ok, _} = Members.create_position(%{name: name, sort_order: sort_order})
+
+    _position ->
+      :ok
+  end
+end
+
 position_ids_by_name =
   McEmcomm.Members.Position
   |> Repo.all()
@@ -148,7 +172,7 @@ end
 # The admin covers the third Director-at-Large seat; Assistant Emergency
 # Coordinator is deliberately vacant (as in the real roster) so the public
 # About page exercises its "Vacant" rendering.
-set_positions.(admin_member, ["Director-at-Large"])
+set_positions.(admin_member, ["Director-at-Large 3"])
 
 members =
   Enum.map(member_specs, fn spec ->

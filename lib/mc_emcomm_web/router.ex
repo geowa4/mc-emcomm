@@ -91,6 +91,7 @@ defmodule McEmcommWeb.Router do
       on_mount: [{McEmcommWeb.MemberAuth, :require_admin}] do
       live "/", AdminLive.Dashboard, :show
       live "/members", AdminLive.MemberIndex, :index
+      live "/positions", AdminLive.PositionIndex, :index
       live "/exercises", AdminLive.ExerciseIndex, :index
       live "/exercises/new", AdminLive.ExerciseIndex, :new
       live "/exercises/:id/edit", AdminLive.ExerciseIndex, :edit

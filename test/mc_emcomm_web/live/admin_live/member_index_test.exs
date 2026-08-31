@@ -79,9 +79,8 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
 
   test "assigning and removing a member's positions", %{conn: conn} do
     member = McEmcommFixtures.member_fixture()
-    positions = Members.list_positions()
-    treasurer = Enum.find(positions, &(&1.name == "Treasurer"))
-    ec = Enum.find(positions, &(&1.name == "Emergency Coordinator"))
+    treasurer = McEmcommFixtures.position_fixture(%{name: "Treasurer"})
+    ec = McEmcommFixtures.position_fixture(%{name: "Emergency Coordinator"})
 
     {:ok, lv, _html} = live(conn, ~p"/admin/members")
 
@@ -96,6 +95,47 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     |> render_change(%{"position_ids" => [""]})
 
     assert position_names(member) == []
+  end
+
+  test "assigning a held position silently takes it over", %{conn: conn} do
+    member_a = McEmcommFixtures.member_fixture(%{name: "Avery Holder"})
+    member_b = McEmcommFixtures.member_fixture(%{name: "Blake Taker"})
+    treasurer = McEmcommFixtures.position_fixture(%{name: "Treasurer"})
+
+    {:ok, lv, _html} = live(conn, ~p"/admin/members")
+
+    lv
+    |> element("#positions-form-#{member_a.id}")
+    |> render_change(%{"position_ids" => ["", "#{treasurer.id}"]})
+
+    lv
+    |> element("#positions-form-#{member_b.id}")
+    |> render_change(%{"position_ids" => ["", "#{treasurer.id}"]})
+
+    assert position_names(member_b) == ["Treasurer"]
+    assert position_names(member_a) == []
+
+    refute has_element?(
+             lv,
+             "#positions-form-#{member_a.id} input[value='#{treasurer.id}'][checked]"
+           )
+
+    assert has_element?(
+             lv,
+             "#positions-form-#{member_b.id} input[value='#{treasurer.id}'][checked]"
+           )
+  end
+
+  test "a pending member's unheld position checkboxes are disabled", %{conn: conn} do
+    member = McEmcommFixtures.pending_member_fixture()
+    position = McEmcommFixtures.position_fixture(%{name: "Treasurer"})
+
+    {:ok, lv, _html} = live(conn, ~p"/admin/members")
+
+    assert has_element?(
+             lv,
+             "#positions-form-#{member.id} input[value='#{position.id}'][disabled]"
+           )
   end
 
   defp position_names(member) do

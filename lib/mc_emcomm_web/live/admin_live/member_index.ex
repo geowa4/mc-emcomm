@@ -31,19 +31,38 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
         <:col :let={m} label="Positions">
           <form id={"positions-form-#{m.id}"} phx-change="update_positions" phx-value-id={m.id}>
             <input type="hidden" name="position_ids[]" value="" />
-            <label
-              :for={position <- @positions}
-              class="label cursor-pointer justify-start gap-2 py-0.5 text-sm"
+            <button
+              type="button"
+              class="btn btn-sm btn-outline max-w-56 justify-between gap-2 font-normal"
+              popovertarget={"positions-popover-#{m.id}"}
+              style={"anchor-name:--positions-anchor-#{m.id}"}
             >
-              <input
-                type="checkbox"
-                name="position_ids[]"
-                value={position.id}
-                checked={position.id in Enum.map(m.positions, & &1.id)}
-                class="checkbox checkbox-xs"
-              />
-              {position.name}
-            </label>
+              <span class="truncate">{position_summary(m)}</span>
+              <.icon name="hero-chevron-down" class="size-4 shrink-0" />
+            </button>
+            <div
+              id={"positions-popover-#{m.id}"}
+              popover
+              class="dropdown w-64 rounded-box border border-base-300 bg-base-100 p-2 shadow-md"
+              style={"position-anchor:--positions-anchor-#{m.id}"}
+            >
+              <label
+                :for={position <- @positions}
+                class="label flex cursor-pointer justify-start gap-2 py-1 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  name="position_ids[]"
+                  value={position.id}
+                  checked={position.id in Enum.map(m.positions, & &1.id)}
+                  disabled={
+                    m.status != :approved and position.id not in Enum.map(m.positions, & &1.id)
+                  }
+                  class="checkbox checkbox-xs"
+                />
+                {position.name}
+              </label>
+            </div>
           </form>
         </:col>
         <:action :let={m}>
@@ -176,9 +195,21 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
       |> Enum.reject(&is_nil/1)
 
     member = Members.get_member!(id)
-    {:ok, _} = Members.update_member_positions(member, position_ids)
-    {:noreply, assign(socket, members: Members.list_members())}
+
+    case Members.update_member_positions(member, position_ids) do
+      {:ok, _} ->
+        {:noreply, assign(socket, members: Members.list_members())}
+
+      {:error, :not_approved} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Only approved members can hold positions.")
+         |> assign(members: Members.list_members())}
+    end
   end
+
+  defp position_summary(%{positions: []}), do: "None"
+  defp position_summary(%{positions: positions}), do: Enum.map_join(positions, ", ", & &1.name)
 
   defp transition(socket, member, to_status, reason) do
     actor = socket.assigns.current_scope.user

@@ -4,17 +4,10 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
   # Baseline migration for a fresh install. The app had no deployments when
   # the pre-launch migration history was squashed into this file, so the
   # schema is created directly in its intended shape (leadership positions
-  # are relational; there is no members.role column).
-
-  @positions [
-    {"President", 1},
-    {"Vice-President", 2},
-    {"Secretary", 3},
-    {"Treasurer", 4},
-    {"Emergency Coordinator", 5},
-    {"Assistant Emergency Coordinator", 6},
-    {"Director-at-Large", 7}
-  ]
+  # are relational; there is no members.role column). Every position is
+  # single-holder, enforced by the unique index on member_positions.position_id.
+  # The positions table starts empty: admins manage the catalog at
+  # /admin/positions, and dev data comes from seeds.exs.
 
   def change do
     execute "CREATE EXTENSION IF NOT EXISTS citext", ""
@@ -90,6 +83,7 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
 
     create unique_index(:positions, [:name])
     create unique_index(:positions, [:sort_order])
+    create constraint(:positions, :sort_order_positive, check: "sort_order > 0")
 
     create table(:member_positions) do
       add :member_id, references(:members, on_delete: :delete_all), null: false
@@ -98,16 +92,8 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
       timestamps(type: :utc_datetime)
     end
 
-    create unique_index(:member_positions, [:member_id, :position_id])
-    create index(:member_positions, [:position_id])
-
-    for {name, sort_order} <- @positions do
-      execute """
-              INSERT INTO positions (name, sort_order, inserted_at, updated_at)
-              VALUES ('#{name}', #{sort_order}, now(), now())
-              """,
-              ""
-    end
+    create unique_index(:member_positions, [:position_id])
+    create index(:member_positions, [:member_id])
 
     create table(:membership_audit) do
       add :member_id, references(:members, on_delete: :delete_all), null: false

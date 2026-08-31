@@ -7,6 +7,9 @@ defmodule McEmcommWeb.PublicLive.AboutTest do
   alias McEmcomm.Members
 
   test "lists every position as vacant when nobody holds one", %{conn: conn} do
+    McEmcommFixtures.position_fixture(%{name: "President", sort_order: 1})
+    McEmcommFixtures.position_fixture(%{name: "Secretary", sort_order: 2})
+
     {:ok, lv, html} = live(conn, ~p"/about")
 
     assert html =~ "About Monroe County ARES/RACES"
@@ -20,7 +23,7 @@ defmodule McEmcommWeb.PublicLive.AboutTest do
 
   test "renders holders under their positions", %{conn: conn} do
     member = McEmcommFixtures.member_fixture(%{name: "Riley Officer", call_sign: "W2LDR"})
-    secretary = Enum.find(Members.list_positions(), &(&1.name == "Secretary"))
+    secretary = McEmcommFixtures.position_fixture(%{name: "Secretary"})
     {:ok, _} = Members.update_member_positions(member, [secretary.id])
 
     {:ok, lv, html} = live(conn, ~p"/about")

@@ -108,6 +108,21 @@ defmodule McEmcomm.McEmcommFixtures do
     document
   end
 
+  def position_fixture(attrs \\ %{}) do
+    {:ok, position} =
+      Members.create_position(
+        Map.merge(
+          %{
+            name: "Test Position #{System.unique_integer()}",
+            sort_order: System.unique_integer([:positive, :monotonic])
+          },
+          attrs
+        )
+      )
+
+    position
+  end
+
   def capability_fixture(attrs \\ %{}) do
     {:ok, capability} =
       Capabilities.create_capability(
