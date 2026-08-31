@@ -16,9 +16,9 @@ defmodule McEmcomm.Application do
         McEmcomm.Repo,
         {DNSCluster, query: Application.get_env(:mc_emcomm, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: McEmcomm.PubSub},
-        {Task.Supervisor, name: McEmcomm.TaskSupervisor},
-        McEmcomm.Health.Probe
+        {Task.Supervisor, name: McEmcomm.TaskSupervisor}
       ] ++
+        probe_child() ++
         retention_scrubber_child() ++
         [
           # Start to serve requests, typically the last entry
@@ -41,6 +41,17 @@ defmodule McEmcomm.Application do
   def config_change(changed, _new, removed) do
     McEmcommWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  # Disabled in test (config/test.exs): the boot-time probe would query before
+  # test_helper.exs flips the sandbox to :manual, and the flip then yanks its
+  # in-flight connection. Tests that need the process start their own.
+  defp probe_child do
+    if Application.get_env(:mc_emcomm, :start_health_probe, true) do
+      [McEmcomm.Health.Probe]
+    else
+      []
+    end
   end
 
   # Disabled in test (config/test.exs) so the periodic scrub never races the

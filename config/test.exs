@@ -42,6 +42,10 @@ config :mc_emcomm, :metrics_port, 0
 # exercised directly via McEmcomm.Sightings.scrub_before/1.
 config :mc_emcomm, :start_retention_scrubber, false
 
+# The health probe isn't started in test: its boot-time query races the
+# sandbox mode flip in test_helper.exs. Probe tests start their own process.
+config :mc_emcomm, :start_health_probe, false
+
 # PhoenixTest drives the endpoint directly.
 config :phoenix_test, :endpoint, McEmcommWeb.Endpoint
 
