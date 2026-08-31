@@ -254,6 +254,62 @@ defmodule McEmcomm.SightingsTest do
     end
   end
 
+  describe "list_located_for_asset/2 and last_seen_on/1 — sighting-map filters" do
+    test "returns only located sightings, newest first, honoring :limit and :since" do
+      asset = McEmcommFixtures.asset_fixture()
+      now = DateTime.utc_now()
+
+      old = located_sighting(asset, "tok-old", DateTime.add(now, -10, :day))
+      mid = located_sighting(asset, "tok-mid", DateTime.add(now, -3, :day))
+      new = located_sighting(asset, "tok-new", now)
+
+      {:ok, _unlocated} =
+        Sightings.record_visit(%{
+          asset_id: asset.id,
+          session_token: "tok-nogeo",
+          visited_at: now
+        })
+
+      assert Enum.map(Sightings.list_located_for_asset(asset.id), & &1.id) ==
+               [new.id, mid.id, old.id]
+
+      assert Enum.map(Sightings.list_located_for_asset(asset.id, limit: 2), & &1.id) ==
+               [new.id, mid.id]
+
+      since = now |> DateTime.add(-3, :day) |> DateTime.to_date()
+
+      assert Enum.map(Sightings.list_located_for_asset(asset.id, since: since), & &1.id) ==
+               [new.id, mid.id]
+
+      assert Sightings.last_seen_on(asset.id) == DateTime.to_date(now)
+    end
+
+    test "last_seen_on/1 is nil for an asset with no located sightings" do
+      asset = McEmcommFixtures.asset_fixture()
+
+      {:ok, _unlocated} =
+        Sightings.record_visit(%{
+          asset_id: asset.id,
+          session_token: "tok-nogeo",
+          visited_at: DateTime.utc_now()
+        })
+
+      assert Sightings.last_seen_on(asset.id) == nil
+    end
+  end
+
+  defp located_sighting(asset, token, visited_at) do
+    {:ok, sighting} =
+      Sightings.record_visit(%{
+        asset_id: asset.id,
+        session_token: token,
+        visited_at: visited_at
+      })
+
+    {:ok, sighting} = Sightings.record_geolocation(sighting, %{"point" => @in_radius})
+    sighting
+  end
+
   describe "scrub_before/1 — retention (§20)" do
     test "nulls raw telemetry for sightings visited before the cutoff, keeps submission fields" do
       asset = McEmcommFixtures.asset_fixture()

@@ -24,6 +24,10 @@ defmodule McEmcommWeb.InventoryLive.Show do
       asset ->
         admin? = Scope.admin?(socket.assigns.current_scope)
 
+        # The map defaults to the day the asset was last seen, so a
+        # long-lived asset doesn't open onto its entire sighting history.
+        map_since = (admin? && Sightings.last_seen_on(asset.id)) || Date.utc_today()
+
         {:ok,
          assign(socket,
            page_title: asset.name,
@@ -35,9 +39,39 @@ defmodule McEmcommWeb.InventoryLive.Show do
                do: Sightings.list_for_asset_admin_view(asset.id),
                else: Sightings.list_for_asset_member_view(asset.id)
              ),
-           markers_json: if(admin?, do: admin_markers_json(asset.id), else: "[]"),
+           map_mode: "since",
+           map_since: map_since,
+           markers_json: if(admin?, do: markers_json(asset.id, {:since, map_since}), else: "[]"),
            tile_url: MapHelpers.tile_url()
          )}
+    end
+  end
+
+  @impl true
+  def handle_event("filter_map", params, socket) do
+    filter = parse_map_filter(params, socket.assigns.map_since)
+
+    {mode, since} =
+      case filter do
+        {:since, date} -> {"since", date}
+        {:last, n} -> {Integer.to_string(n), socket.assigns.map_since}
+      end
+
+    {:noreply,
+     assign(socket,
+       map_mode: mode,
+       map_since: since,
+       markers_json: markers_json(socket.assigns.asset.id, filter)
+     )}
+  end
+
+  defp parse_map_filter(%{"mode" => mode}, _fallback) when mode in ~w(5 10 20),
+    do: {:last, String.to_integer(mode)}
+
+  defp parse_map_filter(params, fallback) do
+    case Date.from_iso8601(params["since"] || "") do
+      {:ok, date} -> {:since, date}
+      {:error, _} -> {:since, fallback}
     end
   end
 
@@ -58,6 +92,23 @@ defmodule McEmcommWeb.InventoryLive.Show do
 
       <div :if={@admin?}>
         <h2 class="text-lg font-semibold mt-6">Sighting map</h2>
+        <form id="map-filter" phx-change="filter_map" class="flex flex-wrap items-center gap-2 my-2">
+          <label for="map-filter-mode" class="text-sm">Show</label>
+          <select id="map-filter-mode" name="mode" class="select select-sm w-auto">
+            <option value="since" selected={@map_mode == "since"}>Sightings since</option>
+            <option value="5" selected={@map_mode == "5"}>Last 5</option>
+            <option value="10" selected={@map_mode == "10"}>Last 10</option>
+            <option value="20" selected={@map_mode == "20"}>Last 20</option>
+          </select>
+          <input
+            :if={@map_mode == "since"}
+            id="map-filter-since"
+            type="date"
+            name="since"
+            value={@map_since}
+            class="input input-sm w-auto"
+          />
+        </form>
         <div
           id="asset-map"
           phx-hook="LeafletMap"
@@ -90,10 +141,15 @@ defmodule McEmcommWeb.InventoryLive.Show do
     """
   end
 
-  defp admin_markers_json(asset_id) do
+  defp markers_json(asset_id, filter) do
+    opts =
+      case filter do
+        {:since, date} -> [since: date]
+        {:last, n} -> [limit: n]
+      end
+
     asset_id
-    |> Sightings.list_for_asset_admin_view()
-    |> Enum.filter(&match?(%Geo.Point{}, &1.point))
+    |> Sightings.list_located_for_asset(opts)
     |> Enum.map(&%{point: &1.point, title: &1.call_sign || "sighting"})
     |> MapHelpers.markers_json()
   end

@@ -219,6 +219,44 @@ defmodule McEmcomm.Sightings do
     |> Repo.all()
   end
 
+  @doc """
+  Located sightings (those with a geolocation point) for the admin map,
+  newest first. Options (mutually exclusive):
+
+    * `limit: n` — only the n most recent
+    * `since: %Date{}` — only those visited on or after that UTC date
+  """
+  def list_located_for_asset(asset_id, opts \\ []) do
+    Sighting
+    |> where([s], s.asset_id == ^asset_id and not is_nil(s.point))
+    |> order_by([s], desc: s.visited_at)
+    |> located_filter(opts)
+    |> Repo.all()
+  end
+
+  defp located_filter(query, limit: n), do: limit(query, ^n)
+
+  defp located_filter(query, since: %Date{} = date) do
+    cutoff = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
+    where(query, [s], s.visited_at >= ^cutoff)
+  end
+
+  defp located_filter(query, []), do: query
+
+  @doc "UTC date of the asset's most recent located sighting, or nil."
+  def last_seen_on(asset_id) do
+    Sighting
+    |> where([s], s.asset_id == ^asset_id and not is_nil(s.point))
+    |> order_by([s], desc: s.visited_at)
+    |> limit(1)
+    |> select([s], s.visited_at)
+    |> Repo.one()
+    |> case do
+      nil -> nil
+      visited_at -> DateTime.to_date(visited_at)
+    end
+  end
+
   ## Retention (§20)
 
   @doc "Scrubs raw telemetry from sightings visited before `cutoff`, setting `scrubbed_at`."
