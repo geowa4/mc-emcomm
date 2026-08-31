@@ -34,6 +34,38 @@ defmodule McEmcommWeb.AdminLive.PositionIndexTest do
     assert Members.list_positions() == []
   end
 
+  test "a position created with the admin checkbox grants admin and shows a badge", %{conn: conn} do
+    {:ok, lv, _html} = live(conn, ~p"/admin/positions")
+
+    lv |> element("button", "New position") |> render_click()
+
+    lv
+    |> form("#position-form", position: %{name: "President", sort_order: 1, grants_admin: true})
+    |> render_submit()
+
+    position = Enum.find(Members.list_positions(), &(&1.name == "President"))
+    assert position.grants_admin
+    assert has_element?(lv, "#position-row-#{position.id} .badge", "admin")
+  end
+
+  test "holding an admin-granting position opens the admin area" do
+    member = McEmcommFixtures.member_fixture(%{name: "Avery Holder"})
+    position = McEmcommFixtures.position_fixture(%{name: "President", grants_admin: true})
+    {:ok, _} = Members.assign_position(member, position)
+
+    conn = log_in_user(build_conn(), member.user)
+    assert {:ok, _lv, _html} = live(conn, ~p"/admin/positions")
+  end
+
+  test "holding an ordinary position does not open the admin area" do
+    member = McEmcommFixtures.member_fixture(%{name: "Avery Holder"})
+    position = McEmcommFixtures.position_fixture(%{name: "Secretary"})
+    {:ok, _} = Members.assign_position(member, position)
+
+    conn = log_in_user(build_conn(), member.user)
+    assert {:error, {:redirect, _}} = live(conn, ~p"/admin/positions")
+  end
+
   test "deleting a held position is refused with a flash", %{conn: conn} do
     member = McEmcommFixtures.member_fixture(%{name: "Avery Holder"})
     position = McEmcommFixtures.position_fixture(%{name: "Treasurer"})

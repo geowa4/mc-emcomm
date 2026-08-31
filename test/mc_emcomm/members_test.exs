@@ -71,6 +71,23 @@ defmodule McEmcomm.MembersTest do
       assert Enum.all?(positions, &(&1.members == []))
     end
 
+    test "holds_admin_position?/1 follows admin-granting positions as they change hands" do
+      member = McEmcommFixtures.member_fixture()
+      plain = McEmcommFixtures.position_fixture(%{name: "Secretary"})
+      admin_pos = McEmcommFixtures.position_fixture(%{name: "President", grants_admin: true})
+
+      refute Members.holds_admin_position?(member.id)
+
+      {:ok, _} = Members.update_member_positions(member, [plain.id])
+      refute Members.holds_admin_position?(member.id)
+
+      {:ok, _} = Members.assign_position(member, admin_pos)
+      assert Members.holds_admin_position?(member.id)
+
+      :ok = Members.vacate_position(admin_pos)
+      refute Members.holds_admin_position?(member.id)
+    end
+
     test "update_member_positions/2 lets one member hold several positions" do
       member = McEmcommFixtures.member_fixture()
       vp = McEmcommFixtures.position_fixture(%{name: "Vice-President", sort_order: 1})

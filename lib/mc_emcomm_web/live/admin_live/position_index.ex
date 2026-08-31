@@ -46,6 +46,11 @@ defmodule McEmcommWeb.AdminLive.PositionIndex do
           <.form for={@form} id="position-form" phx-change="validate" phx-submit="save">
             <.input field={@form[:name]} label="Name" required />
             <.input field={@form[:sort_order]} type="number" label="Sort order" min="1" required />
+            <.input
+              field={@form[:grants_admin]}
+              type="checkbox"
+              label="Grants site admin to the holder"
+            />
             <div class="modal-action">
               <button type="button" phx-click="cancel" class="btn btn-ghost">Cancel</button>
               <.button class="btn btn-primary">Save</.button>
@@ -76,7 +81,10 @@ defmodule McEmcommWeb.AdminLive.PositionIndex do
             >
               <td><.icon name="hero-bars-3" class="size-4 text-base-content/40" /></td>
               <td>{p.sort_order}</td>
-              <td>{p.name}</td>
+              <td>
+                {p.name}
+                <span :if={p.grants_admin} class="badge badge-sm badge-primary">admin</span>
+              </td>
               <td>
                 <.link id={"change-holder-#{p.id}"} phx-click="change_holder" phx-value-id={p.id}>
                   <span :if={p.members == []} class="text-base-content/50 italic">Vacant</span>

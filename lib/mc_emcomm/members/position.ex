@@ -7,6 +7,7 @@ defmodule McEmcomm.Members.Position do
   schema "positions" do
     field :name, :string
     field :sort_order, :integer
+    field :grants_admin, :boolean, default: false
 
     many_to_many :members, McEmcomm.Members.Member, join_through: McEmcomm.Members.MemberPosition
 
@@ -15,7 +16,7 @@ defmodule McEmcomm.Members.Position do
 
   def changeset(position, attrs) do
     position
-    |> cast(attrs, [:name, :sort_order])
+    |> cast(attrs, [:name, :sort_order, :grants_admin])
     |> validate_required([:name, :sort_order])
     |> validate_number(:sort_order, greater_than: 0)
     |> unique_constraint(:name)

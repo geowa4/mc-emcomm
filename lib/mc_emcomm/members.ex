@@ -39,6 +39,21 @@ defmodule McEmcomm.Members do
 
   def get_member!(id), do: Repo.get!(Member, id)
 
+  @doc """
+  True when the member currently holds at least one leadership position
+  whose `grants_admin` flag is set. Position-derived admin access follows
+  the holder: it appears when the position is assigned and disappears when
+  the position is vacated or reassigned.
+  """
+  def holds_admin_position?(member_id) do
+    Repo.exists?(
+      from mp in MemberPosition,
+        join: p in Position,
+        on: p.id == mp.position_id,
+        where: mp.member_id == ^member_id and p.grants_admin
+    )
+  end
+
   @doc "Creates the member profile row for a newly registered user (status: pending)."
   def create_member(attrs) do
     %Member{}
