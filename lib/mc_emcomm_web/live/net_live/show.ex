@@ -68,6 +68,7 @@ defmodule McEmcommWeb.NetLive.Show do
         for={@checkin_form}
         id="checkin-form"
         phx-submit="check_in"
+        phx-hook=".ResetOnSave"
         class="flex gap-2 items-end flex-wrap mt-4"
       >
         <.input field={@checkin_form[:call_sign]} label="Call sign" required />
@@ -81,6 +82,24 @@ defmodule McEmcommWeb.NetLive.Show do
         <.input field={@checkin_form[:notes]} label="Notes" />
         <.button class="btn btn-primary mb-3">Check in</.button>
       </.form>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ResetOnSave">
+        export default {
+          mounted() {
+            this.handleEvent("checkin_saved", () => {
+              this.el.reset()
+              const callSign = this.el.elements["net_checkin[call_sign]"]
+              if (!callSign) return
+              // LiveView refocuses the submit button after the ack, at an
+              // unpredictable point after this event; redirect that focus to
+              // the call sign field for a short window.
+              const redirect = (e) => { if (e.target !== callSign) callSign.focus() }
+              this.el.addEventListener("focusin", redirect)
+              requestAnimationFrame(() => callSign.focus())
+              setTimeout(() => this.el.removeEventListener("focusin", redirect), 300)
+            })
+          }
+        }
+      </script>
 
       <h2 class="text-lg font-semibold mt-8">Roster</h2>
 
@@ -165,7 +184,10 @@ defmodule McEmcommWeb.NetLive.Show do
   def handle_event("check_in", %{"net_checkin" => params}, socket) do
     case Net.check_in(socket.assigns.session, params) do
       {:ok, _checkin} ->
-        {:noreply, assign(socket, checkin_form: to_form(Net.change_checkin(%NetCheckin{})))}
+        {:noreply,
+         socket
+         |> assign(checkin_form: to_form(Net.change_checkin(%NetCheckin{})))
+         |> push_event("checkin_saved", %{})}
 
       {:error, changeset} ->
         {:noreply, assign(socket, checkin_form: to_form(changeset))}

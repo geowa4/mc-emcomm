@@ -23,6 +23,8 @@ defmodule McEmcommWeb.NetLive.ShowTest do
 
     assert render(lv) =~ "W2OTH"
     assert render(lv) =~ "SE"
+    # The submitter's client is told to clear the form and refocus the call sign.
+    assert_push_event(lv, "checkin_saved", %{})
     # The second viewer receives the check-in over PubSub without resubmitting.
     assert render(other_lv) =~ "W2OTH"
   end
