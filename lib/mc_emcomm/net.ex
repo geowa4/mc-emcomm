@@ -76,6 +76,20 @@ defmodule McEmcomm.Net do
     session |> NetSession.end_changeset() |> Repo.update()
   end
 
+  def rename_session(%NetSession{} = session, name) do
+    session
+    |> NetSession.changeset(%{"name" => name})
+    |> Repo.update()
+    |> case do
+      {:ok, renamed} = result ->
+        broadcast(renamed.id, {:session_renamed, renamed})
+        result
+
+      error ->
+        error
+    end
+  end
+
   ## Check-ins
 
   def change_checkin(%NetCheckin{} = checkin, attrs \\ %{}) do

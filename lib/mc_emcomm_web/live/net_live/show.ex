@@ -14,6 +14,8 @@ defmodule McEmcommWeb.NetLive.Show do
      assign(socket,
        page_title: session.name || "Net ##{session.id}",
        session: session,
+       editing_name?: false,
+       name_form: to_form(%{"name" => session.name}, as: :net_session),
        checkin_form: to_form(Net.change_checkin(%NetCheckin{}))
      )}
   end
@@ -23,7 +25,30 @@ defmodule McEmcommWeb.NetLive.Show do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <.header>
-        {@session.name || "Net ##{@session.id}"}
+        <%= if @editing_name? do %>
+          <.form
+            for={@name_form}
+            id="net-name-form"
+            phx-submit="rename_session"
+            class="flex gap-2 items-center"
+          >
+            <.input field={@name_form[:name]} />
+            <.button class="btn btn-primary btn-sm">Save</.button>
+            <button type="button" phx-click="cancel_edit_name" class="btn btn-ghost btn-sm">
+              Cancel
+            </button>
+          </.form>
+        <% else %>
+          {@session.name || "Net ##{@session.id}"}
+          <button
+            id="edit-net-name"
+            phx-click="edit_name"
+            class="btn btn-ghost btn-xs align-middle"
+            title="Edit net name"
+          >
+            <.icon name="hero-pencil-square" class="size-4" />
+          </button>
+        <% end %>
         <:subtitle>Started {Calendar.strftime(@session.started_at, "%Y-%m-%d %H:%M")}</:subtitle>
         <:actions>
           <.button
@@ -78,6 +103,33 @@ defmodule McEmcommWeb.NetLive.Show do
     end
   end
 
+  def handle_event("edit_name", _params, socket) do
+    {:noreply,
+     assign(socket,
+       editing_name?: true,
+       name_form: to_form(%{"name" => socket.assigns.session.name}, as: :net_session)
+     )}
+  end
+
+  def handle_event("cancel_edit_name", _params, socket) do
+    {:noreply, assign(socket, editing_name?: false)}
+  end
+
+  def handle_event("rename_session", %{"net_session" => %{"name" => name}}, socket) do
+    case Net.rename_session(socket.assigns.session, name) do
+      {:ok, session} ->
+        {:noreply,
+         assign(socket,
+           session: %{socket.assigns.session | name: session.name},
+           page_title: session.name,
+           editing_name?: false
+         )}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Net name can't be blank.")}
+    end
+  end
+
   def handle_event("end_session", _params, socket) do
     {:ok, session} = Net.end_session(socket.assigns.session)
     {:noreply, assign(socket, session: %{socket.assigns.session | ended_at: session.ended_at})}
@@ -87,5 +139,10 @@ defmodule McEmcommWeb.NetLive.Show do
   def handle_info({:checkin_added, checkin}, socket) do
     session = socket.assigns.session
     {:noreply, assign(socket, session: %{session | checkins: session.checkins ++ [checkin]})}
+  end
+
+  def handle_info({:session_renamed, renamed}, socket) do
+    session = socket.assigns.session
+    {:noreply, assign(socket, session: %{session | name: renamed.name}, page_title: renamed.name)}
   end
 end
