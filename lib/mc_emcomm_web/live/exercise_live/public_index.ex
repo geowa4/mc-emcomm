@@ -6,19 +6,14 @@ defmodule McEmcommWeb.ExerciseLive.PublicIndex do
   @impl true
   def mount(_params, _session, socket) do
     exercises = Exercises.list_exercises(visibility: :public)
-    {:ok, assign(socket, page_title: "Exercises", exercises: exercises)}
+    {:ok, assign(socket, page_title: "Public Exercises", exercises: exercises)}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <.header>Exercises</.header>
-
-      <p class="text-base-content/70">
-        Public exercise schedule. Approved members see full details, locations, and
-        attachments in the <.link navigate={~p"/app/exercises"} class="link">member portal</.link>.
-      </p>
+      <.header>Public Exercises</.header>
 
       <ul :if={@exercises != []} class="list bg-base-100 rounded-box border border-base-300 mt-4">
         <li :for={exercise <- @exercises} class="list-row">
@@ -33,6 +28,10 @@ defmodule McEmcommWeb.ExerciseLive.PublicIndex do
         </li>
       </ul>
       <p :if={@exercises == []} class="text-base-content/70 mt-4">No upcoming public exercises.</p>
+
+      <.link id="member-exercises-link" navigate={~p"/app/exercises"} class="btn btn-primary mt-4">
+        View all exercises in the member portal
+      </.link>
     </Layouts.app>
     """
   end
