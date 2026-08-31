@@ -73,4 +73,95 @@ defmodule McEmcommWeb.NetLive.ShowTest do
     html = lv |> element("button", "End net") |> render_click()
     refute html =~ "checkin-form"
   end
+
+  test "editing a check-in corrects it for other viewers and re-links the member", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture(%{call_sign: "W2NCO"})
+    other_member = McEmcommFixtures.member_fixture(%{call_sign: "W2OTH"})
+    session = McEmcommFixtures.net_session_fixture(member)
+
+    {:ok, lv, _html} = conn |> log_in_user(member.user) |> live(~p"/app/net/#{session.id}")
+
+    other_conn = Phoenix.ConnTest.build_conn()
+
+    {:ok, other_lv, _html} =
+      other_conn |> log_in_user(other_member.user) |> live(~p"/app/net/#{session.id}")
+
+    # Mistyped call sign, matching no member.
+    lv |> form("#checkin-form", net_checkin: %{call_sign: "W2OTX"}) |> render_submit()
+
+    [checkin] = McEmcomm.Net.get_session!(session.id).checkins
+    assert is_nil(checkin.member_id)
+
+    lv |> element("#edit-checkin-#{checkin.id}") |> render_click()
+    assert has_element?(lv, "#edit-checkin-form")
+
+    lv
+    |> form("#edit-checkin-form", net_checkin: %{call_sign: "w2oth", notes: "corrected"})
+    |> render_submit()
+
+    refute has_element?(lv, "#edit-checkin-form")
+    assert render(lv) =~ "W2OTH"
+    assert render(lv) =~ "corrected"
+    # The correction re-links the member record by call sign.
+    [checkin] = McEmcomm.Net.get_session!(session.id).checkins
+    assert checkin.member_id == other_member.id
+    # The second viewer receives the correction over PubSub.
+    assert render(other_lv) =~ "W2OTH"
+  end
+
+  test "leaving logs an end time and checking back in adds a new roster entry", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture(%{call_sign: "W2NCO"})
+    session = McEmcommFixtures.net_session_fixture(member)
+
+    {:ok, lv, _html} = conn |> log_in_user(member.user) |> live(~p"/app/net/#{session.id}")
+
+    lv |> form("#checkin-form", net_checkin: %{call_sign: "W2OTH"}) |> render_submit()
+
+    [checkin] = McEmcomm.Net.get_session!(session.id).checkins
+    lv |> element("#checkout-checkin-#{checkin.id}") |> render_click()
+
+    [checkin] = McEmcomm.Net.get_session!(session.id).checkins
+    assert checkin.ended_at
+    # The ended check-in no longer offers a leave button.
+    refute has_element?(lv, "#checkout-checkin-#{checkin.id}")
+
+    # Coming back later is a fresh check-in; the earlier stint stays logged.
+    lv |> form("#checkin-form", net_checkin: %{call_sign: "W2OTH"}) |> render_submit()
+
+    checkins = McEmcomm.Net.get_session!(session.id).checkins
+    assert length(checkins) == 2
+    assert has_element?(lv, "#checkin-row-#{checkin.id}")
+    [returned] = Enum.reject(checkins, &(&1.id == checkin.id))
+    assert is_nil(returned.ended_at)
+    assert has_element?(lv, "#checkout-checkin-#{returned.id}")
+  end
+
+  test "ending the net ends every open check-in", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture(%{call_sign: "W2NCO"})
+    other_member = McEmcommFixtures.member_fixture(%{call_sign: "W2OTH"})
+    session = McEmcommFixtures.net_session_fixture(member)
+
+    {:ok, lv, _html} = conn |> log_in_user(member.user) |> live(~p"/app/net/#{session.id}")
+
+    other_conn = Phoenix.ConnTest.build_conn()
+
+    {:ok, other_lv, _html} =
+      other_conn |> log_in_user(other_member.user) |> live(~p"/app/net/#{session.id}")
+
+    lv |> form("#checkin-form", net_checkin: %{call_sign: "W2NCO"}) |> render_submit()
+    lv |> form("#checkin-form", net_checkin: %{call_sign: "W2OTH"}) |> render_submit()
+
+    lv |> element("button", "End net") |> render_click()
+
+    reloaded = McEmcomm.Net.get_session!(session.id)
+    assert reloaded.ended_at
+
+    for checkin <- reloaded.checkins do
+      assert DateTime.compare(checkin.ended_at, reloaded.ended_at) == :eq
+    end
+
+    # Other viewers see the ended net without any leave buttons left.
+    refute has_element?(other_lv, "#checkin-form")
+    refute render(other_lv) =~ "checkout-checkin-"
+  end
 end

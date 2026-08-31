@@ -11,6 +11,7 @@ defmodule McEmcomm.Net.NetCheckin do
     field :quadrant, Ecto.Enum, values: @quadrants
     field :notes, :string
     field :recorded_at, :utc_datetime_usec
+    field :ended_at, :utc_datetime_usec
 
     belongs_to :net_session, McEmcomm.Net.NetSession
     belongs_to :member, McEmcomm.Members.Member
@@ -25,5 +26,25 @@ defmodule McEmcomm.Net.NetCheckin do
     |> update_change(:call_sign, &String.upcase(String.trim(&1)))
     |> foreign_key_constraint(:net_session_id)
     |> foreign_key_constraint(:member_id)
+  end
+
+  @doc "Corrections after entry; `member_id` is re-matched programmatically, never cast."
+  def update_changeset(checkin, attrs) do
+    checkin
+    |> cast(attrs, [:call_sign, :quadrant, :notes])
+    |> validate_required([:call_sign])
+    |> update_change(:call_sign, &String.upcase(String.trim(&1)))
+    |> foreign_key_constraint(:member_id)
+  end
+
+  def end_changeset(checkin, ended_at) do
+    change(checkin, ended_at: ended_at)
+  end
+
+  @doc "Seconds on the net, or `nil` while the check-in is still active."
+  def duration_seconds(%__MODULE__{ended_at: nil}), do: nil
+
+  def duration_seconds(%__MODULE__{recorded_at: recorded_at, ended_at: ended_at}) do
+    DateTime.diff(ended_at, recorded_at, :second)
   end
 end

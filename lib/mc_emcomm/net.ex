@@ -72,8 +72,32 @@ defmodule McEmcomm.Net do
     end
   end
 
+  @doc """
+  Ends the session and closes every still-active check-in at the same instant,
+  so no check-in outlives its net.
+  """
   def end_session(%NetSession{} = session) do
-    session |> NetSession.end_changeset() |> Repo.update()
+    changeset = NetSession.end_changeset(session)
+
+    result =
+      Repo.transaction(fn ->
+        case Repo.update(changeset) do
+          {:ok, ended} ->
+            NetCheckin
+            |> where([c], c.net_session_id == ^ended.id and is_nil(c.ended_at))
+            |> Repo.update_all(set: [ended_at: ended.ended_at])
+
+            ended
+
+          {:error, error_changeset} ->
+            Repo.rollback(error_changeset)
+        end
+      end)
+
+    with {:ok, ended} <- result do
+      broadcast(ended.id, {:session_ended, ended})
+      {:ok, ended}
+    end
   end
 
   def rename_session(%NetSession{} = session, name) do
@@ -96,10 +120,14 @@ defmodule McEmcomm.Net do
     NetCheckin.changeset(checkin, attrs)
   end
 
-  @doc "Records a check-in, auto-linking by call sign and prefilling quadrant from the member."
+  @doc """
+  Records a check-in, auto-linking by call sign and prefilling quadrant from the
+  member. An operator who left the net and comes back checks in again: each
+  stint is its own row, so the log keeps every join/leave with its duration.
+  """
   def check_in(%NetSession{} = session, attrs) do
     call_sign = attrs["call_sign"] || attrs[:call_sign]
-    matched_member = call_sign && Repo.get_by(Member, call_sign: normalize(call_sign))
+    matched_member = match_member(call_sign)
 
     attrs =
       attrs
@@ -122,6 +150,46 @@ defmodule McEmcomm.Net do
         error
     end
   end
+
+  def update_checkin(%NetCheckin{} = checkin, attrs) do
+    changeset = NetCheckin.update_changeset(checkin, attrs)
+
+    changeset =
+      case Ecto.Changeset.fetch_change(changeset, :call_sign) do
+        {:ok, call_sign} ->
+          matched_member = match_member(call_sign)
+          Ecto.Changeset.put_change(changeset, :member_id, matched_member && matched_member.id)
+
+        :error ->
+          changeset
+      end
+
+    changeset
+    |> Repo.update()
+    |> broadcast_checkin_change()
+  end
+
+  @doc "Logs the operator leaving the net; the check-in keeps its start and end times."
+  def check_out(%NetCheckin{ended_at: nil} = checkin, ended_at \\ DateTime.utc_now()) do
+    checkin
+    |> NetCheckin.end_changeset(ended_at)
+    |> Repo.update()
+    |> broadcast_checkin_change()
+  end
+
+  defp broadcast_checkin_change({:ok, checkin}) do
+    checkin = Repo.preload(checkin, :member, force: true)
+    broadcast(checkin.net_session_id, {:checkin_updated, checkin})
+    {:ok, checkin}
+  end
+
+  defp broadcast_checkin_change(error), do: error
+
+  defp match_member(call_sign) when is_binary(call_sign) do
+    Repo.get_by(Member, call_sign: normalize(call_sign))
+  end
+
+  defp match_member(_call_sign), do: nil
 
   defp normalize(call_sign), do: call_sign |> String.trim() |> String.upcase()
 
