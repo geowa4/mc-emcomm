@@ -11,8 +11,8 @@ defmodule McEmcommWeb.UserLive.Settings do
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="text-center">
         <.header>
-          Account Settings
-          <:subtitle>Manage your account email address and password settings</:subtitle>
+          Account
+          <:subtitle>Change the email address and password you use to log in</:subtitle>
         </.header>
       </div>
 
@@ -90,6 +90,7 @@ defmodule McEmcommWeb.UserLive.Settings do
 
     socket =
       socket
+      |> assign(:page_title, "Account")
       |> assign(:current_email, user.email)
       |> assign(:email_form, to_form(email_changeset))
       |> assign(:password_form, to_form(password_changeset))

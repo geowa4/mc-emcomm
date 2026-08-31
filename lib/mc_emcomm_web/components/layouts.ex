@@ -5,6 +5,8 @@ defmodule McEmcommWeb.Layouts do
   """
   use McEmcommWeb, :html
 
+  alias McEmcomm.Accounts.Scope
+
   # Embed all files in layouts/* within this module.
   # The default root.html.heex file contains the HTML
   # skeleton of your application, namely HTML headers
@@ -68,8 +70,11 @@ defmodule McEmcommWeb.Layouts do
                 tabindex="0"
                 class="dropdown-content menu bg-base-100 rounded-box z-20 mt-1 w-40 p-2 shadow"
               >
+                <li :if={Scope.approved_member?(@current_scope)}>
+                  <.link id="user-menu-profile" href={~p"/app/profile"}>My Profile</.link>
+                </li>
                 <li>
-                  <.link id="user-menu-settings" href={~p"/users/settings"}>Settings</.link>
+                  <.link id="user-menu-settings" href={~p"/users/settings"}>Account</.link>
                 </li>
                 <li>
                   <.link id="user-menu-log-out" href={~p"/users/log-out"} method="delete">
@@ -106,8 +111,11 @@ defmodule McEmcommWeb.Layouts do
               <a href={~p"/admin"}>Admin</a>
             </li>
             <li class="divider my-1" aria-hidden="true"></li>
+            <li :if={Scope.approved_member?(@current_scope)}>
+              <.link id="mobile-menu-profile" href={~p"/app/profile"}>My Profile</.link>
+            </li>
             <li :if={@current_scope && @current_scope.user}>
-              <.link id="mobile-menu-settings" href={~p"/users/settings"}>Settings</.link>
+              <.link id="mobile-menu-settings" href={~p"/users/settings"}>Account</.link>
             </li>
             <li :if={@current_scope && @current_scope.user}>
               <.link id="mobile-menu-log-out" href={~p"/users/log-out"} method="delete">
