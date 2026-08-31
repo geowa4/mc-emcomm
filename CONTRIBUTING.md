@@ -23,9 +23,14 @@ live in AGENTS.md; this file holds the detail those rules point to.
 - Drop and recreate the database: `mix ecto.reset`
 - Run the app: `mix phx.server` (or `iex -S mix phx.server`)
 - Quality gate: `mix precommit` (steps defined by the alias in `mix.exs`).
-  Dialyzer runs in CI; run `mix dialyzer` locally only when investigating a
-  CI failure.
-- Pre-commit hook (format + credo): `git config core.hooksPath .githooks`
+  Dialyzer runs in CI and in `mix prepush`; run `mix dialyzer` on its own only
+  when investigating a CI failure.
+- Full CI mirror: `mix prepush` runs everything CI runs — `precommit` plus the
+  dependency audits, sobelow, the drift guards, coverage, and dialyzer (steps
+  defined by the alias in `mix.exs`; keep it in sync with
+  `.github/workflows/ci.yml`).
+- Git hooks (pre-commit: format + credo; pre-push: `mix prepush`):
+  `git config core.hooksPath .githooks`
 - Catch up with origin: `mix sync` fetches and rebases the current branch onto
   origin's default branch (in `dev/`, dev/test only). A conflicting rebase is
   left in progress for you to resolve and the task fails. `mix sprite.sync`

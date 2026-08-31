@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# Full CI mirror (`mix prepush`). Enable with: git config core.hooksPath .githooks
+set -e
+mix prepush

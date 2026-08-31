@@ -32,7 +32,7 @@ defmodule McEmcomm.MixProject do
 
   def cli do
     [
-      preferred_envs: [precommit: :test]
+      preferred_envs: [precommit: :test, prepush: :test]
     ]
   end
 
@@ -197,8 +197,55 @@ defmodule McEmcomm.MixProject do
         "compile --warnings-as-errors",
         "credo --strict",
         "test"
+      ],
+      # Full CI mirror (.github/workflows/ci.yml): everything `precommit` runs
+      # plus the CI-only steps — dependency audits, sobelow, the two drift
+      # guards, coverage, and dialyzer (in :dev, matching the CI job). Wired to
+      # `git push` via .githooks/pre-push. Keep in sync with the workflow.
+      prepush: [
+        "deps.get",
+        "audit",
+        "format --check-formatted",
+        "deps.unlock --check-unused",
+        "compile --warnings-as-errors",
+        "credo --strict",
+        "sobelow --config",
+        &check_claude_md_bridge/1,
+        "usage_rules.sync --check",
+        &ensure_ua_inspector_databases/1,
+        "test --cover",
+        &dialyzer_dev/1
       ]
     ]
+  end
+
+  # CI's "Verify CLAUDE.md bridge" step: CLAUDE.md must contain a line that is
+  # exactly `@AGENTS.md` so agents loading CLAUDE.md pull in AGENTS.md.
+  defp check_claude_md_bridge(_args) do
+    if "@AGENTS.md" not in String.split(File.read!("CLAUDE.md"), "\n") do
+      Mix.raise("CLAUDE.md is missing the `@AGENTS.md` bridge line")
+    end
+  end
+
+  # CI downloads the ua_inspector parser databases only when the build cache
+  # lacks them; do the same here before the test run needs them.
+  defp ensure_ua_inspector_databases(_args) do
+    pattern = Path.join(Mix.Project.build_path(), "lib/ua_inspector/priv/*.yml")
+
+    if Path.wildcard(pattern) == [] do
+      Mix.Task.run("ua_inspector.download", ["--force", "--quiet"])
+    end
+  end
+
+  # The dialyzer CI job runs in :dev (PLTs under priv/plts); a sub-shell keeps
+  # that env while the rest of `prepush` runs in :test.
+  defp dialyzer_dev(_args) do
+    Mix.shell().info("==> mix dialyzer (MIX_ENV=dev)")
+
+    case Mix.shell().cmd("mix dialyzer", env: [{"MIX_ENV", "dev"}]) do
+      0 -> :ok
+      status -> Mix.raise("mix dialyzer exited with status #{status}")
+    end
   end
 
   # Release configuration. The OpenTelemetry exporter must be :permanent and
@@ -214,8 +261,9 @@ defmodule McEmcomm.MixProject do
     ]
   end
 
-  # Dialyzer runs as a dedicated CI job (not in `mix precommit`). The PLTs live
-  # under priv/plts so CI can cache them keyed on mix.lock.
+  # Dialyzer runs as a dedicated CI job and in `mix prepush` (not in
+  # `mix precommit`). The PLTs live under priv/plts so CI can cache them keyed
+  # on mix.lock.
   defp dialyzer do
     [
       plt_core_path: "priv/plts/core.plt",
