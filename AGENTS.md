@@ -64,6 +64,9 @@ section referenced below before working in that area.
 - Tidewave MCP (dev) is available at `http://localhost:4000/tidewave/mcp` — use it to
   evaluate code, inspect logs, and query the dev database.
 - Observability endpoints and metrics: CONTRIBUTING.md § Observability & health.
+- Local container dependencies (PostGIS + S3Mock) with podman: `mix podman.up`
+  starts them, `mix podman.down` removes them and the database volume; tasks
+  live in `dev/` (dev/test only). Details: CONTRIBUTING.md § Setup.
 - Cloud dev VM on Fly Sprites: `mix sprite.up`, `mix sprite.connect`,
   `mix sprite.sync`, `mix sprite.stop`, `mix sprite.checkpoint`,
   `mix sprite.down`; tasks live in

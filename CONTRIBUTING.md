@@ -7,12 +7,13 @@ live in AGENTS.md; this file holds the detail those rules point to.
 
 - Toolchain: Erlang/OTP 28 and Elixir 1.20 (pinned in `mise.toml`; `mise install`).
   PostGIS-enabled PostgreSQL 17 with `postgres`/`postgres` — plain Postgres will
-  not run this app (the first migration creates the `postgis` extension). Run it
-  with podman; the official image has no arm64 build, so pin the platform on
-  Apple Silicon (for example `podman run -d --name mc-emcomm-pg
-  --platform linux/amd64 -e POSTGRES_PASSWORD=postgres -p 5433:5432
-  -v mc-emcomm-pgdata:/var/lib/postgresql/data postgis/postgis:17-3.6-alpine`,
-  then `export PGPORT=5433`; config defaults to `localhost:5432`).
+  not run this app (the first migration creates the `postgis` extension).
+  `mix podman.up` runs it with podman on `localhost:5433` (then
+  `export PGPORT=5433`; config defaults to `localhost:5432`) along with
+  S3Mock for uploads; the official image has no arm64 build, so the task pins
+  `--platform linux/amd64` (README § Local setup has the raw commands).
+  `mix podman.down` removes both containers and the `mc-emcomm-pgdata`
+  volume, deleting the local database.
 - Install and set up everything: `mix setup`
 - Create/migrate/seed the database: `mix ecto.setup`
 - Drop and recreate the database: `mix ecto.reset`

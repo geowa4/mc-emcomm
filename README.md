@@ -54,10 +54,12 @@ You need a PostGIS-enabled Postgres, not plain Postgres — this project
 stores `geography(Point,4326)` columns and geofence-matches with
 `ST_DWithin`/`ST_Distance`. The official `postgis/postgis` image has no
 arm64 build, so on Apple Silicon pin the platform and let it run under
-emulation:
+emulation. `mix podman.up` runs this container and the S3Mock one below
+(and `mix podman.down` removes them both, deleting the data); by hand:
 
     podman run -d --name mc-emcomm-pg --platform linux/amd64 \
-      -e POSTGRES_PASSWORD=postgres -p 5433:5432 postgis/postgis:17-3.6-alpine
+      -e POSTGRES_PASSWORD=postgres -p 5433:5432 \
+      -v mc-emcomm-pgdata:/var/lib/postgresql/data postgis/postgis:17-3.6-alpine
 
 Config reads the port from `PGPORT` (default `5432`; CI runs the same
 Postgres 17 major via its `postgis/postgis:17-3.5` service container);
@@ -79,7 +81,7 @@ Uploads need a Tigris/S3-compatible bucket to actually round-trip; without
 `BUCKET_NAME` set, presigning raises — fine for browsing everything else.
 For local uploads, [S3Mock](https://github.com/adobe/S3Mock) covers all
 three operations the app performs (presigned POST form, presigned GET,
-presigned DELETE) with path-style URLs:
+presigned DELETE) with path-style URLs (also started by `mix podman.up`):
 
     podman run -d --name mc-emcomm-s3 -p 9090:9090 \
       -e COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS=mc-emcomm-dev \
