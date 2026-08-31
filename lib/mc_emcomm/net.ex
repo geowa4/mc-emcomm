@@ -48,14 +48,28 @@ defmodule McEmcomm.Net do
     NetSession.changeset(session, attrs)
   end
 
-  @doc "Any approved member may start a net session."
+  @doc """
+  Any approved member may start a net session. A session without a name is
+  named after its start date.
+  """
   def start_session(%Member{status: :approved} = member, attrs) do
+    started_at = DateTime.utc_now()
+
     attrs =
-      Map.merge(attrs, %{"started_by_member_id" => member.id, "started_at" => DateTime.utc_now()})
+      attrs
+      |> Map.merge(%{"started_by_member_id" => member.id, "started_at" => started_at})
+      |> put_default_name(started_at)
 
     %NetSession{}
     |> NetSession.changeset(attrs)
     |> Repo.insert()
+  end
+
+  defp put_default_name(attrs, started_at) do
+    case attrs["name"] do
+      name when is_binary(name) and name != "" -> attrs
+      _ -> Map.put(attrs, "name", started_at |> DateTime.to_date() |> Date.to_string())
+    end
   end
 
   def end_session(%NetSession{} = session) do

@@ -20,7 +20,7 @@ defmodule McEmcomm.Net.NetSession do
   def changeset(net_session, attrs) do
     net_session
     |> cast(attrs, [:started_by_member_id, :name, :started_at, :ended_at, :notes])
-    |> validate_required([:started_by_member_id, :started_at])
+    |> validate_required([:started_by_member_id, :name, :started_at])
     |> foreign_key_constraint(:started_by_member_id)
   end
 
