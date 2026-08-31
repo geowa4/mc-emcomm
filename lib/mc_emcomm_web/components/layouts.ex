@@ -54,8 +54,8 @@ defmodule McEmcommWeb.Layouts do
           <li :if={@current_scope}>
             <a href={~p"/app"} class="btn btn-ghost btn-sm">Member Portal</a>
           </li>
-          <li :if={@current_scope && @current_scope.user && @current_scope.user.is_admin}>
-            <a href={~p"/admin"} class="btn btn-ghost btn-sm">Admin</a>
+          <li :if={Scope.admin?(@current_scope)}>
+            <a id="nav-admin" href={~p"/admin"} class="btn btn-ghost btn-sm">Admin</a>
           </li>
           <li>
             <.theme_toggle />
@@ -107,8 +107,8 @@ defmodule McEmcommWeb.Layouts do
             <li :if={@current_scope}>
               <a href={~p"/app"}>Member Portal</a>
             </li>
-            <li :if={@current_scope && @current_scope.user && @current_scope.user.is_admin}>
-              <a href={~p"/admin"}>Admin</a>
+            <li :if={Scope.admin?(@current_scope)}>
+              <a id="mobile-nav-admin" href={~p"/admin"}>Admin</a>
             </li>
             <li class="divider my-1" aria-hidden="true"></li>
             <li :if={Scope.approved_member?(@current_scope)}>

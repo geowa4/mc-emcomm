@@ -54,7 +54,8 @@ defmodule McEmcommWeb.AdminLive.PositionIndexTest do
     {:ok, _} = Members.assign_position(member, position)
 
     conn = log_in_user(build_conn(), member.user)
-    assert {:ok, _lv, _html} = live(conn, ~p"/admin/positions")
+    assert {:ok, lv, _html} = live(conn, ~p"/admin/positions")
+    assert has_element?(lv, "#nav-admin")
   end
 
   test "holding an ordinary position does not open the admin area" do
@@ -64,6 +65,9 @@ defmodule McEmcommWeb.AdminLive.PositionIndexTest do
 
     conn = log_in_user(build_conn(), member.user)
     assert {:error, {:redirect, _}} = live(conn, ~p"/admin/positions")
+
+    assert {:ok, lv, _html} = live(conn, ~p"/about")
+    refute has_element?(lv, "#nav-admin")
   end
 
   test "deleting a held position is refused with a flash", %{conn: conn} do
