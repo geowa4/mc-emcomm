@@ -109,6 +109,20 @@ defmodule McEmcommWeb.NetLive.ShowTest do
     assert render(other_lv) =~ "W2OTH"
   end
 
+  test "clicking the modal backdrop cancels the check-in edit", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture(%{call_sign: "W2NCO"})
+    session = McEmcommFixtures.net_session_fixture(member)
+
+    {:ok, lv, _html} = conn |> log_in_user(member.user) |> live(~p"/app/net/#{session.id}")
+
+    [checkin] = checkins_for(session.id, "W2NCO")
+    lv |> element("#edit-checkin-#{checkin.id}") |> render_click()
+    assert has_element?(lv, "#edit-checkin-modal")
+
+    lv |> element("#edit-checkin-modal .modal-backdrop") |> render_click()
+    refute has_element?(lv, "#edit-checkin-modal")
+  end
+
   test "leaving logs an end time and checking back in adds a new roster entry", %{conn: conn} do
     member = McEmcommFixtures.member_fixture(%{call_sign: "W2NCO"})
     session = McEmcommFixtures.net_session_fixture(member)

@@ -84,33 +84,46 @@ defmodule McEmcommWeb.NetLive.Show do
 
       <h2 class="text-lg font-semibold mt-8">Roster</h2>
 
-      <.form
+      <dialog
         :if={@editing_checkin}
-        for={@edit_checkin_form}
-        id="edit-checkin-form"
-        phx-submit="update_checkin"
-        class="flex gap-2 items-end flex-wrap my-4"
+        id="edit-checkin-modal"
+        class="modal modal-open"
+        phx-window-keydown="cancel_edit_checkin"
+        phx-key="escape"
       >
-        <.input
-          field={@edit_checkin_form[:call_sign]}
-          id="edit-checkin-call-sign"
-          label="Call sign"
-          required
-        />
-        <.input
-          field={@edit_checkin_form[:quadrant]}
-          id="edit-checkin-quadrant"
-          type="select"
-          label="Quadrant"
-          prompt="Auto/none"
-          options={["NE", "NW", "SE", "SW", "out_of_county"]}
-        />
-        <.input field={@edit_checkin_form[:notes]} id="edit-checkin-notes" label="Notes" />
-        <.button class="btn btn-primary">Save</.button>
-        <button type="button" phx-click="cancel_edit_checkin" class="btn btn-ghost">
-          Cancel
-        </button>
-      </.form>
+        <div class="modal-box">
+          <h3 class="text-lg font-semibold mb-2">Edit check-in</h3>
+          <.form for={@edit_checkin_form} id="edit-checkin-form" phx-submit="update_checkin">
+            <.input
+              field={@edit_checkin_form[:call_sign]}
+              id="edit-checkin-call-sign"
+              label="Call sign"
+              required
+            />
+            <.input
+              field={@edit_checkin_form[:quadrant]}
+              id="edit-checkin-quadrant"
+              type="select"
+              label="Quadrant"
+              prompt="Auto/none"
+              options={["NE", "NW", "SE", "SW", "out_of_county"]}
+            />
+            <.input field={@edit_checkin_form[:notes]} id="edit-checkin-notes" label="Notes" />
+            <div class="modal-action">
+              <button type="button" phx-click="cancel_edit_checkin" class="btn btn-ghost">
+                Cancel
+              </button>
+              <.button class="btn btn-primary">Save</.button>
+            </div>
+          </.form>
+        </div>
+        <button
+          type="button"
+          class="modal-backdrop"
+          phx-click="cancel_edit_checkin"
+          aria-label="Close"
+        ></button>
+      </dialog>
 
       <.table id="checkins" rows={@session.checkins} row_id={&"checkin-row-#{&1.id}"}>
         <:col :let={c} label="Call sign">{c.call_sign}</:col>
