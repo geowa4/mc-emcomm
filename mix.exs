@@ -32,7 +32,7 @@ defmodule McEmcomm.MixProject do
 
   def cli do
     [
-      preferred_envs: [precommit: :test, prepush: :test]
+      preferred_envs: [precommit: :test, prepush: :test, "prepush.ci": :test]
     ]
   end
 
@@ -198,11 +198,16 @@ defmodule McEmcomm.MixProject do
         "credo --strict",
         "test"
       ],
-      # Full CI mirror (.github/workflows/ci.yml): everything `precommit` runs
-      # plus the CI-only steps — dependency audits, sobelow, the two drift
+      # Full CI mirror — run `mix prepush`, not prepush.ci. The steps live in
+      # `prepush.ci`; this entry point re-execs them under a raised open-files
+      # limit when the shell's is low (macOS defaults to 256, and the combined
+      # run exhausts that with :emfile).
+      prepush: [&prepush/1],
+      # Everything `precommit` runs plus the CI-only steps
+      # (.github/workflows/ci.yml) — dependency audits, sobelow, the two drift
       # guards, coverage, and dialyzer (in :dev, matching the CI job). Wired to
       # `git push` via .githooks/pre-push. Keep in sync with the workflow.
-      prepush: [
+      "prepush.ci": [
         "deps.get",
         "audit",
         "format --check-formatted",
@@ -217,6 +222,35 @@ defmodule McEmcomm.MixProject do
         &dialyzer_dev/1
       ]
     ]
+  end
+
+  # The whole prepush.ci run shares one BEAM, and its accumulated descriptors
+  # overflow macOS's default 256 soft limit partway through. The limit can't be
+  # raised from inside the VM, so when it's low, rerun prepush.ci in a shell
+  # that raises it first (exec into prepush.ci, not prepush, so a shell whose
+  # hard cap blocks the raise still runs once instead of recursing).
+  @fd_soft_limit 10_240
+
+  defp prepush(_args) do
+    if fd_soft_limit_adequate?() do
+      Mix.Task.run("prepush.ci")
+    else
+      shell_cmd = "ulimit -n #{@fd_soft_limit} 2>/dev/null; exec mix prepush.ci"
+
+      case Mix.shell().cmd(shell_cmd) do
+        0 -> :ok
+        status -> exit({:shutdown, status})
+      end
+    end
+  end
+
+  # `ulimit` is a shell builtin and the child inherits our limit, so this
+  # reports the limit `prepush.ci` would run under.
+  defp fd_soft_limit_adequate? do
+    case ~c"ulimit -n" |> :os.cmd() |> to_string() |> String.trim() do
+      "unlimited" -> true
+      limit -> String.to_integer(limit) >= @fd_soft_limit
+    end
   end
 
   # CI's "Verify CLAUDE.md bridge" step: CLAUDE.md must contain a line that is
@@ -238,7 +272,7 @@ defmodule McEmcomm.MixProject do
   end
 
   # The dialyzer CI job runs in :dev (PLTs under priv/plts); a sub-shell keeps
-  # that env while the rest of `prepush` runs in :test.
+  # that env while the rest of `prepush.ci` runs in :test.
   defp dialyzer_dev(_args) do
     Mix.shell().info("==> mix dialyzer (MIX_ENV=dev)")
 
