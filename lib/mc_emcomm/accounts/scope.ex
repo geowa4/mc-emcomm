@@ -44,9 +44,8 @@ defmodule McEmcomm.Accounts.Scope do
 
   def for_user(nil), do: nil
 
-  # Only approved members can act on a position's admin grant — a holder
-  # whose membership is later made inactive loses admin access even though
-  # they still show as holding the position.
+  # Leaving approved status vacates a member's positions, so a non-approved
+  # holder shouldn't exist; the approved gate here is defense in depth.
   defp position_admin?(%Member{id: id, status: :approved}), do: Members.holds_admin_position?(id)
   defp position_admin?(_member), do: false
 

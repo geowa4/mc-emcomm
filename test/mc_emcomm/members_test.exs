@@ -4,6 +4,7 @@ defmodule McEmcomm.MembersTest do
   alias McEmcomm.AccountsFixtures
   alias McEmcomm.McEmcommFixtures
   alias McEmcomm.Members
+  alias McEmcomm.Members.MemberPosition
 
   describe "transition_status/4 — legal transitions" do
     test "pending -> approved (no reason required), writes an audit row" do
@@ -38,6 +39,18 @@ defmodule McEmcomm.MembersTest do
 
       assert {:ok, %{status: :inactive}} =
                Members.transition_status(member, :inactive, actor, "Moved away")
+    end
+
+    test "approved -> inactive vacates every position the member holds" do
+      member = McEmcommFixtures.member_fixture()
+      president = McEmcommFixtures.position_fixture(%{name: "President"})
+      secretary = McEmcommFixtures.position_fixture(%{name: "Secretary"})
+      {:ok, _} = Members.update_member_positions(member, [president.id, secretary.id])
+      actor = AccountsFixtures.user_fixture()
+
+      assert {:ok, _} = Members.transition_status(member, :inactive, actor, "Moved away")
+
+      assert Enum.all?(Members.list_positions(), &(&1.members == []))
     end
 
     test "inactive -> approved (reactivation)" do
@@ -206,12 +219,12 @@ defmodule McEmcomm.MembersTest do
     end
 
     test "list_positions/0 only includes approved holders" do
-      member = McEmcommFixtures.member_fixture()
-      actor = AccountsFixtures.user_fixture()
+      # A non-approved holder can't arise through the public API (leaving
+      # approved status vacates positions), so seed one directly to prove
+      # the public listing filters it out as defense in depth.
+      member = McEmcommFixtures.pending_member_fixture()
       president = McEmcommFixtures.position_fixture(%{name: "President"})
-
-      {:ok, _} = Members.update_member_positions(member, [president.id])
-      {:ok, _} = Members.transition_status(member, :inactive, actor, "On hiatus")
+      Repo.insert!(%MemberPosition{member_id: member.id, position_id: president.id})
 
       president_after = Enum.find(Members.list_positions(), &(&1.name == "President"))
       assert president_after.members == []
@@ -233,19 +246,15 @@ defmodule McEmcomm.MembersTest do
       assert president_after.members == []
     end
 
-    test "update_member_positions/2 can still remove a deactivated member's positions" do
+    test "update_member_positions/2 refuses to give a deactivated member a position back" do
       member = McEmcommFixtures.member_fixture()
       actor = AccountsFixtures.user_fixture()
       secretary = McEmcommFixtures.position_fixture(%{name: "Secretary"})
-      treasurer = McEmcommFixtures.position_fixture(%{name: "Treasurer"})
 
-      {:ok, _} = Members.update_member_positions(member, [secretary.id, treasurer.id])
+      {:ok, _} = Members.update_member_positions(member, [secretary.id])
       {:ok, member} = Members.transition_status(member, :inactive, actor, "Moved away")
 
-      assert {:ok, _} = Members.update_member_positions(member, [secretary.id])
-
-      assert {:error, :not_approved} =
-               Members.update_member_positions(member, [secretary.id, treasurer.id])
+      assert {:error, :not_approved} = Members.update_member_positions(member, [secretary.id])
     end
 
     test "assign_position/2 refuses a non-approved member" do

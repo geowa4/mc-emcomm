@@ -40,7 +40,7 @@ defmodule McEmcomm.Accounts.ScopeTest do
       refute member.user |> Scope.for_user() |> Scope.admin?()
     end
 
-    test "a holder made inactive loses the position-derived admin access" do
+    test "a holder made inactive loses their position and its admin access" do
       member = McEmcommFixtures.member_fixture()
       position = McEmcommFixtures.position_fixture(%{grants_admin: true})
       {:ok, _} = Members.assign_position(member, position)
@@ -49,6 +49,7 @@ defmodule McEmcomm.Accounts.ScopeTest do
       {:ok, _} = Members.transition_status(member, :inactive, actor, "On hiatus")
 
       refute member.user |> Scope.for_user() |> Scope.admin?()
+      refute Members.holds_admin_position?(member.id)
     end
   end
 end

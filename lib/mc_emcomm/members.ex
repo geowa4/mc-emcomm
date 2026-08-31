@@ -218,8 +218,9 @@ defmodule McEmcomm.Members do
   positions is an ordinary member; a member may hold several positions.
 
   Only approved members may gain positions — `{:error, :not_approved}`
-  otherwise. Removing positions is allowed regardless of status, so a
-  deactivated member's positions can still be cleared.
+  otherwise. Removing positions is allowed regardless of status, as
+  defense in depth (leaving approved status already vacates a member's
+  positions).
   """
   def update_member_positions(%Member{} = member, position_ids) do
     current_ids =
@@ -297,12 +298,26 @@ defmodule McEmcomm.Members do
     Ecto.Multi.new()
     |> Ecto.Multi.update(:member, member_changeset)
     |> Ecto.Multi.insert(:audit, audit_changeset)
+    |> vacate_positions_unless_approved(member, to_status)
     |> Repo.transaction()
     |> case do
       {:ok, %{member: member}} -> {:ok, member}
       {:error, :member, changeset, _} -> {:error, changeset}
       {:error, :audit, changeset, _} -> {:error, changeset}
     end
+  end
+
+  # Only approved members may hold positions, so leaving approved vacates
+  # every position the member holds (and with it any position-derived
+  # admin access).
+  defp vacate_positions_unless_approved(multi, _member, "approved"), do: multi
+
+  defp vacate_positions_unless_approved(multi, member, _to_status) do
+    Ecto.Multi.delete_all(
+      multi,
+      :positions,
+      from(mp in MemberPosition, where: mp.member_id == ^member.id)
+    )
   end
 
   def reason_required?(to_status), do: to_string(to_status) in @reason_required_statuses
