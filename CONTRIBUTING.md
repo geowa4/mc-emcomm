@@ -15,6 +15,10 @@ live in AGENTS.md; this file holds the detail those rules point to.
   `mix podman.down` removes both containers and the `mc-emcomm-pgdata`
   volume, deleting the local database.
 - Install and set up everything: `mix setup`
+- Run everything for local dev in one command: `mix dev.server` — containers
+  (`mix podman.up`), create/migrate/seed, `ua_inspector` databases, then
+  `mix phx.server` with the S3Mock storage environment defaulted (already
+  exported variables win).
 - Create/migrate/seed the database: `mix ecto.setup`
 - Drop and recreate the database: `mix ecto.reset`
 - Run the app: `mix phx.server` (or `iex -S mix phx.server`)

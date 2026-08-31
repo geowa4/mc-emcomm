@@ -55,6 +55,7 @@ defmodule McEmcomm.MixProject do
         # dev/ tooling: exercised only against a real podman (README § Local setup).
         Mix.Podman,
         ~r/^Mix\.Tasks\.Podman\./,
+        Mix.Tasks.Dev.Server,
         # Release-time migrator; runs outside the SQL sandbox.
         McEmcomm.Release,
         # Test scaffolding compiled from test/support.

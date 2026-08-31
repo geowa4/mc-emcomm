@@ -65,8 +65,9 @@ section referenced below before working in that area.
   evaluate code, inspect logs, and query the dev database.
 - Observability endpoints and metrics: CONTRIBUTING.md § Observability & health.
 - Local container dependencies (PostGIS + S3Mock) with podman: `mix podman.up`
-  starts them, `mix podman.down` removes them and the database volume; tasks
-  live in `dev/` (dev/test only). Details: CONTRIBUTING.md § Setup.
+  starts them, `mix podman.down` removes them and the database volume;
+  `mix dev.server` runs everything (containers, db setup, ua_inspector data,
+  server). Tasks live in `dev/` (dev/test only). Details: CONTRIBUTING.md § Setup.
 - Cloud dev VM on Fly Sprites: `mix sprite.up`, `mix sprite.connect`,
   `mix sprite.sync`, `mix sprite.stop`, `mix sprite.checkpoint`,
   `mix sprite.down`; tasks live in

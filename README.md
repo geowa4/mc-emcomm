@@ -50,6 +50,16 @@ should follow in this repository.
 
 ## Local setup
 
+After a one-time `mix setup` (deps, database, assets), one command brings up
+everything — the containers below, create/migrate/seed, the `ua_inspector`
+databases, and the server with the S3Mock storage environment defaulted so
+uploads round-trip:
+
+    mix dev.server
+
+The rest of this section describes what that runs and how to do each piece
+by hand.
+
 You need a PostGIS-enabled Postgres, not plain Postgres — this project
 stores `geography(Point,4326)` columns and geofence-matches with
 `ST_DWithin`/`ST_Distance`. The official `postgis/postgis` image has no
