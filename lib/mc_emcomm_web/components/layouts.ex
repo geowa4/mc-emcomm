@@ -80,6 +80,9 @@ defmodule McEmcommWeb.Layouts do
             </div>
           </li>
           <li :if={!(@current_scope && @current_scope.user)}>
+            <a href={~p"/users/register"} class="btn btn-ghost btn-sm">Register</a>
+          </li>
+          <li :if={!(@current_scope && @current_scope.user)}>
             <a href={~p"/users/log-in"} class="btn btn-primary btn-sm">Log in</a>
           </li>
         </ul>
