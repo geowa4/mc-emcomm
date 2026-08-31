@@ -52,6 +52,11 @@ RUN mkdir config
 COPY config/config.exs config/${MIX_ENV}.exs config/
 RUN mix deps.compile
 
+# UAInspector parses sighting user agents at record time; bake its parser
+# databases into ua_inspector's priv dir so `mix release` ships them.
+# --no-compile: the app itself isn't copied in yet, and the task only needs deps.
+RUN mix ua_inspector.download --force --quiet --no-compile
+
 RUN mix assets.setup
 
 COPY priv priv

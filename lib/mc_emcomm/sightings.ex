@@ -28,9 +28,45 @@ defmodule McEmcomm.Sightings do
   @spec record_visit(map()) :: {:ok, Sighting.t()} | {:error, Ecto.Changeset.t()}
   def record_visit(attrs) do
     %Sighting{}
-    |> Sighting.visit_changeset(attrs)
+    |> Sighting.visit_changeset(Map.merge(attrs, parse_user_agent(attrs)))
     |> Repo.insert()
   end
+
+  # Derives browser/OS/device columns from the raw user-agent and client-hint
+  # headers. UAInspector reads its databases from ETS; when they haven't been
+  # downloaded (`mix ua_inspector.download`) every lookup comes back :unknown
+  # and the columns stay nil rather than erroring.
+  defp parse_user_agent(attrs) do
+    hints =
+      [
+        {"sec-ch-ua", attrs[:sec_ch_ua]},
+        {"sec-ch-ua-platform", attrs[:sec_ch_ua_platform]},
+        {"sec-ch-ua-mobile", attrs[:sec_ch_ua_mobile]}
+      ]
+      |> Enum.reject(fn {_header, value} -> is_nil(value) end)
+
+    client_hints = if hints == [], do: nil, else: UAInspector.ClientHints.new(hints)
+
+    case UAInspector.parse(attrs[:user_agent], client_hints) do
+      %UAInspector.Result{client: client, os: os, device: device} ->
+        %{
+          browser_name: known(client, :name),
+          browser_version: known(client, :version),
+          os_name: known(os, :name),
+          os_version: known(os, :version),
+          device_type: known(device, :type)
+        }
+
+      %UAInspector.Result.Bot{name: name} ->
+        %{browser_name: known_value(name), device_type: "bot"}
+    end
+  end
+
+  defp known(:unknown, _key), do: nil
+  defp known(struct, key), do: struct |> Map.get(key) |> known_value()
+
+  defp known_value(:unknown), do: nil
+  defp known_value(value), do: value
 
   ## Update point 1 — socket connect
 

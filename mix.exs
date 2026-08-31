@@ -238,10 +238,11 @@ defmodule McEmcomm.MixProject do
       # hackney comes in solely through ua_inspector, which uses it only in
       # the offline `mix ua_inspector.download` task (fetching its parser
       # database from a fixed GitHub URL, not part of request handling).
-      # McEmcomm never calls UAInspector.parse/1 or otherwise touches
-      # hackney at runtime, so its CRLF-injection/SSRF/TLS-timeout
-      # advisories have no exercised code path here. Affected: hackney
-      # 1.25.0 (latest as of 2026-08).
+      # McEmcomm calls UAInspector.parse/2 when recording a sighting, but
+      # parsing reads only the ETS-loaded databases and never touches
+      # hackney, so its CRLF-injection/SSRF/TLS-timeout advisories have no
+      # exercised code path here. Affected: hackney 1.25.0 (latest as of
+      # 2026-08).
       ignore_advisories: [
         "CVE-2026-43966",
         "CVE-2026-43969",

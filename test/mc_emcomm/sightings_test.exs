@@ -25,6 +25,39 @@ defmodule McEmcomm.SightingsTest do
       assert is_nil(sighting.submitted_at)
     end
 
+    test "parses the user agent into browser, OS, and device columns" do
+      asset = McEmcommFixtures.asset_fixture()
+
+      assert {:ok, sighting} =
+               Sightings.record_visit(%{
+                 asset_id: asset.id,
+                 session_token: "tok-ua",
+                 visited_at: DateTime.utc_now(),
+                 user_agent:
+                   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) " <>
+                     "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 " <>
+                     "Mobile/15E148 Safari/604.1"
+               })
+
+      assert sighting.browser_name == "Mobile Safari"
+      assert sighting.os_name == "iOS"
+      assert sighting.device_type == "smartphone"
+    end
+
+    test "leaves the browser columns nil when there is no user agent" do
+      asset = McEmcommFixtures.asset_fixture()
+
+      assert {:ok, sighting} =
+               Sightings.record_visit(%{
+                 asset_id: asset.id,
+                 session_token: "tok-no-ua",
+                 visited_at: DateTime.utc_now()
+               })
+
+      assert is_nil(sighting.browser_name)
+      assert is_nil(sighting.os_name)
+    end
+
     test "requires asset_id and session_token" do
       assert {:error, changeset} = Sightings.record_visit(%{visited_at: DateTime.utc_now()})
 
