@@ -74,29 +74,60 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
         </:action>
       </.table>
 
-      <div :if={@reason_for} class="mt-4 max-w-md">
-        <.form
-          for={to_form(%{"reason" => ""}, as: "transition")}
-          id="reason-form"
-          phx-submit="do_transition"
-        >
-          <input type="hidden" name="transition[id]" value={@reason_for.id} />
-          <input type="hidden" name="transition[to]" value={@reason_for.to} />
-          <.input name="transition[reason]" value="" label={"Reason for #{@reason_for.to}"} required />
-          <.button class="btn btn-primary mt-2">Confirm</.button>
-          <button type="button" phx-click="cancel_reason" class="btn btn-ghost mt-2">Cancel</button>
-        </.form>
-      </div>
+      <dialog
+        :if={@reason_for}
+        id="reason-modal"
+        class="modal modal-open"
+        phx-window-keydown="cancel_reason"
+        phx-key="escape"
+      >
+        <div class="modal-box">
+          <h3 class="text-lg font-semibold mb-2">
+            {if @reason_for.to == "inactive", do: "Deactivate member", else: "Reject member"}
+          </h3>
+          <.form
+            for={to_form(%{"reason" => ""}, as: "transition")}
+            id="reason-form"
+            phx-submit="do_transition"
+          >
+            <input type="hidden" name="transition[id]" value={@reason_for.id} />
+            <input type="hidden" name="transition[to]" value={@reason_for.to} />
+            <.input
+              name="transition[reason]"
+              value=""
+              label={"Reason for #{@reason_for.to}"}
+              required
+            />
+            <div class="modal-action">
+              <button type="button" phx-click="cancel_reason" class="btn btn-ghost">Cancel</button>
+              <.button class="btn btn-primary">Confirm</.button>
+            </div>
+          </.form>
+        </div>
+        <button type="button" class="modal-backdrop" phx-click="cancel_reason" aria-label="Close"></button>
+      </dialog>
 
-      <div :if={@audit_for} class="mt-6 max-w-lg">
-        <h2 class="text-lg font-semibold">Audit trail</h2>
-        <ul class="list bg-base-100 rounded-box border border-base-300">
-          <li :for={a <- Members.list_audit_for_member(@audit_for)} class="list-row">
-            {a.from_status} &rarr; {a.to_status} &middot; {a.inserted_at}
-            <span :if={a.reason}> &mdash; {a.reason}</span>
-          </li>
-        </ul>
-      </div>
+      <dialog
+        :if={@audit_for}
+        id="audit-modal"
+        class="modal modal-open"
+        phx-window-keydown="close_audit"
+        phx-key="escape"
+      >
+        <div class="modal-box">
+          <h3 class="text-lg font-semibold mb-2">Audit trail &mdash; {@audit_for.call_sign}</h3>
+          <ul class="list bg-base-100 rounded-box border border-base-300">
+            <li :for={a <- Members.list_audit_for_member(@audit_for.id)} class="list-row">
+              {a.from_status} &rarr; {a.to_status} &middot; {a.inserted_at}
+              <span :if={a.reason}> &mdash; {a.reason}</span>
+            </li>
+          </ul>
+          <div class="modal-action">
+            <button type="button" phx-click="close_audit" class="btn btn-ghost">Close</button>
+          </div>
+        </div>
+        <button type="button" class="modal-backdrop" phx-click="close_audit" aria-label="Close"></button>
+      </dialog>
     </Layouts.app>
     """
   end
@@ -131,8 +162,11 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
   end
 
   def handle_event("show_audit", %{"id" => id}, socket) do
-    {:noreply, assign(socket, audit_for: ParamHelpers.id(id))}
+    {:noreply, assign(socket, audit_for: Members.get_member!(id))}
   end
+
+  def handle_event("close_audit", _params, socket),
+    do: {:noreply, assign(socket, audit_for: nil)}
 
   def handle_event("update_positions", %{"id" => id} = params, socket) do
     position_ids =

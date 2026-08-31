@@ -25,6 +25,7 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     {:ok, lv, _html} = live(conn, ~p"/admin/members")
 
     lv |> element("a", "Reject") |> render_click()
+    assert has_element?(lv, "#reason-modal")
     assert has_element?(lv, "#reason-form")
 
     html =
@@ -52,6 +53,17 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
 
     lv |> element("a", "Reactivate") |> render_click()
     assert Members.get_member!(member.id).status == :approved
+  end
+
+  test "clicking the modal backdrop cancels the reason prompt", %{conn: conn} do
+    McEmcommFixtures.member_fixture()
+    {:ok, lv, _html} = live(conn, ~p"/admin/members")
+
+    lv |> element("a", "Deactivate") |> render_click()
+    assert has_element?(lv, "#reason-modal")
+
+    lv |> element("#reason-modal .modal-backdrop") |> render_click()
+    refute has_element?(lv, "#reason-modal")
   end
 
   test "reopening a rejected member", %{conn: conn} do
@@ -95,14 +107,26 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     |> Enum.sort()
   end
 
-  test "viewing the audit trail", %{conn: conn} do
+  test "viewing the audit trail opens a modal", %{conn: conn} do
     McEmcommFixtures.pending_member_fixture()
     {:ok, lv, _html} = live(conn, ~p"/admin/members")
 
     lv |> element("a", "Approve") |> render_click()
     html = lv |> element("a", "Audit") |> render_click()
 
+    assert has_element?(lv, "#audit-modal")
     assert html =~ "pending"
     assert html =~ "approved"
+  end
+
+  test "clicking the modal backdrop closes the audit trail", %{conn: conn} do
+    McEmcommFixtures.member_fixture()
+    {:ok, lv, _html} = live(conn, ~p"/admin/members")
+
+    lv |> element("a", "Audit") |> render_click()
+    assert has_element?(lv, "#audit-modal")
+
+    lv |> element("#audit-modal .modal-backdrop") |> render_click()
+    refute has_element?(lv, "#audit-modal")
   end
 end
