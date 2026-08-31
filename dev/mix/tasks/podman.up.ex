@@ -6,10 +6,12 @@ defmodule Mix.Tasks.Podman.Up do
   documented in README § Local setup:
 
     * `mc-emcomm-pg` — PostGIS-enabled PostgreSQL 17
-      (`postgres`/`postgres` on `localhost:5433`, data in the
-      `mc-emcomm-pgdata` volume). The official image has no arm64 build, so
-      it is pinned to `linux/amd64` and runs under emulation on Apple
-      Silicon.
+      (`postgres`/`postgres` on `localhost:5432`, matching config's default,
+      data in the `mc-emcomm-pgdata` volume). The official image has no
+      arm64 build, so it is pinned to `linux/amd64` and runs under emulation
+      on Apple Silicon. A host Postgres already on 5432 will make the
+      container fail to bind; stop it, or run this container on another port
+      by hand and `export PGPORT` (README § Local setup).
     * `mc-emcomm-s3` — S3Mock on `localhost:9090` with the `mc-emcomm-dev`
       bucket pre-created, so presigned uploads round-trip without a real
       bucket.
@@ -18,11 +20,8 @@ defmodule Mix.Tasks.Podman.Up do
 
   Each container is created on first run, started if it exists but is
   stopped, and left alone if already running, so the task is safe to re-run.
-  It waits for both services to accept connections before returning.
-
-  Postgres listens on 5433 to stay clear of a host Postgres on 5432, so
-  `export PGPORT=5433` before mix commands that touch the database (config
-  defaults to `localhost:5432`). Tear everything down with `mix podman.down`.
+  It waits for both services to accept connections before returning. Tear
+  everything down with `mix podman.down`.
   """
   use Mix.Task
 
@@ -143,7 +142,7 @@ defmodule Mix.Tasks.Podman.Up do
 
     Local dependencies are running.
 
-      Postgres: localhost:#{Podman.pg_port()} (postgres/postgres) — export PGPORT=#{Podman.pg_port()}
+      Postgres: localhost:#{Podman.pg_port()} (postgres/postgres)
       S3Mock:   localhost:#{Podman.s3_port()} (bucket #{Podman.bucket()})
 
     Uploads round-trip when the server runs with:

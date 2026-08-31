@@ -7,7 +7,7 @@ defmodule Mix.Podman do
 
   @pg_container "mc-emcomm-pg"
   @pg_volume "mc-emcomm-pgdata"
-  @pg_port 5433
+  @pg_port 5432
   @s3_container "mc-emcomm-s3"
   @s3_port 9090
   @bucket "mc-emcomm-dev"

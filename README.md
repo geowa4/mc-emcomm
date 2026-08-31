@@ -58,14 +58,14 @@ emulation. `mix podman.up` runs this container and the S3Mock one below
 (and `mix podman.down` removes them both, deleting the data); by hand:
 
     podman run -d --name mc-emcomm-pg --platform linux/amd64 \
-      -e POSTGRES_PASSWORD=postgres -p 5433:5432 \
+      -e POSTGRES_PASSWORD=postgres -p 5432:5432 \
       -v mc-emcomm-pgdata:/var/lib/postgresql/data postgis/postgis:17-3.6-alpine
 
-Config reads the port from `PGPORT` (default `5432`; CI runs the same
-Postgres 17 major via its `postgis/postgis:17-3.5` service container);
-export it once per shell if your local Postgres isn't on the default port:
+Config defaults to `localhost:5432` (CI runs the same Postgres 17 major via
+its `postgis/postgis:17-3.5` service container). If 5432 is taken — say, by
+a host-installed Postgres — publish the container on another port and export
+`PGPORT` to match, once per shell:
 
-    export PGPORT=5433
     mix setup            # deps, db create+migrate+seed, assets
     mix usage_rules.sync # refreshes AGENTS.md's managed section
     mix precommit

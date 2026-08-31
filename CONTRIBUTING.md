@@ -8,10 +8,10 @@ live in AGENTS.md; this file holds the detail those rules point to.
 - Toolchain: Erlang/OTP 28 and Elixir 1.20 (pinned in `mise.toml`; `mise install`).
   PostGIS-enabled PostgreSQL 17 with `postgres`/`postgres` — plain Postgres will
   not run this app (the first migration creates the `postgis` extension).
-  `mix podman.up` runs it with podman on `localhost:5433` (then
-  `export PGPORT=5433`; config defaults to `localhost:5432`) along with
-  S3Mock for uploads; the official image has no arm64 build, so the task pins
-  `--platform linux/amd64` (README § Local setup has the raw commands).
+  `mix podman.up` runs it with podman on `localhost:5432` (config's default)
+  along with S3Mock for uploads; the official image has no arm64 build, so
+  the task pins `--platform linux/amd64` (README § Local setup has the raw
+  commands, and `PGPORT` covers a non-default port).
   `mix podman.down` removes both containers and the `mc-emcomm-pgdata`
   volume, deleting the local database.
 - Install and set up everything: `mix setup`
