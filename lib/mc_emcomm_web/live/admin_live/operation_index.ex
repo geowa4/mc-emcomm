@@ -1,9 +1,9 @@
-defmodule McEmcommWeb.AdminLive.ExerciseIndex do
+defmodule McEmcommWeb.AdminLive.OperationIndex do
   use McEmcommWeb, :live_view
 
-  alias McEmcomm.Exercises
-  alias McEmcomm.Exercises.Exercise
-  alias McEmcomm.Exercises.ExerciseLocation
+  alias McEmcomm.Operations
+  alias McEmcomm.Operations.Operation
+  alias McEmcomm.Operations.OperationLocation
   alias McEmcomm.Storage
   alias McEmcommWeb.MapHelpers
   alias McEmcommWeb.ParamHelpers
@@ -12,7 +12,7 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign(page_title: "Exercises", exercises: Exercises.list_exercises())
+     |> assign(page_title: "Operations", operations: Operations.list_operations())
      |> allow_upload(:attachment, accept: :any, max_entries: 1, external: &presign_entry/2)}
   end
 
@@ -22,26 +22,26 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
   end
 
   defp apply_action(socket, :index, _params) do
-    assign(socket, exercise: nil, form: nil, location_form: nil)
+    assign(socket, operation: nil, form: nil, location_form: nil)
   end
 
   defp apply_action(socket, :new, _params) do
     assign(socket,
-      exercise: %Exercise{locations: [], attachments: []},
-      form: to_form(Exercises.change_exercise(%Exercise{})),
+      operation: %Operation{locations: [], attachments: []},
+      form: to_form(Operations.change_operation(%Operation{})),
       location_form: nil
     )
   end
 
   defp apply_action(socket, :edit, %{"id" => id}) do
-    exercise = Exercises.get_exercise!(id)
+    operation = Operations.get_operation!(id)
 
     assign(socket,
-      exercise: exercise,
-      form: to_form(Exercises.change_exercise(exercise)),
-      location_form: to_form(Exercises.change_exercise_location(%ExerciseLocation{})),
+      operation: operation,
+      form: to_form(Operations.change_operation(operation)),
+      location_form: to_form(Operations.change_operation_location(%OperationLocation{})),
       pending_point: nil,
-      markers_json: markers_json(exercise),
+      markers_json: markers_json(operation),
       tile_url: MapHelpers.tile_url()
     )
   end
@@ -51,36 +51,36 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <.header>
-        Exercises
+        Operations
         <:actions>
           <.link
             :if={@live_action == :index}
-            navigate={~p"/admin/exercises/new"}
+            navigate={~p"/admin/operations/new"}
             class="btn btn-primary"
           >
-            New exercise
+            New operation
           </.link>
         </:actions>
       </.header>
 
       <.table
         :if={@live_action == :index}
-        id="exercises"
-        rows={@exercises}
-        row_click={fn e -> JS.navigate(~p"/admin/exercises/#{e.id}/edit") end}
+        id="operations"
+        rows={@operations}
+        row_click={fn e -> JS.navigate(~p"/admin/operations/#{e.id}/edit") end}
       >
         <:col :let={e} label="Title">{e.title}</:col>
         <:col :let={e} label="Starts">{Calendar.strftime(e.starts_at, "%Y-%m-%d %H:%M")}</:col>
         <:col :let={e} label="Visibility">{e.visibility}</:col>
         <:action :let={e}>
-          <.link phx-click="delete" phx-value-id={e.id} data-confirm="Delete this exercise?">
+          <.link phx-click="delete" phx-value-id={e.id} data-confirm="Delete this operation?">
             Delete
           </.link>
         </:action>
       </.table>
 
       <div :if={@live_action in [:new, :edit]} class="max-w-lg">
-        <.form for={@form} id="exercise-form" phx-change="validate" phx-submit="save">
+        <.form for={@form} id="operation-form" phx-change="validate" phx-submit="save">
           <.input field={@form[:title]} label="Title" required />
           <.input field={@form[:description]} type="textarea" label="Description" />
           <.input field={@form[:starts_at]} type="datetime-local" label="Starts at" required />
@@ -89,9 +89,9 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
             field={@form[:visibility]}
             type="select"
             label="Visibility"
-            options={Enum.map(Exercise.visibilities(), &{Phoenix.Naming.humanize(&1), &1})}
+            options={Enum.map(Operation.visibilities(), &{Phoenix.Naming.humanize(&1), &1})}
           />
-          <.button phx-disable-with="Saving..." class="btn btn-primary mt-2">Save exercise</.button>
+          <.button phx-disable-with="Saving..." class="btn btn-primary mt-2">Save operation</.button>
         </.form>
 
         <div :if={@live_action == :edit}>
@@ -130,7 +130,7 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
           </.form>
 
           <ul class="list bg-base-100 rounded-box border border-base-300 mt-2">
-            <li :for={loc <- @exercise.locations} class="list-row">
+            <li :for={loc <- @operation.locations} class="list-row">
               <div class="flex-1">
                 <strong>{loc.name}</strong> &middot; {loc.geofence_radius_m}m
               </div>
@@ -157,7 +157,7 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
           </form>
 
           <ul class="list bg-base-100 rounded-box border border-base-300 mt-2">
-            <li :for={att <- @exercise.attachments} class="list-row">
+            <li :for={att <- @operation.attachments} class="list-row">
               <div class="flex-1">
                 <div class="font-semibold">{att.filename}</div>
                 <div class="text-sm text-base-content/70">{att.description}</div>
@@ -173,62 +173,62 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
           </ul>
         </div>
 
-        <.link navigate={~p"/admin/exercises"} class="link mt-6 inline-block">&larr; Back to exercises</.link>
+        <.link navigate={~p"/admin/operations"} class="link mt-6 inline-block">&larr; Back to operations</.link>
       </div>
     </Layouts.app>
     """
   end
 
   @impl true
-  def handle_event("validate", %{"exercise" => params}, socket) do
+  def handle_event("validate", %{"operation" => params}, socket) do
     form =
-      socket.assigns.exercise
-      |> Exercises.change_exercise(params)
+      socket.assigns.operation
+      |> Operations.change_operation(params)
       |> Map.put(:action, :validate)
       |> to_form()
 
     {:noreply, assign(socket, form: form)}
   end
 
-  def handle_event("save", %{"exercise" => params}, socket) do
-    save_exercise(socket, socket.assigns.live_action, params)
+  def handle_event("save", %{"operation" => params}, socket) do
+    save_operation(socket, socket.assigns.live_action, params)
   end
 
   def handle_event("delete", %{"id" => id}, socket) do
-    Exercises.get_exercise!(id) |> Exercises.delete_exercise()
-    {:noreply, assign(socket, exercises: Exercises.list_exercises())}
+    Operations.get_operation!(id) |> Operations.delete_operation()
+    {:noreply, assign(socket, operations: Operations.list_operations())}
   end
 
   def handle_event("point_selected", %{"lat" => lat, "lng" => lng}, socket) do
     {:noreply, assign(socket, pending_point: {lat, lng})}
   end
 
-  def handle_event("add_location", %{"exercise_location" => params}, socket) do
-    exercise = socket.assigns.exercise
+  def handle_event("add_location", %{"operation_location" => params}, socket) do
+    operation = socket.assigns.operation
     {lat, lng} = socket.assigns[:pending_point] || {nil, nil}
 
     name =
       case params["name"] do
-        "" -> if exercise.locations == [], do: "Primary Site", else: nil
+        "" -> if operation.locations == [], do: "Primary Site", else: nil
         name -> name
       end
 
     attrs = %{
-      "exercise_id" => exercise.id,
+      "operation_id" => operation.id,
       "name" => name,
       "geofence_radius_m" => params["geofence_radius_m"],
       "point" => lat && lng && McEmcommWeb.MapHelpers.point(lat, lng)
     }
 
-    case Exercises.create_exercise_location(attrs) do
+    case Operations.create_operation_location(attrs) do
       {:ok, _location} ->
-        exercise = Exercises.get_exercise!(exercise.id)
+        operation = Operations.get_operation!(operation.id)
 
         {:noreply,
          assign(socket,
-           exercise: exercise,
-           markers_json: markers_json(exercise),
-           location_form: to_form(Exercises.change_exercise_location(%ExerciseLocation{})),
+           operation: operation,
+           markers_json: markers_json(operation),
+           location_form: to_form(Operations.change_operation_location(%OperationLocation{})),
            pending_point: nil
          )}
 
@@ -238,26 +238,26 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
   end
 
   def handle_event("delete_location", %{"id" => id}, socket) do
-    exercise = socket.assigns.exercise
+    operation = socket.assigns.operation
     id = ParamHelpers.id(id)
-    location = Enum.find(exercise.locations, &(&1.id == id))
-    location && Exercises.delete_exercise_location(location)
-    exercise = Exercises.get_exercise!(exercise.id)
-    {:noreply, assign(socket, exercise: exercise, markers_json: markers_json(exercise))}
+    location = Enum.find(operation.locations, &(&1.id == id))
+    location && Operations.delete_operation_location(location)
+    operation = Operations.get_operation!(operation.id)
+    {:noreply, assign(socket, operation: operation, markers_json: markers_json(operation))}
   end
 
   def handle_event("delete_attachment", %{"id" => id}, socket) do
-    exercise = socket.assigns.exercise
+    operation = socket.assigns.operation
     id = ParamHelpers.id(id)
-    att = Enum.find(exercise.attachments, &(&1.id == id))
-    att && Exercises.delete_exercise_attachment(att)
-    {:noreply, assign(socket, exercise: Exercises.get_exercise!(exercise.id))}
+    att = Enum.find(operation.attachments, &(&1.id == id))
+    att && Operations.delete_operation_attachment(att)
+    {:noreply, assign(socket, operation: Operations.get_operation!(operation.id))}
   end
 
   def handle_event("validate_attachment", _params, socket), do: {:noreply, socket}
 
   def handle_event("save_attachment", %{"description" => description}, socket) do
-    exercise = socket.assigns.exercise
+    operation = socket.assigns.operation
 
     uploaded =
       consume_uploaded_entries(socket, :attachment, fn %{key: key}, entry ->
@@ -267,7 +267,7 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
     case uploaded do
       [%{key: key, filename: filename, content_type: content_type}] ->
         attrs = %{
-          exercise_id: exercise.id,
+          operation_id: operation.id,
           key: key,
           filename: filename,
           content_type: content_type,
@@ -275,9 +275,9 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
           uploaded_by_id: socket.assigns.current_scope.user.id
         }
 
-        case Exercises.create_exercise_attachment(attrs) do
+        case Operations.create_operation_attachment(attrs) do
           {:ok, _} ->
-            {:noreply, assign(socket, exercise: Exercises.get_exercise!(exercise.id))}
+            {:noreply, assign(socket, operation: Operations.get_operation!(operation.id))}
 
           {:error, changeset} ->
             {:noreply,
@@ -289,30 +289,30 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
     end
   end
 
-  defp save_exercise(socket, :new, params) do
+  defp save_operation(socket, :new, params) do
     params = Map.put(params, "created_by_id", socket.assigns.current_scope.user.id)
 
-    case Exercises.create_exercise(params) do
-      {:ok, exercise} ->
+    case Operations.create_operation(params) do
+      {:ok, operation} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Exercise created.")
-         |> push_navigate(to: ~p"/admin/exercises/#{exercise.id}/edit")}
+         |> put_flash(:info, "Operation created.")
+         |> push_navigate(to: ~p"/admin/operations/#{operation.id}/edit")}
 
       {:error, changeset} ->
         {:noreply, assign(socket, form: to_form(changeset))}
     end
   end
 
-  defp save_exercise(socket, :edit, params) do
-    case Exercises.update_exercise(socket.assigns.exercise, params) do
-      {:ok, exercise} ->
+  defp save_operation(socket, :edit, params) do
+    case Operations.update_operation(socket.assigns.operation, params) do
+      {:ok, operation} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Exercise updated.")
+         |> put_flash(:info, "Operation updated.")
          |> assign(
-           exercise: Exercises.get_exercise!(exercise.id),
-           form: to_form(Exercises.change_exercise(exercise))
+           operation: Operations.get_operation!(operation.id),
+           form: to_form(Operations.change_operation(operation))
          )}
 
       {:error, changeset} ->
@@ -321,14 +321,14 @@ defmodule McEmcommWeb.AdminLive.ExerciseIndex do
   end
 
   defp presign_entry(entry, socket) do
-    key = Storage.build_key("exercise-attachments", entry.client_name)
+    key = Storage.build_key("operation-attachments", entry.client_name)
     presigned = Storage.presign_upload(key, entry.client_type)
     meta = %{uploader: "S3", key: key, url: presigned.url, fields: presigned.fields}
     {:ok, meta, socket}
   end
 
-  defp markers_json(exercise) do
-    exercise.locations
+  defp markers_json(operation) do
+    operation.locations
     |> Enum.map(&%{point: &1.point, title: &1.name, radius_m: &1.geofence_radius_m})
     |> MapHelpers.markers_json()
   end

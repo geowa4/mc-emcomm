@@ -10,7 +10,7 @@ alias McEmcomm.Capabilities
 alias McEmcomm.Courses
 alias McEmcomm.Certifications
 alias McEmcomm.Assets
-alias McEmcomm.Exercises
+alias McEmcomm.Operations
 
 seed_password = "seed-password-12345"
 
@@ -171,7 +171,7 @@ end
 
 # The admin covers the third Director-at-Large seat; Assistant Emergency
 # Coordinator is deliberately vacant (as in the real roster) so the public
-# About page exercises its "Vacant" rendering.
+# About page operations its "Vacant" rendering.
 set_positions.(admin_member, ["Director-at-Large 3"])
 
 members =
@@ -229,14 +229,14 @@ Enum.each(certifications, fn attrs ->
   end
 end)
 
-# ## Exercises: one single-location, one multi-location
+# ## Operations: one single-location, one multi-location
 
-unless Repo.get_by(Exercises.Exercise, title: "Spring Field Day Drill") do
+unless Repo.get_by(Operations.Operation, title: "Spring Field Day Drill") do
   {:ok, _} =
-    Exercises.create_exercise_with_locations(
+    Operations.create_operation_with_locations(
       %{
         "title" => "Spring Field Day Drill",
-        "description" => "Single-site exercise at the EOC.",
+        "description" => "Single-site operation at the EOC.",
         "starts_at" => DateTime.utc_now() |> DateTime.add(7, :day),
         "ends_at" => DateTime.utc_now() |> DateTime.add(7, :day) |> DateTime.add(4, :hour),
         "visibility" => "members",
@@ -251,12 +251,12 @@ unless Repo.get_by(Exercises.Exercise, title: "Spring Field Day Drill") do
     )
 end
 
-unless Repo.get_by(Exercises.Exercise, title: "County-Wide Simulated Emergency Test") do
+unless Repo.get_by(Operations.Operation, title: "County-Wide Simulated Emergency Test") do
   {:ok, _} =
-    Exercises.create_exercise_with_locations(
+    Operations.create_operation_with_locations(
       %{
         "title" => "County-Wide Simulated Emergency Test",
-        "description" => "Multi-site SET exercise across Monroe County.",
+        "description" => "Multi-site SET operation across Monroe County.",
         "starts_at" => DateTime.utc_now() |> DateTime.add(30, :day),
         "ends_at" => DateTime.utc_now() |> DateTime.add(30, :day) |> DateTime.add(6, :hour),
         "visibility" => "public",

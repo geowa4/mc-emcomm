@@ -1,8 +1,8 @@
 defmodule McEmcomm.SightingsTest do
   use McEmcomm.DataCase, async: true
 
-  alias McEmcomm.Exercises
   alias McEmcomm.McEmcommFixtures
+  alias McEmcomm.Operations
   alias McEmcomm.Sightings
 
   @in_radius %Geo.Point{coordinates: {-77.6090, 43.1568}, srid: 4326}
@@ -143,8 +143,8 @@ defmodule McEmcomm.SightingsTest do
       assert updated.member_id == member.id
     end
 
-    test "geofence match creates exercise_attendance (source: asset_checkin) for an approved member" do
-      exercise = McEmcommFixtures.exercise_fixture()
+    test "geofence match creates operation_attendance (source: asset_checkin) for an approved member" do
+      operation = McEmcommFixtures.operation_fixture()
       member = McEmcommFixtures.member_fixture(%{call_sign: "W2GEO"})
 
       sighting = visited_sighting_fixture()
@@ -152,10 +152,10 @@ defmodule McEmcomm.SightingsTest do
 
       assert {:ok, submitted} = Sightings.submit(sighting, %{"call_sign" => "W2GEO"})
 
-      assert submitted.exercise_id == exercise.id
-      assert submitted.exercise_location_id
+      assert submitted.operation_id == operation.id
+      assert submitted.operation_location_id
 
-      [attendance] = Exercises.list_attendance(exercise.id)
+      [attendance] = Operations.list_attendance(operation.id)
       assert attendance.member_id == member.id
       assert attendance.source == :asset_checkin
       assert attendance.sighting_id == submitted.id
@@ -173,32 +173,32 @@ defmodule McEmcomm.SightingsTest do
       refute updated.verified
     end
 
-    test "a submitter cannot pick the member, exercise, or location the sighting links to" do
+    test "a submitter cannot pick the member, operation, or location the sighting links to" do
       member = McEmcommFixtures.member_fixture(%{call_sign: "W2OWN"})
-      exercise = McEmcommFixtures.exercise_fixture()
+      operation = McEmcommFixtures.operation_fixture()
       sighting = visited_sighting_fixture()
 
       assert {:ok, updated} =
                Sightings.submit(sighting, %{
                  "call_sign" => "N0CALL",
                  "member_id" => member.id,
-                 "exercise_id" => exercise.id
+                 "operation_id" => operation.id
                })
 
       assert is_nil(updated.member_id)
-      assert is_nil(updated.exercise_id)
-      assert is_nil(updated.exercise_location_id)
+      assert is_nil(updated.operation_id)
+      assert is_nil(updated.operation_location_id)
     end
 
     test "no attendance is created without a geofence match" do
       member = McEmcommFixtures.member_fixture(%{call_sign: "W2NOM"})
-      exercise = McEmcommFixtures.exercise_fixture()
+      operation = McEmcommFixtures.operation_fixture()
       sighting = visited_sighting_fixture()
 
       assert {:ok, submitted} = Sightings.submit(sighting, %{"call_sign" => "W2NOM"})
 
-      assert is_nil(submitted.exercise_id)
-      assert Exercises.list_attendance(exercise.id) == []
+      assert is_nil(submitted.operation_id)
+      assert Operations.list_attendance(operation.id) == []
       refute is_nil(member.id)
     end
   end

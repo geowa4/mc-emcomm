@@ -1,5 +1,5 @@
 defmodule McEmcomm.McEmcommFixtures do
-  @moduledoc "Test helpers for the domain contexts (Members, Exercises, Assets, Sightings)."
+  @moduledoc "Test helpers for the domain contexts (Members, Operations, Assets, Sightings)."
 
   alias McEmcomm.Accounts.Scope
   alias McEmcomm.AccountsFixtures
@@ -8,9 +8,9 @@ defmodule McEmcomm.McEmcommFixtures do
   alias McEmcomm.Certifications
   alias McEmcomm.Content
   alias McEmcomm.Courses
-  alias McEmcomm.Exercises
   alias McEmcomm.Members
   alias McEmcomm.Net
+  alias McEmcomm.Operations
   alias McEmcomm.Repo
 
   @doc "A user + approved member, plus the admin user who approved them."
@@ -58,17 +58,17 @@ defmodule McEmcomm.McEmcommFixtures do
   end
 
   @doc """
-  An exercise with one location at `{lat, lng}` (default: Rochester, NY),
+  An operation with one location at `{lat, lng}` (default: Rochester, NY),
   active "now" (starts 1 hour ago, ends in 1 hour) unless overridden.
   """
-  def exercise_fixture(attrs \\ %{}, location_attrs \\ %{}) do
+  def operation_fixture(attrs \\ %{}, location_attrs \\ %{}) do
     creator = AccountsFixtures.user_fixture()
     now = DateTime.utc_now()
 
-    exercise_attrs =
+    operation_attrs =
       Map.merge(
         %{
-          "title" => "Test Exercise #{System.unique_integer()}",
+          "title" => "Test Operation #{System.unique_integer()}",
           "starts_at" => DateTime.add(now, -3600, :second),
           "ends_at" => DateTime.add(now, 3600, :second),
           "visibility" => "members",
@@ -87,8 +87,10 @@ defmodule McEmcomm.McEmcommFixtures do
         location_attrs
       )
 
-    {:ok, exercise} = Exercises.create_exercise_with_locations(exercise_attrs, [location_attrs])
-    exercise
+    {:ok, operation} =
+      Operations.create_operation_with_locations(operation_attrs, [location_attrs])
+
+    operation
   end
 
   def document_fixture(attrs \\ %{}) do

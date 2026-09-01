@@ -53,8 +53,8 @@ defmodule McEmcomm.Sightings.Sighting do
 
     belongs_to :asset, McEmcomm.Assets.Asset
     belongs_to :member, McEmcomm.Members.Member
-    belongs_to :exercise, McEmcomm.Exercises.Exercise
-    belongs_to :exercise_location, McEmcomm.Exercises.ExerciseLocation
+    belongs_to :operation, McEmcomm.Operations.Operation
+    belongs_to :operation_location, McEmcomm.Operations.OperationLocation
 
     timestamps(type: :utc_datetime)
   end
@@ -91,8 +91,8 @@ defmodule McEmcomm.Sightings.Sighting do
 
   `attrs` carries the submitter's own form params, so only fields the
   submitter may set are cast here. `verified` is admin-only and is written
-  through `McEmcomm.Sightings.verify/2`; `member_id`, `exercise_id` and
-  `exercise_location_id` are resolved server-side in
+  through `McEmcomm.Sightings.verify/2`; `member_id`, `operation_id` and
+  `operation_location_id` are resolved server-side in
   `McEmcomm.Sightings.submit/3` and put on the attrs there.
   """
   def submit_changeset(sighting, attrs) do
@@ -103,16 +103,16 @@ defmodule McEmcomm.Sightings.Sighting do
       :claimed_responsibility,
       :member_id,
       :submitted_at,
-      :exercise_id,
-      :exercise_location_id
+      :operation_id,
+      :operation_location_id
     ])
     |> update_change(:call_sign, fn
       nil -> nil
       call_sign -> call_sign |> String.trim() |> String.upcase()
     end)
     |> foreign_key_constraint(:member_id)
-    |> foreign_key_constraint(:exercise_id)
-    |> foreign_key_constraint(:exercise_location_id)
+    |> foreign_key_constraint(:operation_id)
+    |> foreign_key_constraint(:operation_location_id)
   end
 
   @doc "Retention scrub: nulls raw identifying fields, keeps aggregate ones."

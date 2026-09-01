@@ -19,9 +19,12 @@ defmodule McEmcommWeb.AppLive.Dashboard do
             <p>QTH, quadrant, capabilities, courses, and certifications.</p>
           </div>
         </.link>
-        <.link navigate={~p"/app/exercises"} class="card bg-base-100 shadow-sm border border-base-300">
+        <.link
+          navigate={~p"/app/operations"}
+          class="card bg-base-100 shadow-sm border border-base-300"
+        >
           <div class="card-body">
-            <h2 class="card-title">Exercises</h2>
+            <h2 class="card-title">Operations</h2>
             <p>Locations, attachments, and attendance.</p>
           </div>
         </.link>

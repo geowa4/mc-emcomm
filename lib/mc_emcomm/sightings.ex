@@ -7,8 +7,8 @@ defmodule McEmcomm.Sightings do
     * update point 1 — socket connect: `record_client_env/2` then, after the
       browser Geolocation prompt resolves, `record_geolocation/2`.
     * update point 2 — form submit: `submit/3` auto-links the member,
-      geofence-matches an active exercise location, and records
-      `exercise_attendance` for an approved member.
+      geofence-matches an active operation location, and records
+      `operation_attendance` for an approved member.
 
   Admin-only columns (identity/visit, client environment, geolocation) are
   gated at the query layer: `list_for_asset_member_view/1` selects only the
@@ -18,8 +18,8 @@ defmodule McEmcomm.Sightings do
 
   import Ecto.Query, warn: false
 
-  alias McEmcomm.Exercises
   alias McEmcomm.Members
+  alias McEmcomm.Operations
   alias McEmcomm.Repo
   alias McEmcomm.Sightings.Sighting
 
@@ -90,8 +90,8 @@ defmodule McEmcomm.Sightings do
   @doc """
   Applies the sighting-form submission: links a member (by call sign, or the
   given `current_member` when the submitter is logged in), geofence-matches
-  an active exercise location when the sighting captured a point, and — for
-  an approved member matched to a location — records `exercise_attendance`
+  an active operation location when the sighting captured a point, and — for
+  an approved member matched to a location — records `operation_attendance`
   with `source: :asset_checkin` carrying the `sighting_id`.
   """
   @spec submit(Sighting.t(), map(), keyword()) ::
@@ -103,7 +103,7 @@ defmodule McEmcomm.Sightings do
     call_sign = normalize_call_sign(attrs["call_sign"] || attrs[:call_sign])
     matched_member = current_member || member_by_call_sign(call_sign)
 
-    {exercise_id, exercise_location_id} = geofence_match(sighting, now)
+    {operation_id, operation_location_id} = geofence_match(sighting, now)
 
     submit_attrs =
       attrs
@@ -115,14 +115,14 @@ defmodule McEmcomm.Sightings do
       |> Map.merge(%{
         "submitted_at" => now,
         "member_id" => matched_member && matched_member.id,
-        "exercise_id" => exercise_id,
-        "exercise_location_id" => exercise_location_id
+        "operation_id" => operation_id,
+        "operation_location_id" => operation_location_id
       })
 
     sighting
     |> Sighting.submit_changeset(submit_attrs)
     |> Repo.update()
-    |> maybe_record_attendance(matched_member, exercise_id)
+    |> maybe_record_attendance(matched_member, operation_id)
   end
 
   defp normalize_call_sign(nil), do: nil
@@ -136,8 +136,8 @@ defmodule McEmcomm.Sightings do
   end
 
   defp geofence_match(%Sighting{point: %Geo.Point{}} = sighting, at) do
-    case Exercises.match_location(sighting.point, at) do
-      {location, exercise} -> {exercise.id, location.id}
+    case Operations.match_location(sighting.point, at) do
+      {location, operation} -> {operation.id, location.id}
       nil -> {nil, nil}
     end
   end
@@ -147,10 +147,10 @@ defmodule McEmcomm.Sightings do
   defp maybe_record_attendance(
          {:ok, sighting},
          %Members.Member{status: :approved} = member,
-         exercise_id
+         operation_id
        )
-       when not is_nil(exercise_id) do
-    Exercises.record_attendance(exercise_id, member.id, :asset_checkin,
+       when not is_nil(operation_id) do
+    Operations.record_attendance(operation_id, member.id, :asset_checkin,
       sighting_id: sighting.id,
       recorded_at: sighting.submitted_at
     )
@@ -158,7 +158,7 @@ defmodule McEmcomm.Sightings do
     {:ok, sighting}
   end
 
-  defp maybe_record_attendance(result, _member, _exercise_id), do: result
+  defp maybe_record_attendance(result, _member, _operation_id), do: result
 
   ## Reads
 
@@ -200,7 +200,7 @@ defmodule McEmcomm.Sightings do
   end
 
   @member_view_fields ~w(id asset_id submitted_at call_sign member_id claimed_responsibility
-                          note verified exercise_id exercise_location_id inserted_at updated_at)a
+                          note verified operation_id operation_location_id inserted_at updated_at)a
 
   @doc "Member/admin-safe projection: excludes identity/visit, client-env, and geolocation columns."
   def list_for_asset_member_view(asset_id) do

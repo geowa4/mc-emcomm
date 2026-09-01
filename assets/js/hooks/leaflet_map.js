@@ -2,7 +2,7 @@ import L from "../../vendor/leaflet/leaflet.js"
 
 // Read-only map: renders every marker in data-markers (JSON array of
 // {lat, lng, title, radius_m}) plus a geofence-radius circle when
-// radius_m is given (exercise locations, §9 "Exercises"). Used for exercise
+// radius_m is given (operation locations, §9 "Operations"). Used for operation
 // detail, inventory sighting maps, and the net console's live roster map.
 const LeafletMap = {
   mounted() {

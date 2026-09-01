@@ -3,8 +3,8 @@ defmodule McEmcommWeb.SightingLive.ShowTest do
 
   import Phoenix.LiveViewTest
 
-  alias McEmcomm.Exercises
   alias McEmcomm.McEmcommFixtures
+  alias McEmcomm.Operations
   alias McEmcomm.Sightings
 
   test "renders only the asset image, name, and form", %{conn: conn} do
@@ -45,7 +45,7 @@ defmodule McEmcommWeb.SightingLive.ShowTest do
   end
 
   test "the full three-update-point flow: connect, geolocation, and submit", %{conn: conn} do
-    exercise = McEmcommFixtures.exercise_fixture()
+    operation = McEmcommFixtures.operation_fixture()
     member = McEmcommFixtures.member_fixture(%{call_sign: "W2SIT"})
     asset = McEmcommFixtures.asset_fixture()
 
@@ -72,9 +72,9 @@ defmodule McEmcommWeb.SightingLive.ShowTest do
     assert sighting.touch == true
     assert %Geo.Point{} = sighting.point
     assert sighting.member_id == member.id
-    assert sighting.exercise_id == exercise.id
+    assert sighting.operation_id == operation.id
 
-    assert [attendance] = Exercises.list_attendance(exercise.id)
+    assert [attendance] = Operations.list_attendance(operation.id)
     assert attendance.sighting_id == sighting.id
     assert attendance.source == :asset_checkin
   end

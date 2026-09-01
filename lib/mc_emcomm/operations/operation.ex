@@ -1,4 +1,4 @@
-defmodule McEmcomm.Exercises.Exercise do
+defmodule McEmcomm.Operations.Operation do
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -7,7 +7,7 @@ defmodule McEmcomm.Exercises.Exercise do
   @visibilities ~w(public members)a
   def visibilities, do: @visibilities
 
-  schema "exercises" do
+  schema "operations" do
     field :title, :string
     field :description, :string
     field :starts_at, :utc_datetime
@@ -16,15 +16,15 @@ defmodule McEmcomm.Exercises.Exercise do
 
     belongs_to :created_by, McEmcomm.Accounts.User
 
-    has_many :locations, McEmcomm.Exercises.ExerciseLocation, preload_order: [asc: :position]
-    has_many :attachments, McEmcomm.Exercises.ExerciseAttachment
-    has_many :attendance, McEmcomm.Exercises.ExerciseAttendance
+    has_many :locations, McEmcomm.Operations.OperationLocation, preload_order: [asc: :position]
+    has_many :attachments, McEmcomm.Operations.OperationAttachment
+    has_many :attendance, McEmcomm.Operations.OperationAttendance
 
     timestamps(type: :utc_datetime)
   end
 
-  def changeset(exercise, attrs) do
-    exercise
+  def changeset(operation, attrs) do
+    operation
     |> cast(attrs, [:title, :description, :starts_at, :ends_at, :visibility, :created_by_id])
     |> validate_required([:title, :starts_at, :ends_at, :created_by_id])
     |> validate_ends_after_starts()

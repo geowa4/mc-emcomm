@@ -49,7 +49,7 @@ defmodule McEmcommWeb.Layouts do
           <li><a href={~p"/about"} class="btn btn-ghost btn-sm">About</a></li>
           <li><a href={~p"/training"} class="btn btn-ghost btn-sm">Training</a></li>
           <li><a href={~p"/resources"} class="btn btn-ghost btn-sm">Resources</a></li>
-          <li><a href={~p"/exercises"} class="btn btn-ghost btn-sm">Exercises</a></li>
+          <li><a href={~p"/operations"} class="btn btn-ghost btn-sm">Operations</a></li>
           <li><a href={~p"/calendar"} class="btn btn-ghost btn-sm">Calendar</a></li>
           <li :if={@current_scope}>
             <a href={~p"/app"} class="btn btn-ghost btn-sm">Member Portal</a>
@@ -102,7 +102,7 @@ defmodule McEmcommWeb.Layouts do
             <li><a href={~p"/about"}>About</a></li>
             <li><a href={~p"/training"}>Training</a></li>
             <li><a href={~p"/resources"}>Resources</a></li>
-            <li><a href={~p"/exercises"}>Exercises</a></li>
+            <li><a href={~p"/operations"}>Operations</a></li>
             <li><a href={~p"/calendar"}>Calendar</a></li>
             <li :if={@current_scope}>
               <a href={~p"/app"}>Member Portal</a>

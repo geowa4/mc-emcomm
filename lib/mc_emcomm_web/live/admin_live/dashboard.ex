@@ -35,11 +35,11 @@ defmodule McEmcommWeb.AdminLive.Dashboard do
           </div>
         </.link>
         <.link
-          navigate={~p"/admin/exercises"}
+          navigate={~p"/admin/operations"}
           class="card bg-base-100 shadow-sm border border-base-300"
         >
           <div class="card-body">
-            <h2 class="card-title">Exercises</h2>
+            <h2 class="card-title">Operations</h2>
           </div>
         </.link>
         <.link

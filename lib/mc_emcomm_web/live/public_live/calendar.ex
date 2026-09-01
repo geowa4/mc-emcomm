@@ -24,7 +24,7 @@ defmodule McEmcommWeb.PublicLive.Calendar do
       <.header>Calendar</.header>
 
       <p>
-        Meetings, nets, and exercises. We meet monthly except during July, August, and
+        Meetings, nets, and operations. We meet monthly except during July, August, and
         December.
       </p>
 
@@ -74,7 +74,7 @@ defmodule McEmcommWeb.PublicLive.Calendar do
       </p>
 
       <p class="mt-4 text-sm text-base-content/70">
-        See also the <.link navigate={~p"/exercises"} class="link">exercise schedule</.link>.
+        See also the <.link navigate={~p"/operations"} class="link">operation schedule</.link>.
       </p>
     </Layouts.app>
     """

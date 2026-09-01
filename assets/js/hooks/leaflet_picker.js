@@ -1,6 +1,6 @@
 import L from "../../vendor/leaflet/leaflet.js"
 
-// Map-click pin drop used for QTH and exercise-location placement (spec §12).
+// Map-click pin drop used for QTH and operation-location placement (spec §12).
 // Renders a single draggable marker; every placement/drag pushes
 // `point_selected` with {lat, lng} to the LiveView.
 const LeafletPicker = {

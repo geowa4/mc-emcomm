@@ -77,6 +77,7 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
     create table(:positions) do
       add :name, :string, null: false
       add :sort_order, :integer, null: false
+      add :grants_admin, :boolean, null: false, default: false
 
       timestamps(type: :utc_datetime)
     end
@@ -206,9 +207,9 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
 
     create unique_index(:assets, [:public_id])
 
-    # ## Exercises
+    # ## Operations
 
-    create table(:exercises) do
+    create table(:operations) do
       add :title, :string, null: false
       add :description, :text
       add :starts_at, :utc_datetime, null: false
@@ -219,12 +220,12 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
       timestamps(type: :utc_datetime)
     end
 
-    create constraint(:exercises, :ends_at_after_starts_at, check: "ends_at > starts_at")
-    create index(:exercises, [:starts_at])
-    create index(:exercises, [:visibility])
+    create constraint(:operations, :ends_at_after_starts_at, check: "ends_at > starts_at")
+    create index(:operations, [:starts_at])
+    create index(:operations, [:visibility])
 
-    create table(:exercise_locations) do
-      add :exercise_id, references(:exercises, on_delete: :delete_all), null: false
+    create table(:operation_locations) do
+      add :operation_id, references(:operations, on_delete: :delete_all), null: false
       add :name, :string, null: false
       add :point, :"geography(Point,4326)", null: false
       add :geofence_radius_m, :integer, null: false, default: 500
@@ -234,9 +235,9 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
       timestamps(type: :utc_datetime)
     end
 
-    create index(:exercise_locations, [:exercise_id])
-    create index(:exercise_locations, [:point], using: :gist)
-    create unique_index(:exercise_locations, [:exercise_id, :name])
+    create index(:operation_locations, [:operation_id])
+    create index(:operation_locations, [:point], using: :gist)
+    create unique_index(:operation_locations, [:operation_id, :name])
 
     # ## Sightings
 
@@ -285,8 +286,8 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
       add :claimed_responsibility, :boolean, null: false, default: false
       add :note, :text
       add :verified, :boolean, null: false, default: false
-      add :exercise_id, references(:exercises, on_delete: :nilify_all)
-      add :exercise_location_id, references(:exercise_locations, on_delete: :nilify_all)
+      add :operation_id, references(:operations, on_delete: :nilify_all)
+      add :operation_location_id, references(:operation_locations, on_delete: :nilify_all)
 
       # Retention
       add :scrubbed_at, :utc_datetime_usec
@@ -296,13 +297,13 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
 
     create index(:sightings, [:asset_id])
     create index(:sightings, [:member_id])
-    create index(:sightings, [:exercise_id])
+    create index(:sightings, [:operation_id])
     create index(:sightings, [:session_token])
     create index(:sightings, [:visited_at])
     create index(:sightings, [:point], using: :gist)
 
-    create table(:exercise_attachments) do
-      add :exercise_id, references(:exercises, on_delete: :delete_all), null: false
+    create table(:operation_attachments) do
+      add :operation_id, references(:operations, on_delete: :delete_all), null: false
       add :key, :string, null: false
       add :filename, :string, null: false
       add :content_type, :string, null: false
@@ -312,14 +313,14 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
       timestamps(type: :utc_datetime)
     end
 
-    create index(:exercise_attachments, [:exercise_id])
+    create index(:operation_attachments, [:operation_id])
 
-    create constraint(:exercise_attachments, :description_not_empty,
+    create constraint(:operation_attachments, :description_not_empty,
              check: "length(btrim(description)) > 0"
            )
 
-    create table(:exercise_attendance) do
-      add :exercise_id, references(:exercises, on_delete: :delete_all), null: false
+    create table(:operation_attendance) do
+      add :operation_id, references(:operations, on_delete: :delete_all), null: false
       add :member_id, references(:members, on_delete: :delete_all), null: false
       add :source, :string, null: false
       add :sighting_id, references(:sightings, on_delete: :nilify_all)
@@ -328,7 +329,7 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
       timestamps(type: :utc_datetime)
     end
 
-    create unique_index(:exercise_attendance, [:exercise_id, :member_id])
+    create unique_index(:operation_attendance, [:operation_id, :member_id])
 
     # ## Nets
 
@@ -351,6 +352,7 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
       add :quadrant, :string
       add :notes, :text
       add :recorded_at, :utc_datetime_usec, null: false
+      add :ended_at, :utc_datetime_usec
 
       timestamps(type: :utc_datetime)
     end

@@ -59,8 +59,8 @@ defmodule McEmcommWeb.Router do
       live "/resources", PublicLive.Resources, :show
       live "/calendar", PublicLive.Calendar, :show
       live "/donations", PublicLive.Donations, :show
-      live "/exercises", ExerciseLive.PublicIndex, :index
-      live "/exercises/:id", ExerciseLive.PublicShow, :show
+      live "/operations", OperationLive.PublicIndex, :index
+      live "/operations/:id", OperationLive.PublicShow, :show
     end
   end
 
@@ -82,8 +82,8 @@ defmodule McEmcommWeb.Router do
       on_mount: [{McEmcommWeb.MemberAuth, :require_member}] do
       live "/", AppLive.Dashboard, :show
       live "/profile", AppLive.Profile, :show
-      live "/exercises", ExerciseLive.Index, :index
-      live "/exercises/:id", ExerciseLive.Show, :show
+      live "/operations", OperationLive.Index, :index
+      live "/operations/:id", OperationLive.Show, :show
       live "/inventory", InventoryLive.Index, :index
       live "/inventory/:public_id", InventoryLive.Show, :show
       live "/net", NetLive.Console, :index
@@ -101,9 +101,9 @@ defmodule McEmcommWeb.Router do
       live "/", AdminLive.Dashboard, :show
       live "/members", AdminLive.MemberIndex, :index
       live "/positions", AdminLive.PositionIndex, :index
-      live "/exercises", AdminLive.ExerciseIndex, :index
-      live "/exercises/new", AdminLive.ExerciseIndex, :new
-      live "/exercises/:id/edit", AdminLive.ExerciseIndex, :edit
+      live "/operations", AdminLive.OperationIndex, :index
+      live "/operations/new", AdminLive.OperationIndex, :new
+      live "/operations/:id/edit", AdminLive.OperationIndex, :edit
       live "/inventory", AdminLive.InventoryIndex, :index
       live "/capabilities", AdminLive.CapabilityIndex, :index
       live "/courses", AdminLive.CourseIndex, :index

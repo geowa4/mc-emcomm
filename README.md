@@ -9,20 +9,20 @@ processes.
 It serves three audiences on one account model:
 
 - **Public** — an informational site: About, Training, Resources, Calendar,
-  Donations, and a public exercise schedule.
+  Donations, and a public operation schedule.
 - **Members** (authenticated, admin-approved) — a private portal: profile
-  (QTH, quadrant, capabilities, courses, certifications), exercise detail
+  (QTH, quadrant, capabilities, courses, certifications), operation detail
   with locations/attachments/attendance, asset inventory detail, and a live
   net logger.
 - **Admins** — membership approval and audit, catalog CRUD (capabilities /
-  courses / certifications), exercise and asset/QR management, and Resources
+  courses / certifications), operation and asset/QR management, and Resources
   document uploads.
 
 It also runs a QR-code "asset sighting" flow: each tracked asset (radio kit,
 repeater trailer, etc.) gets a QR code encoding a public sighting page;
 scanning it records a visit, then (with permission) the visitor's client
 environment and location, and finally their submitted call sign — auto-
-linking to a member record and, inside an active exercise's geofence,
+linking to a member record and, inside an active operation's geofence,
 recording attendance.
 
 See `mcemcomm-app.md` in the repository root for the full technical
@@ -83,7 +83,7 @@ a host-installed Postgres — publish the container on another port and export
 
 `mix run priv/repo/seeds.exs` (idempotent — safe to re-run) creates an admin
 account, members across roles/quadrants, the capabilities/courses/
-certifications catalogs, two exercises (single- and multi-location), and a
+certifications catalogs, two operations (single- and multi-location), and a
 few sample assets. The seed output prints the admin login.
 
 Uploads need a Tigris/S3-compatible bucket to actually round-trip; without

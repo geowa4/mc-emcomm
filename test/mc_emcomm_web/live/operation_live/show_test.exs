@@ -1,22 +1,23 @@
-defmodule McEmcommWeb.ExerciseLive.ShowTest do
+defmodule McEmcommWeb.OperationLive.ShowTest do
   use McEmcommWeb.ConnCase, async: true
 
   import Mox
   import Phoenix.LiveViewTest
 
-  alias McEmcomm.Exercises
   alias McEmcomm.McEmcommFixtures
+  alias McEmcomm.Operations
   alias McEmcomm.StorageMock
 
   setup :verify_on_exit!
 
   test "renders locations, attachments, and attendance", %{conn: conn} do
     member = McEmcommFixtures.member_fixture()
-    exercise = McEmcommFixtures.exercise_fixture()
+    operation = McEmcommFixtures.operation_fixture()
 
-    {:ok, lv, html} = conn |> log_in_user(member.user) |> live(~p"/app/exercises/#{exercise.id}")
+    {:ok, lv, html} =
+      conn |> log_in_user(member.user) |> live(~p"/app/operations/#{operation.id}")
 
-    assert html =~ exercise.title
+    assert html =~ operation.title
     assert html =~ "Primary Site"
     assert html =~ "No attachments"
     assert html =~ "No recorded attendance yet"
@@ -25,23 +26,25 @@ defmodule McEmcommWeb.ExerciseLive.ShowTest do
 
   test "an approved member can mark their own attendance", %{conn: conn} do
     member = McEmcommFixtures.member_fixture()
-    exercise = McEmcommFixtures.exercise_fixture()
+    operation = McEmcommFixtures.operation_fixture()
 
-    {:ok, lv, _html} = conn |> log_in_user(member.user) |> live(~p"/app/exercises/#{exercise.id}")
+    {:ok, lv, _html} =
+      conn |> log_in_user(member.user) |> live(~p"/app/operations/#{operation.id}")
 
     html = lv |> element("button", "Mark my attendance") |> render_click()
 
     assert html =~ "Attendance recorded"
-    assert [attendance] = Exercises.list_attendance(exercise.id)
+    assert [attendance] = Operations.list_attendance(operation.id)
     assert attendance.member_id == member.id
     assert attendance.source == :manual
   end
 
   test "a download event carrying a junk id is declined, not crashed on", %{conn: conn} do
     member = McEmcommFixtures.member_fixture()
-    exercise = McEmcommFixtures.exercise_fixture()
+    operation = McEmcommFixtures.operation_fixture()
 
-    {:ok, lv, _html} = conn |> log_in_user(member.user) |> live(~p"/app/exercises/#{exercise.id}")
+    {:ok, lv, _html} =
+      conn |> log_in_user(member.user) |> live(~p"/app/operations/#{operation.id}")
 
     assert render_click(lv, "download_attachment", %{"id" => "not-an-id"}) =~
              "no longer available"
@@ -49,12 +52,12 @@ defmodule McEmcommWeb.ExerciseLive.ShowTest do
 
   test "downloading an attachment redirects to a presigned URL", %{conn: conn} do
     member = McEmcommFixtures.member_fixture()
-    exercise = McEmcommFixtures.exercise_fixture()
+    operation = McEmcommFixtures.operation_fixture()
 
     {:ok, attachment} =
-      Exercises.create_exercise_attachment(%{
-        exercise_id: exercise.id,
-        key: "exercise-attachments/plan.pdf",
+      Operations.create_operation_attachment(%{
+        operation_id: operation.id,
+        key: "operation-attachments/plan.pdf",
         filename: "plan.pdf",
         content_type: "application/pdf",
         description: "Operations plan",
@@ -66,7 +69,9 @@ defmodule McEmcommWeb.ExerciseLive.ShowTest do
       "https://tigris.example.com/plan.pdf?signed=1"
     end)
 
-    {:ok, lv, html} = conn |> log_in_user(member.user) |> live(~p"/app/exercises/#{exercise.id}")
+    {:ok, lv, html} =
+      conn |> log_in_user(member.user) |> live(~p"/app/operations/#{operation.id}")
+
     assert html =~ "Operations plan"
 
     assert {:error, {:redirect, %{to: "https://tigris.example.com/plan.pdf?signed=1"}}} =
