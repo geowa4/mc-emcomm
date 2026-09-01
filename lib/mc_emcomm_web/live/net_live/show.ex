@@ -311,7 +311,11 @@ defmodule McEmcommWeb.NetLive.Show do
 
       <h2 class="text-lg font-semibold mt-8">On-net map</h2>
       <p class="text-sm text-base-content/70">
-        Operators currently on the net with a known location.
+        <%= if is_nil(@session.ended_at) do %>
+          Operators currently on the net with a known location.
+        <% else %>
+          Everyone who checked in with a known location.
+        <% end %>
       </p>
       <div
         id="net-map"
@@ -524,10 +528,21 @@ defmodule McEmcommWeb.NetLive.Show do
     end
   end
 
+  # While the net is live the map tracks who is on frequency right now; once
+  # it ends, the map becomes the record of everyone who checked in.
   defp assign_markers(socket) do
+    session = socket.assigns.session
+
+    checkins =
+      if is_nil(session.ended_at) do
+        Enum.filter(session.checkins, &is_nil(&1.ended_at))
+      else
+        session.checkins
+      end
+
     markers =
-      socket.assigns.session.checkins
-      |> Enum.filter(&is_nil(&1.ended_at))
+      checkins
+      |> Enum.uniq_by(&{&1.call_sign, &1.location_point && &1.location_point.coordinates})
       |> Enum.map(fn c -> %{point: c.location_point, title: marker_title(c)} end)
 
     assign(socket, net_markers_json: MapHelpers.markers_json(markers))

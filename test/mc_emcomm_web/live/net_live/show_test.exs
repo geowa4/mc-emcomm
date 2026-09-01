@@ -58,6 +58,35 @@ defmodule McEmcommWeb.NetLive.ShowTest do
     assert has_element?(lv, "#net-map[data-markers*='NW']")
   end
 
+  test "an ended net's map shows everyone who checked in", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture(%{call_sign: "W2NCO"})
+    location = McEmcommFixtures.default_location_fixture(%{name: "NW"})
+    session = McEmcommFixtures.net_session_fixture(member)
+
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/net/#{session.id}")
+
+    lv
+    |> form("#checkin-form", %{
+      "net_checkin" => %{"call_sign" => "W2OTH"},
+      "location_ref" => "default:#{location.id}"
+    })
+    |> render_submit()
+
+    # Leaving during a live net removes the marker.
+    [checkin] = checkins_for(session.id, "W2OTH")
+    lv |> element("#checkout-checkin-#{checkin.id}") |> render_click()
+    refute has_element?(lv, "#net-map[data-markers*='W2OTH']")
+
+    # Once the net ends, the map is the record of every check-in.
+    lv |> element("button", "End net") |> render_click()
+    assert has_element?(lv, "#net-map[data-markers*='W2OTH']")
+
+    # A fresh mount of the ended net shows the same record.
+    {:ok, lv, _html} = conn |> live(~p"/app/net/#{session.id}")
+    assert has_element?(lv, "#net-map[data-markers*='W2OTH']")
+  end
+
   test "operation locations are selectable only when the net has that operation", %{conn: conn} do
     member = McEmcommFixtures.member_fixture(%{call_sign: "W2NCO"})
     operation = McEmcommFixtures.operation_fixture()
