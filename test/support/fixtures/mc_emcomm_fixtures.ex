@@ -8,6 +8,7 @@ defmodule McEmcomm.McEmcommFixtures do
   alias McEmcomm.Certifications
   alias McEmcomm.Content
   alias McEmcomm.Courses
+  alias McEmcomm.Locations
   alias McEmcomm.Members
   alias McEmcomm.Net
   alias McEmcomm.Operations
@@ -150,8 +151,29 @@ defmodule McEmcomm.McEmcommFixtures do
     certification
   end
 
-  def net_session_fixture(member) do
-    {:ok, session} = Net.start_session(member, %{"name" => "Test Net #{System.unique_integer()}"})
+  def net_session_fixture(member, attrs \\ %{}) do
+    attrs = Map.merge(%{"name" => "Test Net #{System.unique_integer()}"}, attrs)
+    {:ok, session} = Net.start_session(member, attrs)
     session
+  end
+
+  def default_location_fixture(attrs \\ %{}) do
+    {:ok, location} =
+      Locations.create_default_location(
+        Map.merge(
+          %{
+            name: "Test Location #{System.unique_integer()}",
+            point: %Geo.Point{coordinates: {-77.6088, 43.1566}, srid: 4326}
+          },
+          attrs
+        )
+      )
+
+    location
+  end
+
+  @doc "A `%Geo.Point{}` for tests; defaults to Rochester, NY."
+  def geo_point(lng \\ -77.6088, lat \\ 43.1566) do
+    %Geo.Point{coordinates: {lng, lat}, srid: 4326}
   end
 end

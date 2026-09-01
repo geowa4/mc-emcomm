@@ -10,6 +10,7 @@ alias McEmcomm.Capabilities
 alias McEmcomm.Courses
 alias McEmcomm.Certifications
 alias McEmcomm.Assets
+alias McEmcomm.Locations
 alias McEmcomm.Operations
 
 seed_password = "seed-password-12345"
@@ -54,18 +55,29 @@ approve = fn member, actor ->
   end
 end
 
-# ## Admin + members across positions and quadrants
+# ## Admin + members across positions
 #
 # All people are fictional analogues that mirror the real roster's *shape*
 # (every filled position, including one person holding Vice-President and
 # Emergency Coordinator at once). Real people are entered in production via
-# the admin UI, never seeded.
+# the admin UI, never seeded. QTH points are fictional spots spread around
+# Monroe County so nets and the on-net map have something to show.
+
+set_qth = fn member, {lng, lat} ->
+  {:ok, member} =
+    Members.update_profile(member, %{
+      qth_point: %Geo.Point{coordinates: {lng, lat}, srid: 4326}
+    })
+
+  member
+end
 
 admin_user = get_or_create_user.("admin@monroecountyemcomm.org", true)
 
 admin_member =
-  get_or_create_member.(admin_user, %{name: "Alex Rivera", call_sign: "W2ADM", quadrant: :NE})
+  get_or_create_member.(admin_user, %{name: "Alex Rivera", call_sign: "W2ADM"})
   |> then(&approve.(&1, admin_user))
+  |> then(&set_qth.(&1, {-77.5895, 43.2001}))
 
 member_specs = [
   %{
@@ -73,63 +85,63 @@ member_specs = [
     name: "Jordan Blake",
     call_sign: "W2PRE",
     positions: ["President"],
-    quadrant: :NE
+    qth: {-77.5341, 43.2154}
   },
   %{
     email: "vice-president@monroecountyemcomm.org",
     name: "Devon Marsh",
     call_sign: "W2VEC",
     positions: ["Vice-President", "Emergency Coordinator"],
-    quadrant: :SE
+    qth: {-77.4459, 43.0912}
   },
   %{
     email: "secretary@monroecountyemcomm.org",
     name: "Sam Okafor",
     call_sign: "W2SEC",
     positions: ["Secretary"],
-    quadrant: :NW
+    qth: {-77.7312, 43.1888}
   },
   %{
     email: "treasurer@monroecountyemcomm.org",
     name: "Casey Nguyen",
     call_sign: "W2TRE",
     positions: ["Treasurer"],
-    quadrant: :SE
+    qth: {-77.5122, 43.0987}
   },
   %{
     email: "director1@monroecountyemcomm.org",
     name: "Rowan Ellis",
     call_sign: "W2DL1",
     positions: ["Director-at-Large 1"],
-    quadrant: :NW
+    qth: {-77.6931, 43.2143}
   },
   %{
     email: "director2@monroecountyemcomm.org",
     name: "Harper Quinn",
     call_sign: "W2DL2",
     positions: ["Director-at-Large 2"],
-    quadrant: :SW
+    qth: {-77.7423, 43.0341}
   },
   %{
     email: "member1@monroecountyemcomm.org",
     name: "Riley Thompson",
     call_sign: "W2ME1",
     positions: [],
-    quadrant: :SW
+    qth: {-77.6512, 43.0455}
   },
   %{
     email: "member2@monroecountyemcomm.org",
     name: "Morgan Alvarez",
     call_sign: "W2ME2",
     positions: [],
-    quadrant: :out_of_county
+    # Out of county, west of Batavia.
+    qth: {-78.2519, 42.9987}
   },
   %{
     email: "pending@monroecountyemcomm.org",
     name: "Taylor Kim",
     call_sign: "W2PND",
     positions: [],
-    quadrant: :NE,
     skip_approval: true
   }
 ]
@@ -177,8 +189,9 @@ set_positions.(admin_member, ["Director-at-Large 3"])
 members =
   Enum.map(member_specs, fn spec ->
     user = get_or_create_user.(spec.email, false)
-    member = get_or_create_member.(user, Map.take(spec, [:name, :call_sign, :quadrant]))
+    member = get_or_create_member.(user, Map.take(spec, [:name, :call_sign]))
     member = if spec[:skip_approval], do: member, else: approve.(member, admin_user)
+    member = if spec[:qth], do: set_qth.(member, spec.qth), else: member
     set_positions.(member, spec.positions)
   end)
 
@@ -280,6 +293,29 @@ unless Repo.get_by(Operations.Operation, title: "County-Wide Simulated Emergency
         }
       ]
     )
+end
+
+# ## Default locations
+#
+# The four county quadrant rally points admins would otherwise create at
+# /admin/locations. Coordinates are fictional spots inside each quadrant.
+
+default_location_specs = [
+  {"NW", {-77.7318, 43.2205}, 1},
+  {"NE", {-77.5013, 43.2312}, 2},
+  {"SW", {-77.7401, 43.0288}, 3},
+  {"SE", {-77.4922, 43.0411}, 4}
+]
+
+for {name, {lng, lat}, position} <- default_location_specs do
+  unless Repo.get_by(Locations.DefaultLocation, name: name) do
+    {:ok, _} =
+      Locations.create_default_location(%{
+        name: name,
+        point: %Geo.Point{coordinates: {lng, lat}, srid: 4326},
+        position: position
+      })
+  end
 end
 
 # ## Sample assets

@@ -25,7 +25,8 @@ defmodule McEmcommWeb.NetLive.ConsoleTest do
 
   test "the operator calling the net is logged as its first check-in", %{conn: conn} do
     member = McEmcommFixtures.member_fixture(%{call_sign: "W2NCO"})
-    {:ok, _} = McEmcomm.Members.update_profile(member, %{quadrant: :NW})
+    point = McEmcommFixtures.geo_point()
+    {:ok, _} = McEmcomm.Members.update_profile(member, %{qth_point: point})
     conn = log_in_user(conn, member.user)
 
     {:ok, lv, _html} = live(conn, ~p"/app/net")
@@ -39,11 +40,36 @@ defmodule McEmcommWeb.NetLive.ConsoleTest do
     assert render(show_lv) =~ "W2NCO"
 
     [session] = Net.list_sessions()
-    [checkin] = Net.get_session!(session.id).checkins
+    session = Net.get_session!(session.id)
+    [checkin] = session.checkins
     assert checkin.call_sign == "W2NCO"
     assert checkin.member_id == member.id
-    assert checkin.quadrant == :NW
+    # The check-in snapshots the member's QTH as its location.
+    assert checkin.location_name == "QTH"
+    assert checkin.location_point.coordinates == point.coordinates
     assert is_nil(checkin.ended_at)
+    # The starter is the initial net control operator.
+    assert session.net_control_member_id == member.id
+  end
+
+  test "starting a net with an operation assigns it", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    operation = McEmcommFixtures.operation_fixture()
+    conn = log_in_user(conn, member.user)
+
+    {:ok, lv, _html} = live(conn, ~p"/app/net")
+    assert has_element?(lv, "#start-net-operation option[value='#{operation.id}']")
+
+    {:ok, _show_lv, _html} =
+      lv
+      |> form("#start-net-form",
+        net_session: %{name: "Operation Net", operation_id: operation.id}
+      )
+      |> render_submit()
+      |> follow_redirect(conn)
+
+    [session] = Net.list_sessions()
+    assert Net.get_session!(session.id).operation_id == operation.id
   end
 
   test "a starter without a call sign is not auto-checked-in" do

@@ -83,6 +83,19 @@ defmodule McEmcomm.MembersDeleteTest do
       assert {:error, :has_started_net_sessions} = Members.delete_member(member)
       assert Repo.get(McEmcomm.Members.Member, member.id)
     end
+
+    test "deleting a member who holds net control vacates the role" do
+      starter = McEmcommFixtures.member_fixture()
+      member = McEmcommFixtures.member_fixture()
+      {:ok, session} = Net.start_session(starter, %{})
+      {:ok, session} = Net.assign_net_control(session, member)
+      assert session.net_control_member_id == member.id
+
+      stub(StorageMock, :delete_object, fn _key -> :ok end)
+
+      assert {:ok, _} = Members.delete_member(member)
+      assert is_nil(Net.get_session!(session.id).net_control_member_id)
+    end
   end
 
   defp insert_course! do

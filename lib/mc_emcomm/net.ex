@@ -6,9 +6,11 @@ defmodule McEmcomm.Net do
 
   import Ecto.Query, warn: false
 
+  alias McEmcomm.Locations.DefaultLocation
   alias McEmcomm.Members.Member
   alias McEmcomm.Net.NetCheckin
   alias McEmcomm.Net.NetSession
+  alias McEmcomm.Operations.OperationLocation
   alias McEmcomm.Repo
 
   @pubsub McEmcomm.PubSub
@@ -41,7 +43,9 @@ defmodule McEmcomm.Net do
   end
 
   def get_session!(id) do
-    NetSession |> Repo.get!(id) |> Repo.preload(checkins: :member)
+    NetSession
+    |> Repo.get!(id)
+    |> Repo.preload([:net_control_member, operation: :locations, checkins: :member])
   end
 
   def change_session(%NetSession{} = session, attrs \\ %{}) do
@@ -49,9 +53,10 @@ defmodule McEmcomm.Net do
   end
 
   @doc """
-  Any approved member may start a net session. A session without a name is
-  named after its start date. The operator calling the net is on frequency
-  from the start, so they are logged as its first check-in.
+  Any approved member may start a net session, optionally assigning it to an
+  operation. A session without a name is named after its start date. The
+  operator calling the net is on frequency from the start, so they are logged
+  as its first check-in and become the initial net control operator.
   """
   def start_session(%Member{status: :approved} = member, attrs) do
     started_at = DateTime.utc_now()
@@ -63,6 +68,7 @@ defmodule McEmcomm.Net do
 
     %NetSession{}
     |> NetSession.changeset(attrs)
+    |> Ecto.Changeset.put_change(:net_control_member_id, member.id)
     |> Repo.insert()
     |> case do
       {:ok, session} = result ->
@@ -140,21 +146,24 @@ defmodule McEmcomm.Net do
   end
 
   @doc """
-  Records a check-in, auto-linking by call sign and prefilling quadrant from the
-  member. An operator who left the net and comes back checks in again: each
-  stint is its own row, so the log keeps every join/leave with its duration.
+  Records a check-in, auto-linking by call sign and snapshotting a location:
+  by default the matched member's QTH, or the default/operation location named
+  by `"location_ref"` (`"default:ID"` / `"op:ID"`, resolved server-side). An
+  operator who left the net and comes back checks in again: each stint is its
+  own row, so the log keeps every join/leave with its duration.
   """
   def check_in(%NetSession{} = session, attrs) do
     call_sign = attrs["call_sign"] || attrs[:call_sign]
     matched_member = match_member(call_sign)
 
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
     attrs =
       attrs
-      |> Map.new(fn {k, v} -> {to_string(k), v} end)
       |> Map.put("net_session_id", session.id)
       |> Map.put("member_id", matched_member && matched_member.id)
       |> Map.put("recorded_at", DateTime.utc_now())
-      |> maybe_prefill_quadrant(matched_member)
+      |> Map.merge(resolve_location(attrs["location_ref"], matched_member, session))
 
     %NetCheckin{}
     |> NetCheckin.changeset(attrs)
@@ -170,7 +179,12 @@ defmodule McEmcomm.Net do
     end
   end
 
-  def update_checkin(%NetCheckin{} = checkin, attrs) do
+  @doc """
+  Corrects a check-in. A present, non-blank `"location_ref"` re-resolves the
+  location snapshot (`"qth"`, `"none"`, `"default:ID"`, `"op:ID"`); a blank or
+  absent ref keeps the existing snapshot.
+  """
+  def update_checkin(%NetSession{} = session, %NetCheckin{} = checkin, attrs) do
     changeset = NetCheckin.update_changeset(checkin, attrs)
 
     changeset =
@@ -184,17 +198,74 @@ defmodule McEmcomm.Net do
       end
 
     changeset
+    |> apply_location_ref(attrs["location_ref"], session)
     |> Repo.update()
     |> broadcast_checkin_change()
   end
 
-  @doc "Logs the operator leaving the net; the check-in keeps its start and end times."
+  @doc """
+  Logs the operator leaving the net; the check-in keeps its start and end
+  times. If the operator was net control, the role becomes vacant.
+  """
   def check_out(%NetCheckin{ended_at: nil} = checkin, ended_at \\ DateTime.utc_now()) do
     checkin
     |> NetCheckin.end_changeset(ended_at)
     |> Repo.update()
-    |> broadcast_checkin_change()
+    |> case do
+      {:ok, checkin} ->
+        maybe_vacate_net_control(checkin)
+        broadcast_checkin_change({:ok, checkin})
+
+      error ->
+        error
+    end
   end
+
+  ## Net control
+
+  def assign_net_control(%NetSession{} = session, %Member{status: :approved} = member) do
+    set_net_control(session, member.id)
+  end
+
+  def assign_net_control(%NetSession{}, %Member{}), do: {:error, :not_approved}
+
+  def vacate_net_control(%NetSession{} = session), do: set_net_control(session, nil)
+
+  defp set_net_control(session, member_id_or_nil) do
+    session
+    |> NetSession.net_control_changeset(member_id_or_nil)
+    |> Repo.update()
+    |> broadcast_session_updated()
+  end
+
+  defp maybe_vacate_net_control(%NetCheckin{member_id: member_id} = checkin)
+       when not is_nil(member_id) do
+    session = Repo.get!(NetSession, checkin.net_session_id)
+
+    if is_nil(session.ended_at) and session.net_control_member_id == member_id do
+      {:ok, _session} = vacate_net_control(session)
+    end
+
+    :ok
+  end
+
+  defp maybe_vacate_net_control(_checkin), do: :ok
+
+  @doc "Assigns the session to an operation, or clears the assignment with `nil`."
+  def assign_operation(%NetSession{} = session, operation_id_or_nil) do
+    session
+    |> NetSession.operation_changeset(operation_id_or_nil)
+    |> Repo.update()
+    |> broadcast_session_updated()
+  end
+
+  defp broadcast_session_updated({:ok, session}) do
+    session = get_session!(session.id)
+    broadcast(session.id, {:session_updated, session})
+    {:ok, session}
+  end
+
+  defp broadcast_session_updated(error), do: error
 
   defp broadcast_checkin_change({:ok, checkin}) do
     checkin = Repo.preload(checkin, :member, force: true)
@@ -212,12 +283,59 @@ defmodule McEmcomm.Net do
 
   defp normalize(call_sign), do: call_sign |> String.trim() |> String.upcase()
 
-  defp maybe_prefill_quadrant(%{"quadrant" => quadrant} = attrs, _member)
-       when quadrant not in [nil, ""],
-       do: attrs
+  ## Location snapshot resolution
+  #
+  # References come from the client but are resolved server-side; an unknown id
+  # or an operation location outside the session's operation yields no location.
 
-  defp maybe_prefill_quadrant(attrs, %Member{quadrant: quadrant}) when not is_nil(quadrant),
-    do: Map.put(attrs, "quadrant", quadrant)
+  defp apply_location_ref(changeset, ref, _session) when ref in [nil, ""], do: changeset
 
-  defp maybe_prefill_quadrant(attrs, _member), do: attrs
+  defp apply_location_ref(changeset, ref, session) do
+    member =
+      case Ecto.Changeset.get_field(changeset, :member_id) do
+        nil -> nil
+        member_id -> Repo.get(Member, member_id)
+      end
+
+    %{"location_name" => name, "location_point" => point} =
+      resolve_location(ref, member, session)
+
+    changeset
+    |> Ecto.Changeset.put_change(:location_name, name)
+    |> Ecto.Changeset.put_change(:location_point, point)
+  end
+
+  defp resolve_location(ref, member, _session) when ref in [nil, "", "qth"] do
+    qth_snapshot(member)
+  end
+
+  defp resolve_location("default:" <> id, _member, _session) do
+    with {int, ""} <- Integer.parse(id),
+         %DefaultLocation{} = location <- Repo.get(DefaultLocation, int) do
+      %{"location_name" => location.name, "location_point" => location.point}
+    else
+      _ -> empty_location()
+    end
+  end
+
+  defp resolve_location("op:" <> id, _member, %NetSession{operation_id: operation_id})
+       when not is_nil(operation_id) do
+    with {int, ""} <- Integer.parse(id),
+         %OperationLocation{operation_id: ^operation_id} = location <-
+           Repo.get(OperationLocation, int) do
+      %{"location_name" => location.name, "location_point" => location.point}
+    else
+      _ -> empty_location()
+    end
+  end
+
+  defp resolve_location(_ref, _member, _session), do: empty_location()
+
+  defp qth_snapshot(%Member{qth_point: %Geo.Point{} = point}) do
+    %{"location_name" => "QTH", "location_point" => point}
+  end
+
+  defp qth_snapshot(_member), do: empty_location()
+
+  defp empty_location, do: %{"location_name" => nil, "location_point" => nil}
 end

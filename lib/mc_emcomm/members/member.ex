@@ -4,11 +4,9 @@ defmodule McEmcomm.Members.Member do
 
   @type t :: %__MODULE__{}
 
-  @quadrants ~w(NE NW SE SW out_of_county)a
   @license_classes ~w(technician general amateur_extra advanced novice)a
   @statuses ~w(pending approved rejected inactive)a
 
-  def quadrants, do: @quadrants
   def license_classes, do: @license_classes
   def statuses, do: @statuses
 
@@ -17,7 +15,6 @@ defmodule McEmcomm.Members.Member do
     field :name, :string
     field :qth_address, :string
     field :qth_point, Geo.PostGIS.Geometry
-    field :quadrant, Ecto.Enum, values: @quadrants
     field :license_class, Ecto.Enum, values: @license_classes
     field :status, Ecto.Enum, values: @statuses, default: :pending
 
@@ -39,7 +36,6 @@ defmodule McEmcomm.Members.Member do
       :name,
       :qth_address,
       :qth_point,
-      :quadrant,
       :license_class
     ])
     |> validate_required([:name])

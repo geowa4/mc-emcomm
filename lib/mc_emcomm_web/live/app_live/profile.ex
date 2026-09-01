@@ -89,16 +89,6 @@ defmodule McEmcommWeb.AppLive.Profile do
           prompt="Select one"
           options={Enum.map(Member.license_classes(), &{Phoenix.Naming.humanize(&1), &1})}
         />
-        <.input
-          field={@form[:quadrant]}
-          type="select"
-          label="Quadrant"
-          prompt="Select one"
-          options={Enum.map(Member.quadrants(), &{&1, &1})}
-        />
-        <p class="text-xs text-base-content/60 -mt-2 mb-2">
-          Quadrants split E/W by the Genesee River and N/S by the Erie Canal, per the net control script.
-        </p>
         <.input field={@form[:qth_address]} label="QTH address" />
 
         <label class="label">QTH location (click the map to drop a pin)</label>

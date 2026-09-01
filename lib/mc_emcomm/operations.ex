@@ -4,8 +4,7 @@ defmodule McEmcomm.Operations do
 
   Geofence matching (§10 of the spec) queries `operation_locations` joined to
   operations whose `starts_at`/`ends_at` window contains the given time, using
-  `ST_DWithin` on geography (meters) ordered by `ST_Distance`, limit 1. No
-  quadrant is computed geometrically.
+  `ST_DWithin` on geography (meters) ordered by `ST_Distance`, limit 1.
   """
 
   import Ecto.Query, warn: false

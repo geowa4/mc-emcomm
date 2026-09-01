@@ -16,7 +16,7 @@ defmodule McEmcommWeb.AppLive.Dashboard do
         <.link navigate={~p"/app/profile"} class="card bg-base-100 shadow-sm border border-base-300">
           <div class="card-body">
             <h2 class="card-title">My Profile</h2>
-            <p>QTH, quadrant, capabilities, courses, and certifications.</p>
+            <p>QTH, capabilities, courses, and certifications.</p>
           </div>
         </.link>
         <.link

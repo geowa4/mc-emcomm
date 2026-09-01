@@ -21,7 +21,7 @@ defmodule McEmcommWeb.AppLive.ProfileTest do
     html =
       lv
       |> form("#profile-form",
-        member: %{name: "New Name", call_sign: "w2new", license_class: "general", quadrant: "SE"}
+        member: %{name: "New Name", call_sign: "w2new", license_class: "general"}
       )
       |> render_submit()
 

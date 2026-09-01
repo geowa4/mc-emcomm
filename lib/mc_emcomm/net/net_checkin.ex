@@ -4,11 +4,10 @@ defmodule McEmcomm.Net.NetCheckin do
 
   @type t :: %__MODULE__{}
 
-  @quadrants ~w(NE NW SE SW out_of_county)a
-
   schema "net_checkins" do
     field :call_sign, :string
-    field :quadrant, Ecto.Enum, values: @quadrants
+    field :location_name, :string
+    field :location_point, Geo.PostGIS.Geometry
     field :notes, :string
     field :recorded_at, :utc_datetime_usec
     field :ended_at, :utc_datetime_usec
@@ -21,17 +20,28 @@ defmodule McEmcomm.Net.NetCheckin do
 
   def changeset(checkin, attrs) do
     checkin
-    |> cast(attrs, [:net_session_id, :call_sign, :member_id, :quadrant, :notes, :recorded_at])
+    |> cast(attrs, [
+      :net_session_id,
+      :call_sign,
+      :member_id,
+      :location_name,
+      :location_point,
+      :notes,
+      :recorded_at
+    ])
     |> validate_required([:net_session_id, :call_sign, :recorded_at])
     |> update_change(:call_sign, &String.upcase(String.trim(&1)))
     |> foreign_key_constraint(:net_session_id)
     |> foreign_key_constraint(:member_id)
   end
 
-  @doc "Corrections after entry; `member_id` is re-matched programmatically, never cast."
+  @doc """
+  Corrections after entry; `member_id` is re-matched and the location snapshot
+  is resolved programmatically in the context, never cast.
+  """
   def update_changeset(checkin, attrs) do
     checkin
-    |> cast(attrs, [:call_sign, :quadrant, :notes])
+    |> cast(attrs, [:call_sign, :notes])
     |> validate_required([:call_sign])
     |> update_change(:call_sign, &String.upcase(String.trim(&1)))
     |> foreign_key_constraint(:member_id)

@@ -58,6 +58,15 @@ defmodule McEmcommWeb.AdminLive.Dashboard do
             <h2 class="card-title">Capabilities catalog</h2>
           </div>
         </.link>
+        <.link
+          navigate={~p"/admin/locations"}
+          class="card bg-base-100 shadow-sm border border-base-300"
+        >
+          <div class="card-body">
+            <h2 class="card-title">Default locations</h2>
+            <p>Named map points selectable at net check-in.</p>
+          </div>
+        </.link>
         <.link navigate={~p"/admin/courses"} class="card bg-base-100 shadow-sm border border-base-300">
           <div class="card-body">
             <h2 class="card-title">Courses catalog</h2>

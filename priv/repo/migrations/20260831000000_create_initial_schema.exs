@@ -57,7 +57,6 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
       add :name, :string, null: false
       add :qth_address, :text
       add :qth_point, :"geography(Point,4326)"
-      add :quadrant, :string
       add :license_class, :string
       add :status, :string, null: false, default: "pending"
 
@@ -331,10 +330,24 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
 
     create unique_index(:operation_attendance, [:operation_id, :member_id])
 
+    # ## Default locations
+
+    create table(:default_locations) do
+      add :name, :citext, null: false
+      add :point, :"geography(Point,4326)", null: false
+      add :position, :integer, null: false, default: 0
+
+      timestamps(type: :utc_datetime)
+    end
+
+    create unique_index(:default_locations, [:name])
+
     # ## Nets
 
     create table(:net_sessions) do
       add :started_by_member_id, references(:members, on_delete: :nothing), null: false
+      add :net_control_member_id, references(:members, on_delete: :nilify_all)
+      add :operation_id, references(:operations, on_delete: :nilify_all)
       add :name, :string
       add :started_at, :utc_datetime, null: false
       add :ended_at, :utc_datetime
@@ -344,12 +357,14 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
     end
 
     create index(:net_sessions, [:started_at])
+    create index(:net_sessions, [:operation_id])
 
     create table(:net_checkins) do
       add :net_session_id, references(:net_sessions, on_delete: :delete_all), null: false
       add :call_sign, :citext, null: false
       add :member_id, references(:members, on_delete: :nilify_all)
-      add :quadrant, :string
+      add :location_name, :string
+      add :location_point, :"geography(Point,4326)"
       add :notes, :text
       add :recorded_at, :utc_datetime_usec, null: false
       add :ended_at, :utc_datetime_usec
