@@ -12,7 +12,16 @@ defmodule McEmcommWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug McEmcommWeb.Plugs.ContentSecurityPolicy
+    plug :put_no_store_cache_control
     plug :fetch_current_scope_for_user
+  end
+
+  # Every HTML response carries a per-request CSP nonce, a CSRF token, and the
+  # session cookie, so no shared cache (CDN or otherwise) may ever store one.
+  # Serving a cached page would reuse nonces across users and leak tokens; it
+  # would also drop the sighting recorded on /a/:public_id/s.
+  defp put_no_store_cache_control(conn, _opts) do
+    put_resp_header(conn, "cache-control", "no-store")
   end
 
   pipeline :api do

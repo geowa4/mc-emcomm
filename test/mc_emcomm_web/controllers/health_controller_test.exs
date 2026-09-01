@@ -29,4 +29,11 @@ defmodule McEmcommWeb.HealthControllerTest do
     expected = Application.fetch_env!(:mc_emcomm, :git_sha)
     assert %{"version" => ^expected} = json_response(get(conn, ~p"/healthz/version"), 200)
   end
+
+  test "health responses forbid caching so probes are never answered stale", %{conn: conn} do
+    for path <- [~p"/healthz/live", ~p"/healthz/ready", ~p"/healthz/version"] do
+      conn = get(conn, path)
+      assert get_resp_header(conn, "cache-control") == ["no-store"]
+    end
+  end
 end
