@@ -1,14 +1,20 @@
 <Layouts.app flash={@flash} current_scope={@current_scope}>
   <div class="hero bg-base-200 rounded-box">
-    <div class="hero-content text-center py-16">
+    <div class="hero-content flex-col lg:flex-row gap-8 lg:gap-12 py-12 lg:py-16 text-center lg:text-left">
+      <img
+        id="hero-logo"
+        src={~p"/images/logo.svg"}
+        alt="Monroe County Emergency Communications emblem"
+        class="hidden lg:block w-64 shrink-0 drop-shadow-md"
+      />
       <div class="max-w-2xl">
-        <h1 class="text-4xl font-bold">Monroe County ARES/RACES</h1>
-        <p class="py-6 text-base-content/80">
+        <h1 class="hidden lg:block text-4xl font-bold">Monroe County ARES/RACES</h1>
+        <p class="pb-6 lg:py-6 text-base-content/80">
           Monroe County ARES/RACES is a group of licensed Amateur Radio operators who
           volunteer their time, equipment, and expertise to provide emergency communications
           support to Monroe County, NY and the surrounding area.
         </p>
-        <div class="flex gap-3 justify-center flex-wrap">
+        <div class="flex gap-3 justify-center lg:justify-start flex-wrap">
           <a href={~p"/about"} class="btn btn-primary">Learn more</a>
           <a href={~p"/users/register"} class="btn btn-outline">Become a member</a>
         </div>
