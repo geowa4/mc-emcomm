@@ -141,6 +141,21 @@ curl https://<app>.fly.dev/healthz/version   # => {"version":"<sha>"}
 fly checks list --app <app>                # live + readiness passing per machine
 ```
 
+### First administrator
+
+Nothing in the deploy path seeds an admin: migrations only create schema, and
+`priv/repo/seeds.exs` is dev-only. On a fresh database, register an account
+through the site as usual, then grant it the admin flag from the release:
+
+```sh
+fly ssh console --app <app> -C "/app/bin/mc_emcomm eval 'McEmcomm.Release.promote_admin(\"you@example.org\")'"
+```
+
+The call is idempotent and does not require a member profile; the admin
+console works with the flag alone. Member-only actions (running a net, marking
+attendance, holding a position) still need an approved member profile, which
+the admin can create and approve like anyone else's.
+
 `fly postgres create` (unmanaged, "Fly Postgres") is acceptable for throwaway
 testing only: it is a plain Postgres VM with no backups or managed failover.
 Give it at least 512 MB (`--vm-size shared-cpu-1x` defaults to 256 MB, which

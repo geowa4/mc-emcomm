@@ -116,6 +116,15 @@ defmodule McEmcomm.Accounts.User do
   end
 
   @doc """
+  Grants the admin flag. There is deliberately no `cast/3` path for
+  `is_admin`; it is only ever set programmatically (see
+  `McEmcomm.Release.promote_admin/1`).
+  """
+  def admin_changeset(user) do
+    change(user, is_admin: true)
+  end
+
+  @doc """
   Verifies the password.
 
   If there is no user or the user doesn't have a password, we call

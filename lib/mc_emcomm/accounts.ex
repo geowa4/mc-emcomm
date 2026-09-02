@@ -84,6 +84,27 @@ defmodule McEmcomm.Accounts do
     |> Repo.insert()
   end
 
+  ## Administration
+
+  @doc """
+  Grants the admin flag to a user.
+
+  Idempotent: promoting an existing admin returns `{:ok, user}` unchanged.
+  Admin status is independent of membership; see `McEmcomm.Accounts.Scope.admin?/1`.
+
+  ## Examples
+
+      iex> promote_to_admin(user)
+      {:ok, %User{is_admin: true}}
+
+  """
+  @spec promote_to_admin(User.t()) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+  def promote_to_admin(%User{} = user) do
+    user
+    |> User.admin_changeset()
+    |> Repo.update()
+  end
+
   ## Settings
 
   @doc """

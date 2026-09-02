@@ -17,6 +17,21 @@ defmodule McEmcomm.AccountsTest do
     end
   end
 
+  describe "promote_to_admin/1" do
+    test "sets the admin flag" do
+      user = user_fixture()
+      refute user.is_admin
+
+      assert {:ok, %User{is_admin: true}} = Accounts.promote_to_admin(user)
+      assert Accounts.get_user!(user.id).is_admin
+    end
+
+    test "is idempotent for an existing admin" do
+      {:ok, admin} = user_fixture() |> Accounts.promote_to_admin()
+      assert {:ok, %User{is_admin: true}} = Accounts.promote_to_admin(admin)
+    end
+  end
+
   describe "get_user_by_email_and_password/2" do
     test "does not return the user if the email does not exist" do
       refute Accounts.get_user_by_email_and_password("unknown@example.com", "hello world!")
