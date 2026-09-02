@@ -117,6 +117,11 @@ called.
 | `MC_EMCOMM_SIGHTING_RAW_RETENTION_DAYS` | Days of raw sighting telemetry kept before the retention task scrubs it | `90` |
 | `MC_EMCOMM_NOMINATIM_USER_AGENT` | Identifying UA if geocoding is ever enabled (unused today — map-click is primary) | dev placeholder |
 | `MC_EMCOMM_MAP_TILE_URL` | Leaflet OSM tile URL template | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` |
+| `MC_EMCOMM_APRS_SERVER` | APRS-IS server the net logger listens to for keyword check-ins | `rotate.aprs2.net` |
+| `MC_EMCOMM_APRS_PORT` | APRS-IS filter port | `14580` |
+| `MC_EMCOMM_APRS_CALLSIGN` | Call sign the client logs in as (receive-only; never becomes a check-in) | `WB2EOC` |
+| `MC_EMCOMM_APRS_PASSCODE` | APRS-IS passcode; `-1` is receive-only | `-1` |
+| `MC_EMCOMM_APRS_RADIUS_KM` | Radius around every net location the APRS-IS filter covers | `25` |
 | `BUCKET_NAME`, `AWS_*` | Tigris/S3 bucket + credentials (`ReqS3`) | — |
 | `PGPORT` | Local/CI Postgres port | `5432` |
 

@@ -14,7 +14,9 @@ defmodule McEmcommWeb.NetLive.ConsoleTest do
 
     {:ok, show_lv, html} =
       lv
-      |> form("#start-net-form", net_session: %{name: "Tuesday Training Net"})
+      |> form("#start-net-form",
+        net_session: %{name: "Tuesday Training Net", aprs_keyword: "CONSOLE"}
+      )
       |> render_submit()
       |> follow_redirect(conn)
 
@@ -33,7 +35,9 @@ defmodule McEmcommWeb.NetLive.ConsoleTest do
 
     {:ok, show_lv, _html} =
       lv
-      |> form("#start-net-form", net_session: %{name: "Tuesday Training Net"})
+      |> form("#start-net-form",
+        net_session: %{name: "Tuesday Training Net", aprs_keyword: "CONSOLE"}
+      )
       |> render_submit()
       |> follow_redirect(conn)
 
@@ -63,7 +67,7 @@ defmodule McEmcommWeb.NetLive.ConsoleTest do
     {:ok, _show_lv, _html} =
       lv
       |> form("#start-net-form",
-        net_session: %{name: "Operation Net", operation_id: operation.id}
+        net_session: %{name: "Operation Net", aprs_keyword: "CONSOLE", operation_id: operation.id}
       )
       |> render_submit()
       |> follow_redirect(conn)
@@ -87,7 +91,7 @@ defmodule McEmcommWeb.NetLive.ConsoleTest do
 
     {:ok, _show_lv, html} =
       lv
-      |> form("#start-net-form", net_session: %{name: ""})
+      |> form("#start-net-form", net_session: %{name: "", aprs_keyword: "CONSOLE"})
       |> render_submit()
       |> follow_redirect(conn)
 

@@ -6,6 +6,7 @@ defmodule McEmcomm.Net do
 
   import Ecto.Query, warn: false
 
+  alias McEmcomm.Locations
   alias McEmcomm.Locations.DefaultLocation
   alias McEmcomm.Members.Member
   alias McEmcomm.Net.NetCheckin
@@ -14,6 +15,7 @@ defmodule McEmcomm.Net do
   alias McEmcomm.Repo
 
   @pubsub McEmcomm.PubSub
+  @nets_topic "nets"
 
   def topic(net_session_id), do: "net_session:#{net_session_id}"
 
@@ -21,9 +23,27 @@ defmodule McEmcomm.Net do
     Phoenix.PubSub.subscribe(@pubsub, topic(net_session_id))
   end
 
+  @doc """
+  Subscribes to `{:nets_changed, reason}`, sent whenever the set of active
+  nets, their keywords or operations, or their open check-ins change: the
+  inputs of the APRS-IS filter (`aprs_filter_inputs/0`).
+  """
+  def subscribe_nets, do: Phoenix.PubSub.subscribe(@pubsub, @nets_topic)
+
   defp broadcast(net_session_id, message) do
     Phoenix.PubSub.broadcast(@pubsub, topic(net_session_id), message)
   end
+
+  defp broadcast_nets_changed(reason) do
+    Phoenix.PubSub.broadcast(@pubsub, @nets_topic, {:nets_changed, reason})
+  end
+
+  defp notify_nets_changed({:ok, _} = result, reason) do
+    broadcast_nets_changed(reason)
+    result
+  end
+
+  defp notify_nets_changed(error, _reason), do: error
 
   ## Sessions
 
@@ -31,6 +51,13 @@ defmodule McEmcomm.Net do
     NetSession
     |> order_by([n], desc: n.started_at)
     |> preload(:started_by_member)
+    |> Repo.all()
+  end
+
+  def list_active_sessions do
+    NetSession
+    |> where([n], is_nil(n.ended_at))
+    |> order_by([n], desc: n.started_at)
     |> Repo.all()
   end
 
@@ -73,6 +100,7 @@ defmodule McEmcomm.Net do
     |> case do
       {:ok, session} = result ->
         check_in_net_control(session, member)
+        broadcast_nets_changed(:session_started)
         result
 
       error ->
@@ -121,6 +149,7 @@ defmodule McEmcomm.Net do
 
     with {:ok, ended} <- result do
       broadcast(ended.id, {:session_ended, ended})
+      broadcast_nets_changed(:session_ended)
       {:ok, ended}
     end
   end
@@ -137,6 +166,15 @@ defmodule McEmcomm.Net do
       error ->
         error
     end
+  end
+
+  @doc "Changes the word stations beacon to check in; must be unique among active nets."
+  def update_aprs_keyword(%NetSession{} = session, keyword) do
+    session
+    |> NetSession.aprs_keyword_changeset(keyword)
+    |> Repo.update()
+    |> broadcast_session_updated()
+    |> notify_nets_changed(:keyword)
   end
 
   ## Check-ins
@@ -201,6 +239,7 @@ defmodule McEmcomm.Net do
     |> apply_location_ref(attrs["location_ref"], session)
     |> Repo.update()
     |> broadcast_checkin_change()
+    |> notify_nets_changed(:checkin)
   end
 
   @doc """
@@ -219,7 +258,156 @@ defmodule McEmcomm.Net do
       error ->
         error
     end
+    |> notify_nets_changed(:checkin)
   end
+
+  ## APRS positions
+
+  @doc """
+  What the APRS-IS filter must cover: every default location plus the
+  locations of each active net's operation, and the exact station ids (with
+  SSID) APRS has already placed in an active net, so their beacons keep
+  arriving wherever they go. `{[], []}` when no net is active.
+  """
+  @spec aprs_filter_inputs() :: {[Geo.Point.t()], [String.t()]}
+  def aprs_filter_inputs do
+    case Repo.preload(list_active_sessions(), operation: :locations) do
+      [] ->
+        {[], []}
+
+      sessions ->
+        default_points = Enum.map(Locations.list_default_locations(), & &1.point)
+
+        operation_points =
+          for session <- sessions,
+              session.operation,
+              location <- session.operation.locations,
+              do: location.point
+
+        {default_points ++ operation_points, list_aprs_tracked_stations()}
+    end
+  end
+
+  # Exact station ids, SSID included: an operator's home station and mobile
+  # beacon under different SSIDs, and only the one that sent the keyword may
+  # move the pin.
+  defp list_aprs_tracked_stations do
+    NetCheckin
+    |> join(:inner, [c], s in assoc(c, :net_session))
+    |> where([c, s], is_nil(s.ended_at) and is_nil(c.ended_at) and not is_nil(c.aprs_call_sign))
+    |> distinct(true)
+    |> select([c], c.aprs_call_sign)
+    |> Repo.all()
+  end
+
+  @doc """
+  Applies one APRS position report to every active net. A comment containing
+  a net's keyword checks the station in, or moves the operator's open check-in
+  there and makes this station (call sign plus SSID) the one being tracked; the
+  tracked station keeps moving the pin without the keyword until the operator
+  leaves or the net ends. Beacons from the operator's other SSIDs, such as a
+  home station, are ignored unless they send the keyword themselves. Returns
+  the check-ins touched.
+
+  Each net is handled in its own transaction under a row lock on the session,
+  so two app instances receiving the same packet (blue-green overlap) or a
+  packet racing `end_session/1` converge on one row and never revive an ended
+  net.
+  """
+  @spec record_aprs_position(McEmcomm.Aprs.Packet.position()) :: {:ok, [NetCheckin.t()]}
+  def record_aprs_position(%{
+        station: station,
+        call_sign: call_sign,
+        point: point,
+        comment: comment
+      }) do
+    comment = String.downcase(comment)
+
+    touched =
+      Enum.flat_map(list_active_sessions(), fn session ->
+        keyword? = String.contains?(comment, String.downcase(session.aprs_keyword))
+        record_aprs_position_in(session, call_sign, station, point, keyword?)
+      end)
+
+    {:ok, touched}
+  end
+
+  defp record_aprs_position_in(session, call_sign, station, point, keyword?) do
+    case apply_aprs_position(session.id, call_sign, station, point, keyword?) do
+      {:ok, {outcome, checkin}} ->
+        checkin = Repo.preload(checkin, :member)
+        broadcast(session.id, {aprs_outcome_message(outcome), checkin})
+        if outcome in [:inserted, :tracked], do: broadcast_nets_changed(:aprs_checkin)
+        [checkin]
+
+      {:error, _reason} ->
+        []
+    end
+  end
+
+  defp apply_aprs_position(session_id, call_sign, station, point, keyword?) do
+    Repo.transaction(fn ->
+      session =
+        NetSession
+        |> where([s], s.id == ^session_id and is_nil(s.ended_at))
+        |> lock("FOR UPDATE")
+        |> Repo.one()
+
+      open = session && open_checkin(session_id, call_sign)
+
+      case {session, open, keyword?} do
+        {nil, _open, _keyword?} ->
+          Repo.rollback(:ended)
+
+        # The station already tracked moves the pin, keyword or not.
+        {_session, %NetCheckin{aprs_call_sign: ^station} = open, _keyword?} ->
+          {:moved, move_aprs_checkin(open, station, point)}
+
+        # The keyword from a manual check-in's operator, or from another of
+        # their SSIDs, hands tracking to this station.
+        {_session, %NetCheckin{} = open, true} ->
+          {:tracked, move_aprs_checkin(open, station, point)}
+
+        {session, nil, true} ->
+          {:inserted, insert_aprs_checkin(session, call_sign, station, point)}
+
+        _no_match ->
+          Repo.rollback(:no_match)
+      end
+    end)
+  end
+
+  defp open_checkin(session_id, call_sign) do
+    NetCheckin
+    |> where([c], c.net_session_id == ^session_id and c.call_sign == ^call_sign)
+    |> where([c], is_nil(c.ended_at))
+    |> order_by([c], desc: c.recorded_at)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  defp move_aprs_checkin(checkin, station, point) do
+    checkin |> NetCheckin.aprs_position_changeset(station, point) |> Repo.update!()
+  end
+
+  defp insert_aprs_checkin(session, call_sign, station, point) do
+    matched_member = match_member(call_sign)
+
+    %NetCheckin{}
+    |> NetCheckin.changeset(%{
+      "net_session_id" => session.id,
+      "call_sign" => call_sign,
+      "member_id" => matched_member && matched_member.id,
+      "recorded_at" => DateTime.utc_now(),
+      "location_name" => "APRS",
+      "location_point" => point
+    })
+    |> Ecto.Changeset.put_change(:aprs_call_sign, station)
+    |> Repo.insert!()
+  end
+
+  defp aprs_outcome_message(:inserted), do: :checkin_added
+  defp aprs_outcome_message(_moved_or_tracked), do: :checkin_updated
 
   ## Net control
 
@@ -257,6 +445,7 @@ defmodule McEmcomm.Net do
     |> NetSession.operation_changeset(operation_id_or_nil)
     |> Repo.update()
     |> broadcast_session_updated()
+    |> notify_nets_changed(:operation)
   end
 
   defp broadcast_session_updated({:ok, session}) do

@@ -34,7 +34,18 @@ config :mc_emcomm,
   # AWS_ENDPOINT_URL_S3 is read by req_s3 itself; it is mirrored here so the
   # Content-Security-Policy can name the bucket origin the browser talks to
   # directly — presigned <img> URLs, and `external:` uploads posted by XHR.
-  storage_url: System.get_env("AWS_ENDPOINT_URL_S3")
+  storage_url: System.get_env("AWS_ENDPOINT_URL_S3"),
+  # APRS-IS (McEmcomm.Aprs.Client): one receive-only connection whose filter is
+  # a radius of APRS_RADIUS_KM around every net location. APRS_CALLSIGN is
+  # only how the client identifies itself to the server; with the default
+  # passcode -1 it never transmits.
+  aprs: [
+    server: System.get_env("MC_EMCOMM_APRS_SERVER", "rotate.aprs2.net"),
+    port: String.to_integer(System.get_env("MC_EMCOMM_APRS_PORT", "14580")),
+    call_sign: System.get_env("MC_EMCOMM_APRS_CALLSIGN", "WB2EOC"),
+    passcode: System.get_env("MC_EMCOMM_APRS_PASSCODE", "-1"),
+    radius_km: String.to_integer(System.get_env("MC_EMCOMM_APRS_RADIUS_KM", "25"))
+  ]
 
 # ## Using releases
 #

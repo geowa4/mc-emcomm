@@ -22,6 +22,8 @@ defmodule McEmcommWeb.NetLive.Show do
        session: session,
        editing_name?: false,
        name_form: to_form(%{"name" => session.name}, as: :net_session),
+       editing_aprs_keyword?: false,
+       aprs_keyword_form: to_form(Net.change_session(session)),
        checkin_form: to_form(Net.change_checkin(%NetCheckin{})),
        editing_checkin: nil,
        edit_checkin_form: nil,
@@ -147,6 +149,46 @@ defmodule McEmcommWeb.NetLive.Show do
           >
             <.icon name="hero-pencil-square" class="size-4" />
           </button>
+        <% end %>
+      </div>
+
+      <div id="net-aprs-keyword" class="mt-1 flex flex-wrap items-center gap-2">
+        <%= if @editing_aprs_keyword? do %>
+          <.form
+            for={@aprs_keyword_form}
+            id="net-aprs-keyword-form"
+            phx-submit="update_aprs_keyword"
+            class="flex gap-2 items-end"
+          >
+            <.input
+              field={@aprs_keyword_form[:aprs_keyword]}
+              id="net-aprs-keyword-input"
+              label="APRS keyword"
+            />
+            <.button class="btn btn-primary btn-sm mb-3">Save</.button>
+            <button
+              type="button"
+              phx-click="cancel_edit_aprs_keyword"
+              class="btn btn-ghost btn-sm mb-3"
+            >
+              Cancel
+            </button>
+          </.form>
+        <% else %>
+          <span class="font-semibold">APRS keyword:</span>
+          <span class="font-mono">{@session.aprs_keyword}</span>
+          <button
+            :if={is_nil(@session.ended_at)}
+            id="edit-net-aprs-keyword"
+            phx-click="edit_aprs_keyword"
+            class="btn btn-ghost btn-xs"
+            title="Edit APRS keyword"
+          >
+            <.icon name="hero-pencil-square" class="size-4" />
+          </button>
+          <span class="text-sm text-base-content/70">
+            Stations beaconing it in an APRS position comment are checked in here.
+          </span>
         <% end %>
       </div>
 
@@ -277,7 +319,17 @@ defmodule McEmcommWeb.NetLive.Show do
       </dialog>
 
       <.table id="checkins" rows={@session.checkins} row_id={&"checkin-row-#{&1.id}"}>
-        <:col :let={c} label="Call sign">{c.call_sign}</:col>
+        <:col :let={c} label="Call sign">
+          {c.call_sign}
+          <span
+            :if={c.aprs_call_sign}
+            id={"checkin-aprs-#{c.id}"}
+            class="badge badge-outline badge-xs ml-1"
+            title="Position via APRS-IS"
+          >
+            APRS · {c.aprs_call_sign}
+          </span>
+        </:col>
         <:col :let={c} label="Member">{c.member && c.member.name}</:col>
         <:col :let={c} label="Location">{c.location_name}</:col>
         <:col :let={c} label="Notes">{c.notes}</:col>
@@ -370,6 +422,33 @@ defmodule McEmcommWeb.NetLive.Show do
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, "Net name can't be blank.")}
+    end
+  end
+
+  def handle_event("edit_aprs_keyword", _params, socket) do
+    {:noreply,
+     assign(socket,
+       editing_aprs_keyword?: true,
+       aprs_keyword_form: to_form(Net.change_session(socket.assigns.session))
+     )}
+  end
+
+  def handle_event("cancel_edit_aprs_keyword", _params, socket) do
+    {:noreply, assign(socket, editing_aprs_keyword?: false)}
+  end
+
+  def handle_event(
+        "update_aprs_keyword",
+        %{"net_session" => %{"aprs_keyword" => keyword}},
+        socket
+      ) do
+    case Net.update_aprs_keyword(socket.assigns.session, keyword) do
+      {:ok, session} ->
+        {:noreply,
+         socket |> assign(session: session, editing_aprs_keyword?: false) |> assign_markers()}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, aprs_keyword_form: to_form(changeset))}
     end
   end
 

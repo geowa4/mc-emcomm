@@ -20,6 +20,7 @@ defmodule McEmcomm.Application do
       ] ++
         probe_child() ++
         retention_scrubber_child() ++
+        aprs_client_child() ++
         [
           # Start to serve requests, typically the last entry
           McEmcommWeb.Endpoint,
@@ -59,6 +60,17 @@ defmodule McEmcomm.Application do
   defp retention_scrubber_child do
     if Application.get_env(:mc_emcomm, :start_retention_scrubber, true) do
       [McEmcomm.RetentionScrubber]
+    else
+      []
+    end
+  end
+
+  # Disabled in test (config/test.exs): it opens a real APRS-IS socket and
+  # queries outside the sandbox. Client tests start their own against a fake
+  # server.
+  defp aprs_client_child do
+    if Application.get_env(:mc_emcomm, :start_aprs_client, true) do
+      [McEmcomm.Aprs.Client]
     else
       []
     end

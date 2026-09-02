@@ -6,6 +6,7 @@ defmodule McEmcomm.Net.NetSession do
 
   schema "net_sessions" do
     field :name, :string
+    field :aprs_keyword, :string
     field :started_at, :utc_datetime
     field :ended_at, :utc_datetime
     field :notes, :string
@@ -21,10 +22,42 @@ defmodule McEmcomm.Net.NetSession do
 
   def changeset(net_session, attrs) do
     net_session
-    |> cast(attrs, [:started_by_member_id, :operation_id, :name, :started_at, :ended_at, :notes])
-    |> validate_required([:started_by_member_id, :name, :started_at])
+    |> cast(attrs, [
+      :started_by_member_id,
+      :operation_id,
+      :name,
+      :aprs_keyword,
+      :started_at,
+      :ended_at,
+      :notes
+    ])
+    |> validate_required([:started_by_member_id, :name, :aprs_keyword, :started_at])
+    |> validate_aprs_keyword()
     |> foreign_key_constraint(:started_by_member_id)
     |> foreign_key_constraint(:operation_id)
+  end
+
+  @doc """
+  Changes only the APRS keyword. The keyword is matched as a case-insensitive
+  substring of a position report's comment, so it must be a single word; the
+  partial unique index keeps it unique among active nets.
+  """
+  def aprs_keyword_changeset(net_session, keyword) do
+    net_session
+    |> cast(%{"aprs_keyword" => keyword}, [:aprs_keyword])
+    |> validate_required([:aprs_keyword])
+    |> validate_aprs_keyword()
+  end
+
+  defp validate_aprs_keyword(changeset) do
+    changeset
+    |> update_change(:aprs_keyword, &String.trim/1)
+    |> validate_length(:aprs_keyword, min: 2, max: 32)
+    |> validate_format(:aprs_keyword, ~r/^\S+$/, message: "can't contain spaces")
+    |> unique_constraint(:aprs_keyword,
+      name: :net_sessions_active_aprs_keyword_index,
+      message: "is already used by an active net"
+    )
   end
 
   @doc "Sets or vacates the net control operator; the id is never cast from user input."

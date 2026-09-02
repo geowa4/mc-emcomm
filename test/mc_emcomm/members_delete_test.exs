@@ -50,7 +50,12 @@ defmodule McEmcomm.MembersDeleteTest do
       assert sighting.member_id == member.id
 
       other_member = McEmcommFixtures.member_fixture()
-      {:ok, session} = Net.start_session(other_member, %{})
+
+      {:ok, session} =
+        Net.start_session(other_member, %{
+          "aprs_keyword" => McEmcommFixtures.unique_aprs_keyword()
+        })
+
       {:ok, checkin} = Net.check_in(session, %{"call_sign" => "W2DEL"})
       assert checkin.member_id == member.id
 
@@ -76,7 +81,9 @@ defmodule McEmcomm.MembersDeleteTest do
 
     test "refuses to delete a member who has started a net session" do
       member = McEmcommFixtures.member_fixture()
-      {:ok, _session} = Net.start_session(member, %{})
+
+      {:ok, _session} =
+        Net.start_session(member, %{"aprs_keyword" => McEmcommFixtures.unique_aprs_keyword()})
 
       stub(StorageMock, :delete_object, fn _key -> :ok end)
 
@@ -87,7 +94,10 @@ defmodule McEmcomm.MembersDeleteTest do
     test "deleting a member who holds net control vacates the role" do
       starter = McEmcommFixtures.member_fixture()
       member = McEmcommFixtures.member_fixture()
-      {:ok, session} = Net.start_session(starter, %{})
+
+      {:ok, session} =
+        Net.start_session(starter, %{"aprs_keyword" => McEmcommFixtures.unique_aprs_keyword()})
+
       {:ok, session} = Net.assign_net_control(session, member)
       assert session.net_control_member_id == member.id
 

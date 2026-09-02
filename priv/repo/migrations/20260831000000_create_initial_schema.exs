@@ -349,6 +349,8 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
       add :net_control_member_id, references(:members, on_delete: :nilify_all)
       add :operation_id, references(:operations, on_delete: :nilify_all)
       add :name, :string
+      # Stations beaconing this word in an APRS position comment are checked in.
+      add :aprs_keyword, :citext, null: false
       add :started_at, :utc_datetime, null: false
       add :ended_at, :utc_datetime
       add :notes, :text
@@ -358,10 +360,18 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
 
     create index(:net_sessions, [:started_at])
     create index(:net_sessions, [:operation_id])
+    # One keyword per active net so an APRS packet routes unambiguously.
+    create unique_index(:net_sessions, [:aprs_keyword],
+             name: :net_sessions_active_aprs_keyword_index,
+             where: "ended_at IS NULL"
+           )
 
     create table(:net_checkins) do
       add :net_session_id, references(:net_sessions, on_delete: :delete_all), null: false
       add :call_sign, :citext, null: false
+      # Full APRS station id ("K4GWA-4") of the last position report that
+      # placed this check-in; non-null marks the station as APRS-tracked.
+      add :aprs_call_sign, :citext
       add :member_id, references(:members, on_delete: :nilify_all)
       add :location_name, :string
       add :location_point, :"geography(Point,4326)"
@@ -374,6 +384,8 @@ defmodule McEmcomm.Repo.Migrations.CreateInitialSchema do
 
     create index(:net_checkins, [:net_session_id])
     create index(:net_checkins, [:member_id])
+    # The open-check-in lookup made for every APRS position report.
+    create index(:net_checkins, [:net_session_id, :call_sign], where: "ended_at IS NULL")
 
     # ## Documents
 

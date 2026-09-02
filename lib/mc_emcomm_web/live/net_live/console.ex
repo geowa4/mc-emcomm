@@ -18,7 +18,8 @@ defmodule McEmcommWeb.NetLive.Console do
        operations: Operations.list_operations(),
        tz_offset: tz_offset,
        start_form:
-         to_form(%{"name" => default_net_name(tz_offset), "operation_id" => nil},
+         to_form(
+           %{"name" => default_net_name(tz_offset), "aprs_keyword" => "", "operation_id" => nil},
            as: :net_session
          )
      )}
@@ -37,6 +38,13 @@ defmodule McEmcommWeb.NetLive.Console do
         class="flex gap-2 items-end flex-wrap mt-4"
       >
         <.input field={@start_form[:name]} label="Net name" />
+        <.input
+          field={@start_form[:aprs_keyword]}
+          id="start-net-aprs-keyword"
+          label="APRS keyword"
+          placeholder="e.g. MCNET"
+          required
+        />
         <.input
           field={@start_form[:operation_id]}
           id="start-net-operation"
@@ -83,11 +91,18 @@ defmodule McEmcommWeb.NetLive.Console do
 
     case socket.assigns.current_scope.member do
       %McEmcomm.Members.Member{status: :approved} = member ->
-        attrs = %{"name" => name, "operation_id" => params["operation_id"]}
+        attrs = %{
+          "name" => name,
+          "aprs_keyword" => params["aprs_keyword"],
+          "operation_id" => params["operation_id"]
+        }
 
         case Net.start_session(member, attrs) do
-          {:ok, session} -> {:noreply, push_navigate(socket, to: ~p"/app/net/#{session.id}")}
-          {:error, _} -> {:noreply, put_flash(socket, :error, "Could not start a net session.")}
+          {:ok, session} ->
+            {:noreply, push_navigate(socket, to: ~p"/app/net/#{session.id}")}
+
+          {:error, %Ecto.Changeset{} = changeset} ->
+            {:noreply, assign(socket, start_form: to_form(changeset))}
         end
 
       _ ->

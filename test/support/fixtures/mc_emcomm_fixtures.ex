@@ -151,10 +151,30 @@ defmodule McEmcomm.McEmcommFixtures do
     certification
   end
 
+  # The keyword is unique per test: the partial unique index on active nets
+  # would otherwise block one async sandbox on another's uncommitted row.
   def net_session_fixture(member, attrs \\ %{}) do
-    attrs = Map.merge(%{"name" => "Test Net #{System.unique_integer()}"}, attrs)
+    attrs =
+      Map.merge(
+        %{
+          "name" => "Test Net #{System.unique_integer()}",
+          "aprs_keyword" => unique_aprs_keyword()
+        },
+        attrs
+      )
+
     {:ok, session} = Net.start_session(member, attrs)
     session
+  end
+
+  def unique_aprs_keyword, do: "NET#{System.unique_integer([:positive])}"
+
+  @doc "A parsed APRS position report, as `McEmcomm.Aprs.Packet.position_report/1` returns it."
+  def aprs_position_fixture(attrs \\ %{}) do
+    Map.merge(
+      %{station: "W2XYZ-9", call_sign: "W2XYZ", ssid: "9", point: geo_point(), comment: ""},
+      attrs
+    )
   end
 
   def default_location_fixture(attrs \\ %{}) do

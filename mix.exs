@@ -101,6 +101,9 @@ defmodule McEmcomm.MixProject do
       {:geo, "~> 4.1"},
       {:geo_postgis, "~> 3.7"},
 
+      # APRS-IS packet parsing (McEmcomm.Aprs.Packet is the only caller)
+      {:aprs, "~> 1.0"},
+
       # Assets, sightings, uploads
       {:eqrcode, "~> 0.2.1"},
       {:ua_inspector, "~> 3.12"},

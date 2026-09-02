@@ -46,6 +46,10 @@ config :mc_emcomm, :start_retention_scrubber, false
 # sandbox mode flip in test_helper.exs. Probe tests start their own process.
 config :mc_emcomm, :start_health_probe, false
 
+# The APRS-IS client isn't started in test: it would open a real socket and
+# query outside the sandbox. Client tests start their own against a fake server.
+config :mc_emcomm, :start_aprs_client, false
+
 # PhoenixTest drives the endpoint directly.
 config :phoenix_test, :endpoint, McEmcommWeb.Endpoint
 

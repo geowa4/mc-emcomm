@@ -6,6 +6,8 @@ defmodule McEmcomm.Net.NetCheckin do
 
   schema "net_checkins" do
     field :call_sign, :string
+    # "K4GWA-4": set only from APRS position reports, never cast.
+    field :aprs_call_sign, :string
     field :location_name, :string
     field :location_point, Geo.PostGIS.Geometry
     field :notes, :string
@@ -49,6 +51,14 @@ defmodule McEmcomm.Net.NetCheckin do
 
   def end_changeset(checkin, ended_at) do
     change(checkin, ended_at: ended_at)
+  end
+
+  @doc """
+  Moves the check-in to a position received over APRS-IS from `station`
+  (the full call sign with SSID), marking it APRS-tracked.
+  """
+  def aprs_position_changeset(checkin, station, %Geo.Point{} = point) do
+    change(checkin, aprs_call_sign: station, location_name: "APRS", location_point: point)
   end
 
   @doc "Seconds on the net, or `nil` while the check-in is still active."
