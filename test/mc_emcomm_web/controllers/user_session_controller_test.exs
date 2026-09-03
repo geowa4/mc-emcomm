@@ -3,6 +3,8 @@ defmodule McEmcommWeb.UserSessionControllerTest do
 
   import McEmcomm.AccountsFixtures
   alias McEmcomm.Accounts
+  alias McEmcomm.McEmcommFixtures
+  alias McEmcomm.Members
 
   setup do
     %{unconfirmed_user: unconfirmed_user_fixture(), user: user_fixture()}
@@ -99,6 +101,33 @@ defmodule McEmcommWeb.UserSessionControllerTest do
       assert Accounts.get_user!(user.id).confirmed_at
 
       assert_logged_in_menu(conn, user)
+    end
+
+    test "confirming a new member emails the flagged position holders", %{
+      conn: conn,
+      unconfirmed_user: user
+    } do
+      holder = McEmcommFixtures.member_fixture()
+      flagged = McEmcommFixtures.position_fixture(%{notify_on_new_member: true})
+      {:ok, _} = Members.assign_position(holder, flagged)
+      {:ok, _member} = Members.create_member(%{user_id: user.id, name: "Newcomer"})
+      {token, _hashed_token} = generate_user_magic_link_token(user)
+
+      conn =
+        post(conn, ~p"/users/log-in", %{
+          "user" => %{"token" => token},
+          "_action" => "confirmed"
+        })
+
+      assert get_session(conn, :user_token)
+
+      holder_email = holder.user.email
+
+      assert_receive {:email,
+                      %Swoosh.Email{
+                        subject: "New member awaiting approval: Newcomer",
+                        to: [{_, ^holder_email}]
+                      }}
     end
 
     test "redirects to login page when magic link is invalid", %{conn: conn} do

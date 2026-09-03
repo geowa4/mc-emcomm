@@ -5,6 +5,8 @@ defmodule McEmcomm.AccountsTest do
 
   import McEmcomm.AccountsFixtures
   alias McEmcomm.Accounts.{RecoveryCode, User, UserToken}
+  alias McEmcomm.McEmcommFixtures
+  alias McEmcomm.Members
 
   describe "get_user_by_email/1" do
     test "does not return the user if the email does not exist" do
@@ -363,6 +365,32 @@ defmodule McEmcomm.AccountsTest do
       assert {:ok, {^user, []}} = Accounts.login_user_by_magic_link(encoded_token)
       # one time use only
       assert {:error, :not_found} = Accounts.login_user_by_magic_link(encoded_token)
+    end
+
+    test "confirming a user with a pending member profile notifies flagged position holders" do
+      holder = McEmcommFixtures.member_fixture()
+      flagged = McEmcommFixtures.position_fixture(%{notify_on_new_member: true})
+      {:ok, _} = Members.assign_position(holder, flagged)
+
+      user = unconfirmed_user_fixture()
+      {:ok, _member} = Members.create_member(%{user_id: user.id, name: "Newcomer"})
+      {encoded_token, _hashed_token} = generate_user_magic_link_token(user)
+
+      assert {:ok, {%{confirmed_at: %DateTime{}}, _}} =
+               Accounts.login_user_by_magic_link(encoded_token)
+
+      holder_email = holder.user.email
+
+      assert_receive {:email,
+                      %Swoosh.Email{
+                        subject: "New member awaiting approval: Newcomer",
+                        to: [{_, ^holder_email}]
+                      }}
+
+      # A later magic-link login of the now-confirmed user is not a "join".
+      {encoded_token, _hashed_token} = generate_user_magic_link_token(user)
+      assert {:ok, _} = Accounts.login_user_by_magic_link(encoded_token)
+      refute_receive {:email, %Swoosh.Email{subject: "New member awaiting approval" <> _}}
     end
 
     test "raises when unconfirmed user has password set" do

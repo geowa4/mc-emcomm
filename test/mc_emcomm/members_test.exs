@@ -354,3 +354,88 @@ defmodule McEmcomm.MembersTest do
     end
   end
 end
+
+defmodule McEmcomm.MembersNotificationTest do
+  use McEmcomm.DataCase, async: true
+
+  alias McEmcomm.AccountsFixtures
+  alias McEmcomm.McEmcommFixtures
+  alias McEmcomm.Members
+
+  # Fixtures deliver confirmation emails to this process too, so a bare
+  # refute_email_sent/0 would trip on those; only the new-member notice counts.
+  defp refute_new_member_notice do
+    refute_receive {:email, %Swoosh.Email{subject: "New member awaiting approval" <> _}}
+  end
+
+  describe "list_new_member_notification_recipients/0" do
+    test "returns approved holders of flagged positions, each once" do
+      holder = McEmcommFixtures.member_fixture()
+      other_holder = McEmcommFixtures.member_fixture()
+      _unflagged_holder = McEmcommFixtures.member_fixture()
+
+      flagged = McEmcommFixtures.position_fixture(%{notify_on_new_member: true})
+      also_flagged = McEmcommFixtures.position_fixture(%{notify_on_new_member: true})
+      _vacant = McEmcommFixtures.position_fixture(%{notify_on_new_member: true})
+      unflagged = McEmcommFixtures.position_fixture()
+
+      {:ok, _} = Members.update_member_positions(holder, [flagged.id, also_flagged.id])
+      {:ok, _} = Members.assign_position(other_holder, unflagged)
+
+      recipient_ids = Members.list_new_member_notification_recipients() |> Enum.map(& &1.id)
+
+      assert recipient_ids == [holder.user.id]
+    end
+
+    test "excludes holders who are no longer approved" do
+      holder = McEmcommFixtures.member_fixture()
+      admin = AccountsFixtures.user_fixture()
+      flagged = McEmcommFixtures.position_fixture(%{notify_on_new_member: true})
+      {:ok, _} = Members.assign_position(holder, flagged)
+
+      # Deactivating vacates positions; the join must not resurrect the holder.
+      {:ok, _} = Members.transition_status(holder, :inactive, admin, "moved away")
+
+      assert Members.list_new_member_notification_recipients() == []
+    end
+  end
+
+  describe "notify_new_member_confirmed/1" do
+    test "emails every recipient about the new member" do
+      holder = McEmcommFixtures.member_fixture()
+      flagged = McEmcommFixtures.position_fixture(%{notify_on_new_member: true})
+      {:ok, _} = Members.assign_position(holder, flagged)
+
+      new_member = McEmcommFixtures.pending_member_fixture(%{name: "Newcomer"})
+
+      assert :ok = Members.notify_new_member_confirmed(new_member.user)
+
+      holder_email = holder.user.email
+
+      assert_receive {:email,
+                      %Swoosh.Email{
+                        subject: "New member awaiting approval: Newcomer",
+                        to: [{_, ^holder_email}]
+                      }}
+    end
+
+    test "is a no-op when no position is flagged" do
+      holder = McEmcommFixtures.member_fixture()
+      position = McEmcommFixtures.position_fixture()
+      {:ok, _} = Members.assign_position(holder, position)
+      new_member = McEmcommFixtures.pending_member_fixture()
+
+      assert :ok = Members.notify_new_member_confirmed(new_member.user)
+      refute_new_member_notice()
+    end
+
+    test "is a no-op for a user without a member profile" do
+      holder = McEmcommFixtures.member_fixture()
+      flagged = McEmcommFixtures.position_fixture(%{notify_on_new_member: true})
+      {:ok, _} = Members.assign_position(holder, flagged)
+
+      assert :ok = Members.notify_new_member_confirmed(AccountsFixtures.user_fixture())
+      refute_new_member_notice()
+    end
+  end
+end

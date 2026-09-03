@@ -147,23 +147,30 @@ member_specs = [
 ]
 
 # The positions table ships empty (admins manage it at /admin/positions);
-# seed the catalog the member specs above reference.
+# seed the catalog the member specs above reference. The Secretary is flagged
+# to receive new-member notices so a seeded registration + confirmation shows
+# the email in /dev/mailbox.
 position_specs = [
-  {"President", 1},
-  {"Vice-President", 2},
-  {"Secretary", 3},
-  {"Treasurer", 4},
-  {"Emergency Coordinator", 5},
-  {"Assistant Emergency Coordinator", 6},
-  {"Director-at-Large 1", 7},
-  {"Director-at-Large 2", 8},
-  {"Director-at-Large 3", 9}
+  {"President", 1, false},
+  {"Vice-President", 2, false},
+  {"Secretary", 3, true},
+  {"Treasurer", 4, false},
+  {"Emergency Coordinator", 5, false},
+  {"Assistant Emergency Coordinator", 6, false},
+  {"Director-at-Large 1", 7, false},
+  {"Director-at-Large 2", 8, false},
+  {"Director-at-Large 3", 9, false}
 ]
 
-for {name, sort_order} <- position_specs do
+for {name, sort_order, notify} <- position_specs do
   case Repo.get_by(McEmcomm.Members.Position, name: name) do
     nil ->
-      {:ok, _} = Members.create_position(%{name: name, sort_order: sort_order})
+      {:ok, _} =
+        Members.create_position(%{
+          name: name,
+          sort_order: sort_order,
+          notify_on_new_member: notify
+        })
 
     _position ->
       :ok

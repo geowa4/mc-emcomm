@@ -7,6 +7,7 @@ defmodule McEmcomm.Accounts do
   alias McEmcomm.Repo
 
   alias McEmcomm.Accounts.{RecoveryCode, User, UserNotifier, UserToken}
+  alias McEmcomm.Members
 
   @totp_issuer "Monroe County ARES/RACES"
   @totp_code_format ~r/^\d{6}$/
@@ -273,9 +274,11 @@ defmodule McEmcomm.Accounts do
         """
 
       {%User{confirmed_at: nil} = user, _token} ->
-        user
-        |> User.confirm_changeset()
-        |> update_user_and_delete_all_tokens()
+        with {:ok, {confirmed_user, _tokens}} = result <-
+               user |> User.confirm_changeset() |> update_user_and_delete_all_tokens() do
+          Members.notify_new_member_confirmed(confirmed_user)
+          result
+        end
 
       {user, token} ->
         Repo.delete!(token)

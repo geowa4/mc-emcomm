@@ -15,6 +15,7 @@ defmodule McEmcomm.Members do
   alias McEmcomm.Certifications
   alias McEmcomm.Courses
   alias McEmcomm.Members.Member
+  alias McEmcomm.Members.MemberNotifier
   alias McEmcomm.Members.MemberPosition
   alias McEmcomm.Members.MembershipAudit
   alias McEmcomm.Members.Position
@@ -52,6 +53,48 @@ defmodule McEmcomm.Members do
         on: p.id == mp.position_id,
         where: mp.member_id == ^member_id and p.grants_admin
     )
+  end
+
+  @doc """
+  Users who should hear about a newly confirmed member: the approved holders
+  of every position whose `notify_on_new_member` flag is set, each listed once
+  even when they hold several flagged positions.
+  """
+  def list_new_member_notification_recipients do
+    Repo.all(
+      from u in User,
+        join: m in Member,
+        on: m.user_id == u.id,
+        join: mp in MemberPosition,
+        on: mp.member_id == m.id,
+        join: p in Position,
+        on: p.id == mp.position_id,
+        where: p.notify_on_new_member and m.status == :approved,
+        distinct: true,
+        order_by: u.email
+    )
+  end
+
+  @doc """
+  Emails the recipients above about the member profile belonging to `user`,
+  who has just confirmed their email address. Recipients are resolved here,
+  synchronously; delivery runs under `McEmcomm.TaskSupervisor` so a mail
+  outage can never fail the login that confirmed the account. A user with no
+  member profile, or an empty recipient list, is a no-op.
+  """
+  @spec notify_new_member_confirmed(User.t()) :: :ok
+  def notify_new_member_confirmed(%User{} = user) do
+    with %Member{} = member <- get_member_by_user_id(user.id),
+         [_ | _] = recipients <- list_new_member_notification_recipients() do
+      {:ok, _pid} =
+        Task.Supervisor.start_child(McEmcomm.TaskSupervisor, fn ->
+          {:ok, _emails} = MemberNotifier.deliver_new_member_notice(member, user, recipients)
+        end)
+
+      :ok
+    else
+      _ -> :ok
+    end
   end
 
   @doc "Creates the member profile row for a newly registered user (status: pending)."

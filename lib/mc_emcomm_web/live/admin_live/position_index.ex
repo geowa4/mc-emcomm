@@ -51,6 +51,11 @@ defmodule McEmcommWeb.AdminLive.PositionIndex do
               type="checkbox"
               label="Grants site admin to the holder"
             />
+            <.input
+              field={@form[:notify_on_new_member]}
+              type="checkbox"
+              label="Email the holder when a new member joins"
+            />
             <div class="modal-action">
               <button type="button" phx-click="cancel" class="btn btn-ghost">Cancel</button>
               <.button class="btn btn-primary">Save</.button>
@@ -84,6 +89,9 @@ defmodule McEmcommWeb.AdminLive.PositionIndex do
               <td>
                 {p.name}
                 <span :if={p.grants_admin} class="badge badge-sm badge-primary">admin</span>
+                <span :if={p.notify_on_new_member} class="badge badge-sm badge-secondary">
+                  notifies
+                </span>
               </td>
               <td>
                 <.link id={"change-holder-#{p.id}"} phx-click="change_holder" phx-value-id={p.id}>

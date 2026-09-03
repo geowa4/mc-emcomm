@@ -48,6 +48,25 @@ defmodule McEmcommWeb.AdminLive.PositionIndexTest do
     assert has_element?(lv, "#position-row-#{position.id} .badge", "admin")
   end
 
+  test "a position created with the notify checkbox is flagged and shows a badge", %{
+    conn: conn
+  } do
+    {:ok, lv, _html} = live(conn, ~p"/admin/positions")
+
+    lv |> element("button", "New position") |> render_click()
+
+    lv
+    |> form("#position-form",
+      position: %{name: "Secretary", sort_order: 1, notify_on_new_member: true}
+    )
+    |> render_submit()
+
+    position = Enum.find(Members.list_positions(), &(&1.name == "Secretary"))
+    assert position.notify_on_new_member
+    refute position.grants_admin
+    assert has_element?(lv, "#position-row-#{position.id} .badge", "notifies")
+  end
+
   test "holding an admin-granting position opens the admin area" do
     member = McEmcommFixtures.member_fixture(%{name: "Avery Holder"})
     position = McEmcommFixtures.position_fixture(%{name: "President", grants_admin: true})
