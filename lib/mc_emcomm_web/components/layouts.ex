@@ -33,9 +33,10 @@ defmodule McEmcommWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://phoenix.hexdocs.pm/scopes.html)"
 
-  attr :active_net, :boolean,
-    default: false,
-    doc: "whether a net is on the air; lights up the header emblem"
+  attr :active_net, :map,
+    default: nil,
+    doc:
+      "the most recent net on the air (a `McEmcomm.Net.NetSession`) or nil; lights up the header emblem and points the brand link at that net"
 
   slot :inner_block, required: true
 
@@ -43,12 +44,16 @@ defmodule McEmcommWeb.Layouts do
     ~H"""
     <header class="navbar px-4 sm:px-6 lg:px-8">
       <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
+        <a
+          id="header-brand"
+          href={brand_path(@active_net)}
+          class="flex-1 flex w-fit items-center gap-2"
+        >
           <span
             id="header-emblem"
             class={["rounded-full", @active_net && "net-active"]}
-            data-active-net={@active_net}
-            title={@active_net && "A net is on the air"}
+            data-active-net={@active_net != nil}
+            title={@active_net && "#{@active_net.name} is on the air"}
           >
             <img src={~p"/images/logo.svg"} alt="" class="size-9 block" />
           </span>
@@ -57,6 +62,7 @@ defmodule McEmcommWeb.Layouts do
       </div>
       <div class="flex-none">
         <ul class="hidden lg:flex px-1 space-x-2 xl:space-x-4 items-center text-sm">
+          <li><a id="nav-home" href={~p"/"} class="btn btn-ghost btn-sm">Home</a></li>
           <li><a href={~p"/about"} class="btn btn-ghost btn-sm">About</a></li>
           <li><a href={~p"/training"} class="btn btn-ghost btn-sm">Training</a></li>
           <li><a href={~p"/resources"} class="btn btn-ghost btn-sm">Resources</a></li>
@@ -111,6 +117,7 @@ defmodule McEmcommWeb.Layouts do
             tabindex="0"
             class="dropdown-content menu bg-base-100 rounded-box z-20 mt-1 w-52 p-2 shadow"
           >
+            <li><a id="mobile-nav-home" href={~p"/"}>Home</a></li>
             <li><a href={~p"/about"}>About</a></li>
             <li><a href={~p"/training"}>Training</a></li>
             <li><a href={~p"/resources"}>Resources</a></li>
@@ -205,6 +212,11 @@ defmodule McEmcommWeb.Layouts do
     <.flash_group flash={@flash} />
     """
   end
+
+  # The net console is member-only; a logged-out visitor is sent to log in
+  # and returned to the net afterwards.
+  defp brand_path(%{id: id} = _active_net), do: ~p"/app/net/#{id}"
+  defp brand_path(nil), do: ~p"/"
 
   defp display_name(%{member: %{call_sign: call_sign}}) when is_binary(call_sign), do: call_sign
   defp display_name(%{member: %{name: name}}) when is_binary(name), do: name

@@ -1,7 +1,8 @@
 defmodule McEmcommWeb.ActiveNet do
   @moduledoc """
-  Keeps `@active_net` current in every LiveView so the header emblem can show
-  when a net is on the air (`McEmcommWeb.Layouts.app/1`).
+  Keeps `@active_net` (the most recent `McEmcomm.Net.NetSession` on the air,
+  or `nil`) current in every LiveView so the header can light up the emblem
+  and link to that net (`McEmcommWeb.Layouts.app/1`).
 
   Mounted in every `live_session`. It subscribes to `McEmcomm.Net.subscribe_nets/0`
   and re-checks the flag when a net starts or ends; other `{:nets_changed, _}`
@@ -20,13 +21,13 @@ defmodule McEmcommWeb.ActiveNet do
 
     {:cont,
      socket
-     |> assign(:active_net, Net.active_session?())
+     |> assign(:active_net, Net.latest_active_session())
      |> attach_hook(:active_net, :handle_info, &handle_nets_changed/2)}
   end
 
   defp handle_nets_changed({:nets_changed, reason}, socket)
        when reason in [:session_started, :session_ended] do
-    {:halt, assign(socket, :active_net, Net.active_session?())}
+    {:halt, assign(socket, :active_net, Net.latest_active_session())}
   end
 
   defp handle_nets_changed({:nets_changed, _reason}, socket), do: {:halt, socket}

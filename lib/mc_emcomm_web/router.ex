@@ -74,9 +74,13 @@ defmodule McEmcommWeb.Router do
   end
 
   ## Member portal (§8 :member live_session, approved members + admins)
+  #
+  # The plug rejects anonymous visitors at the HTTP request so the requested
+  # path is stored for after login; the on_mount hooks repeat the check for
+  # navigation over the socket and add the membership test.
 
   scope "/app", McEmcommWeb do
-    pipe_through :browser
+    pipe_through [:browser, :require_authenticated_user]
 
     live_session :member,
       on_mount: [{McEmcommWeb.MemberAuth, :require_member}, McEmcommWeb.ActiveNet] do
@@ -94,7 +98,7 @@ defmodule McEmcommWeb.Router do
   ## Admin console (§8 :admin live_session)
 
   scope "/admin", McEmcommWeb do
-    pipe_through :browser
+    pipe_through [:browser, :require_authenticated_user]
 
     live_session :admin,
       on_mount: [{McEmcommWeb.MemberAuth, :require_admin}, McEmcommWeb.ActiveNet] do

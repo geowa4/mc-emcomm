@@ -61,11 +61,13 @@ defmodule McEmcomm.Net do
     |> Repo.all()
   end
 
-  @doc "Whether any net is currently on the air."
-  def active_session? do
+  @doc "The most recently started net still on the air, or `nil`."
+  def latest_active_session do
     NetSession
     |> where([n], is_nil(n.ended_at))
-    |> Repo.exists?()
+    |> order_by([n], desc: n.started_at, desc: n.id)
+    |> limit(1)
+    |> Repo.one()
   end
 
   def list_past_sessions do
