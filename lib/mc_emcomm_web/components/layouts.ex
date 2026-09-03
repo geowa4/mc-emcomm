@@ -62,12 +62,6 @@ defmodule McEmcommWeb.Layouts do
           <li><a href={~p"/resources"} class="btn btn-ghost btn-sm">Resources</a></li>
           <li><a href={~p"/operations"} class="btn btn-ghost btn-sm">Operations</a></li>
           <li><a href={~p"/calendar"} class="btn btn-ghost btn-sm">Calendar</a></li>
-          <li :if={@current_scope}>
-            <a href={~p"/app"} class="btn btn-ghost btn-sm">Member Portal</a>
-          </li>
-          <li :if={Scope.admin?(@current_scope)}>
-            <a id="nav-admin" href={~p"/admin"} class="btn btn-ghost btn-sm">Admin</a>
-          </li>
           <li>
             <.theme_toggle />
           </li>
@@ -79,8 +73,15 @@ defmodule McEmcommWeb.Layouts do
               </button>
               <ul
                 tabindex="0"
-                class="dropdown-content menu bg-base-100 rounded-box z-20 mt-1 w-40 p-2 shadow"
+                class="dropdown-content menu bg-base-100 rounded-box z-20 mt-1 w-44 p-2 shadow"
               >
+                <li>
+                  <.link id="user-menu-portal" href={~p"/app"}>Member Portal</.link>
+                </li>
+                <li :if={Scope.admin?(@current_scope)}>
+                  <.link id="nav-admin" href={~p"/admin"}>Admin</.link>
+                </li>
+                <li class="divider my-1" aria-hidden="true"></li>
                 <li :if={Scope.approved_member?(@current_scope)}>
                   <.link id="user-menu-profile" href={~p"/app/profile"}>My Profile</.link>
                 </li>
