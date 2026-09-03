@@ -4,7 +4,7 @@ defmodule McEmcomm.AccountsTest do
   alias McEmcomm.Accounts
 
   import McEmcomm.AccountsFixtures
-  alias McEmcomm.Accounts.{User, UserToken}
+  alias McEmcomm.Accounts.{RecoveryCode, User, UserToken}
 
   describe "get_user_by_email/1" do
     test "does not return the user if the email does not exist" do
@@ -404,9 +404,205 @@ defmodule McEmcomm.AccountsTest do
     end
   end
 
+  describe "totp_enabled?/1" do
+    test "is false for a fresh user and nil" do
+      refute Accounts.totp_enabled?(user_fixture())
+      refute Accounts.totp_enabled?(nil)
+    end
+
+    test "is true once TOTP is confirmed" do
+      %{user: user} = user_with_totp_fixture()
+      assert Accounts.totp_enabled?(user)
+    end
+  end
+
+  describe "generate_totp_secret/0" do
+    test "returns a fresh 20-byte secret each time" do
+      a = Accounts.generate_totp_secret()
+      b = Accounts.generate_totp_secret()
+      assert byte_size(a) == 20
+      assert a != b
+    end
+  end
+
+  describe "totp_provisioning_uri/2" do
+    test "encodes the issuer, account, and secret" do
+      user = user_fixture()
+      secret = Accounts.generate_totp_secret()
+      uri = URI.parse(Accounts.totp_provisioning_uri(user, secret))
+
+      assert uri.scheme == "otpauth"
+      assert uri.host == "totp"
+      assert URI.decode(uri.path) == "/Monroe County ARES/RACES:#{user.email}"
+
+      query = URI.decode_query(uri.query)
+      assert query["issuer"] == "Monroe County ARES/RACES"
+      assert query["secret"] == Base.encode32(secret, padding: false)
+    end
+  end
+
+  describe "enable_totp/3" do
+    setup do
+      %{user: user_fixture(), secret: Accounts.generate_totp_secret()}
+    end
+
+    test "rejects a wrong code and persists nothing", %{user: user, secret: secret} do
+      assert {:error, :invalid_code} = Accounts.enable_totp(user, secret, "000000")
+      reloaded = Accounts.get_user!(user.id)
+      refute reloaded.totp_secret
+      refute Accounts.totp_enabled?(reloaded)
+      assert Accounts.count_unused_recovery_codes(user) == 0
+    end
+
+    test "stores the secret and issues hashed recovery codes", %{user: user, secret: secret} do
+      assert {:ok, {user, codes}} = Accounts.enable_totp(user, secret, totp_code(secret))
+
+      assert user.totp_secret == secret
+      assert %DateTime{} = user.totp_confirmed_at
+      assert %DateTime{} = user.totp_last_used_at
+      assert Accounts.totp_enabled?(user)
+
+      assert length(codes) == RecoveryCode.code_count()
+      assert Enum.all?(codes, &Regex.match?(~r/^[a-z2-7]{4}(-[a-z2-7]{4}){3}$/, &1))
+      assert length(Enum.uniq(codes)) == length(codes)
+
+      stored = Repo.all(from(r in RecoveryCode, where: r.user_id == ^user.id))
+      assert length(stored) == RecoveryCode.code_count()
+      refute Enum.any?(stored, &(&1.hashed_code in codes))
+      assert Enum.all?(stored, &is_nil(&1.used_at))
+    end
+
+    test "re-enabling replaces the recovery codes", %{user: user, secret: secret} do
+      {:ok, {user, [old | _]}} = Accounts.enable_totp(user, secret, totp_code(secret))
+      {:ok, {user, [new | _]}} = Accounts.enable_totp(user, secret, totp_code(secret))
+
+      assert {:error, :invalid_code} = Accounts.verify_recovery_code(user, old)
+      assert :ok = Accounts.verify_recovery_code(user, new)
+    end
+  end
+
+  describe "disable_totp/1" do
+    test "clears the secret and deletes recovery codes" do
+      %{user: user, recovery_codes: [code | _]} = user_with_totp_fixture()
+
+      assert {:ok, user} = Accounts.disable_totp(user)
+      refute user.totp_secret
+      refute user.totp_confirmed_at
+      refute user.totp_last_used_at
+      refute Accounts.totp_enabled?(user)
+      assert Accounts.count_unused_recovery_codes(user) == 0
+      assert {:error, :invalid_code} = Accounts.verify_recovery_code(user, code)
+    end
+
+    test "is idempotent for a user without TOTP" do
+      user = user_fixture()
+      assert {:ok, user} = Accounts.disable_totp(user)
+      refute Accounts.totp_enabled?(user)
+    end
+  end
+
+  describe "verify_totp/2" do
+    setup do
+      user_with_totp_fixture()
+    end
+
+    test "accepts the current code and records its use", %{user: user, secret: secret} do
+      before = user.totp_last_used_at
+      assert :ok = Accounts.verify_totp(user, totp_code(secret))
+      assert DateTime.after?(Accounts.get_user!(user.id).totp_last_used_at, before)
+    end
+
+    test "rejects a wrong code", %{user: user} do
+      assert {:error, :invalid_code} = Accounts.verify_totp(user, "000000")
+    end
+
+    test "rejects a replayed code", %{user: user, secret: secret} do
+      code = totp_code(secret)
+      assert :ok = Accounts.verify_totp(user, code)
+      assert {:error, :invalid_code} = Accounts.verify_totp(Accounts.get_user!(user.id), code)
+    end
+
+    test "rejects a user without TOTP" do
+      assert {:error, :invalid_code} = Accounts.verify_totp(user_fixture(), "123456")
+    end
+  end
+
+  describe "verify_recovery_code/2" do
+    setup do
+      user_with_totp_fixture()
+    end
+
+    test "accepts a code exactly once", %{user: user, recovery_codes: [code | _]} do
+      assert :ok = Accounts.verify_recovery_code(user, code)
+      assert {:error, :invalid_code} = Accounts.verify_recovery_code(user, code)
+      assert Accounts.count_unused_recovery_codes(user) == RecoveryCode.code_count() - 1
+    end
+
+    test "ignores case, dashes, and whitespace", %{user: user, recovery_codes: [code | _]} do
+      messy = " #{code |> String.replace("-", " ") |> String.upcase()} "
+      assert :ok = Accounts.verify_recovery_code(user, messy)
+    end
+
+    test "rejects unknown codes and another user's codes", %{user: user} do
+      assert {:error, :invalid_code} = Accounts.verify_recovery_code(user, "zzzz-zzzz-zzzz-zzzz")
+
+      %{recovery_codes: [other | _]} = user_with_totp_fixture()
+      assert {:error, :invalid_code} = Accounts.verify_recovery_code(user, other)
+    end
+  end
+
+  describe "verify_two_factor/2" do
+    setup do
+      user_with_totp_fixture()
+    end
+
+    test "treats six digits as an authenticator code", %{user: user, secret: secret} do
+      assert {:ok, :totp} = Accounts.verify_two_factor(user, " #{totp_code(secret)} ")
+      assert {:error, :invalid_code} = Accounts.verify_two_factor(user, "000000")
+    end
+
+    test "treats anything else as a recovery code", %{user: user, recovery_codes: [code | _]} do
+      assert {:ok, :recovery_code} = Accounts.verify_two_factor(user, code)
+      assert {:error, :invalid_code} = Accounts.verify_two_factor(user, "not-a-code")
+    end
+  end
+
+  describe "regenerate_recovery_codes/1" do
+    test "issues a fresh batch and invalidates the old one" do
+      %{user: user, recovery_codes: [old | _]} = user_with_totp_fixture()
+
+      assert {:ok, codes} = Accounts.regenerate_recovery_codes(user)
+      assert length(codes) == RecoveryCode.code_count()
+      refute old in codes
+      assert {:error, :invalid_code} = Accounts.verify_recovery_code(user, old)
+      assert :ok = Accounts.verify_recovery_code(user, hd(codes))
+    end
+
+    test "refuses when TOTP is off" do
+      assert {:error, :totp_disabled} = Accounts.regenerate_recovery_codes(user_fixture())
+    end
+  end
+
+  describe "count_unused_recovery_codes/1" do
+    test "tracks use and disabling" do
+      %{user: user, recovery_codes: [code | _]} = user_with_totp_fixture()
+      assert Accounts.count_unused_recovery_codes(user) == RecoveryCode.code_count()
+
+      :ok = Accounts.verify_recovery_code(user, code)
+      assert Accounts.count_unused_recovery_codes(user) == RecoveryCode.code_count() - 1
+
+      {:ok, user} = Accounts.disable_totp(user)
+      assert Accounts.count_unused_recovery_codes(user) == 0
+    end
+  end
+
   describe "inspect/2 for the User module" do
     test "does not include password" do
       refute inspect(%User{password: "123456"}) =~ "password: \"123456\""
+    end
+
+    test "does not include the TOTP secret" do
+      refute inspect(%User{totp_secret: "supersecret"}) =~ "supersecret"
     end
   end
 end

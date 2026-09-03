@@ -34,6 +34,12 @@ defmodule McEmcommWeb.UserAuthTest do
       refute get_session(conn, :to_be_removed)
     end
 
+    test "clears a pending two-factor login", %{conn: conn, user: user} do
+      conn = conn |> put_pending_two_factor(user) |> UserAuth.log_in_user(user)
+      refute get_session(conn, :pending_two_factor)
+      assert get_session(conn, :user_token)
+    end
+
     test "keeps session when re-authenticating", %{conn: conn, user: user} do
       conn =
         conn
@@ -389,5 +395,85 @@ defmodule McEmcommWeb.UserAuthTest do
       endpoint: McEmcommWeb.Endpoint,
       assigns: %{__changed__: %{}, flash: %{}}
     }
+  end
+
+  describe "challenge_two_factor/4" do
+    test "parks the login in the session and redirects to the challenge", %{
+      conn: conn,
+      user: user
+    } do
+      conn =
+        conn
+        |> put_session(:user_return_to, "/app")
+        |> UserAuth.challenge_two_factor(user, %{"remember_me" => "true"}, "Welcome back!")
+
+      assert redirected_to(conn) == ~p"/users/two-factor"
+      refute get_session(conn, :user_token)
+      assert get_session(conn, :user_return_to) == "/app"
+
+      pending = get_session(conn, :pending_two_factor)
+      assert pending["user_id"] == user.id
+      assert pending["remember_me"] == "true"
+      assert pending["info"] == "Welcome back!"
+      assert pending["attempts"] == 0
+      assert_in_delta pending["at"], System.os_time(:second), 5
+    end
+  end
+
+  describe "valid_pending_two_factor/1" do
+    test "returns a fresh pending map", %{user: user} do
+      pending = UserAuth.build_pending_two_factor(user, %{}, "Welcome back!")
+      assert UserAuth.valid_pending_two_factor(pending) == pending
+    end
+
+    test "rejects nil, malformed, and expired maps", %{user: user} do
+      refute UserAuth.valid_pending_two_factor(nil)
+      refute UserAuth.valid_pending_two_factor(%{"user_id" => user.id})
+
+      expired =
+        user
+        |> UserAuth.build_pending_two_factor(%{}, "Welcome back!")
+        |> Map.put("at", System.os_time(:second) - 601)
+
+      refute UserAuth.valid_pending_two_factor(expired)
+    end
+  end
+
+  describe "fetch_pending_two_factor/1" do
+    test "reads a valid pending login from the session", %{conn: conn, user: user} do
+      conn = put_pending_two_factor(conn, user)
+      assert {:ok, %{"user_id" => id}} = UserAuth.fetch_pending_two_factor(conn)
+      assert id == user.id
+    end
+
+    test "is :error when nothing is pending or it expired", %{conn: conn, user: user} do
+      assert :error = UserAuth.fetch_pending_two_factor(conn)
+
+      conn = put_pending_two_factor(conn, user, at: System.os_time(:second) - 601)
+      assert :error = UserAuth.fetch_pending_two_factor(conn)
+    end
+  end
+
+  describe "fail_pending_two_factor/1" do
+    test "counts attempts until the limit, then discards the login", %{conn: conn, user: user} do
+      conn = put_pending_two_factor(conn, user)
+
+      conn =
+        Enum.reduce(1..4, conn, fn expected, conn ->
+          assert {:retry, conn} = UserAuth.fail_pending_two_factor(conn)
+          assert get_session(conn, :pending_two_factor)["attempts"] == expected
+          conn
+        end)
+
+      assert {:locked, conn} = UserAuth.fail_pending_two_factor(conn)
+      refute get_session(conn, :pending_two_factor)
+    end
+  end
+
+  describe "clear_pending_two_factor/1" do
+    test "removes the pending login", %{conn: conn, user: user} do
+      conn = conn |> put_pending_two_factor(user) |> UserAuth.clear_pending_two_factor()
+      refute get_session(conn, :pending_two_factor)
+    end
   end
 end

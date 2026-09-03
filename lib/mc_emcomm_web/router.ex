@@ -183,6 +183,7 @@ defmodule McEmcommWeb.Router do
       on_mount: [{McEmcommWeb.UserAuth, :require_authenticated}] do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
+      live "/users/settings/two-factor", UserLive.TwoFactor, :edit
     end
 
     post "/users/update-password", UserSessionController, :update_password
@@ -196,9 +197,11 @@ defmodule McEmcommWeb.Router do
       live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
       live "/users/log-in/:token", UserLive.Confirmation, :new
+      live "/users/two-factor", UserLive.TwoFactorChallenge, :new
     end
 
     post "/users/log-in", UserSessionController, :create
+    post "/users/two-factor", UserSessionController, :verify_two_factor
     delete "/users/log-out", UserSessionController, :delete
   end
 end

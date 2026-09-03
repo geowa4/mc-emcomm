@@ -156,6 +156,22 @@ console works with the flag alone. Member-only actions (running a net, marking
 attendance, holding a position) still need an approved member profile, which
 the admin can create and approve like anyone else's.
 
+### Resetting two-factor authentication
+
+Users can turn on TOTP two-factor authentication under Account → Manage
+two-factor authentication, and receive eight single-use recovery codes when
+they do. A member who has lost both their authenticator and every recovery
+code cannot log in; verify who you are talking to out of band, then clear
+their second factor from the release:
+
+```sh
+fly ssh console --app <app> -C "/app/bin/mc_emcomm eval 'McEmcomm.Release.disable_totp(\"you@example.org\")'"
+```
+
+The call is idempotent. It forgets the TOTP secret and deletes the recovery
+codes but leaves existing sessions alone; the member logs in with their
+password or a magic link and can re-enroll from settings.
+
 `fly postgres create` (unmanaged, "Fly Postgres") is acceptable for throwaway
 testing only: it is a plain Postgres VM with no backups or managed failover.
 Give it at least 512 MB (`--vm-size shared-cpu-1x` defaults to 256 MB, which

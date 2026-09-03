@@ -43,6 +43,12 @@ section referenced below before working in that area.
   read CONTRIBUTING.md § Inbound webhooks before touching it.
 - Fields set programmatically (e.g. `user_id`) must NOT appear in `cast/3`; set them
   explicitly when building the struct.
+- TOTP two-factor authentication (`nimble_totp`) is optional per user. The secret is
+  `users.totp_secret` (redacted); recovery codes are stored SHA-256-hashed and are
+  single-use. Codes are verified and sessions minted only in
+  `UserSessionController.verify_two_factor/2`; LiveViews never verify codes. The
+  parked login in the session (`:pending_two_factor`) carries no secrets. Operator
+  reset: `McEmcomm.Release.disable_totp/1` (CONTRIBUTING.md § Deployment).
 
 ## Elixir / Phoenix rules
 

@@ -11,6 +11,9 @@ defmodule McEmcomm.Accounts.User do
     field :confirmed_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
     field :is_admin, :boolean, default: false
+    field :totp_secret, :binary, redact: true
+    field :totp_confirmed_at, :utc_datetime
+    field :totp_last_used_at, :utc_datetime
 
     timestamps(type: :utc_datetime)
   end
@@ -122,6 +125,33 @@ defmodule McEmcomm.Accounts.User do
   """
   def admin_changeset(user) do
     change(user, is_admin: true)
+  end
+
+  @doc """
+  Turns on TOTP two-factor authentication with the given raw secret.
+
+  `totp_last_used_at` starts at now so the code used to confirm enrollment
+  cannot be replayed at the login challenge. There is deliberately no
+  `cast/3` path for any TOTP field.
+  """
+  def totp_enable_changeset(user, secret) when is_binary(secret) do
+    now = DateTime.utc_now(:second)
+    change(user, totp_secret: secret, totp_confirmed_at: now, totp_last_used_at: now)
+  end
+
+  @doc """
+  Turns off TOTP two-factor authentication and forgets the secret.
+  """
+  def totp_disable_changeset(user) do
+    change(user, totp_secret: nil, totp_confirmed_at: nil, totp_last_used_at: nil)
+  end
+
+  @doc """
+  Records a successful TOTP verification so the same code is rejected if
+  presented again within its time window.
+  """
+  def totp_used_changeset(user, %DateTime{} = at) do
+    change(user, totp_last_used_at: DateTime.truncate(at, :second))
   end
 
   @doc """

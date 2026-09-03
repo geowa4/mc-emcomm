@@ -86,6 +86,40 @@ defmodule McEmcomm.AccountsFixtures do
     {encoded_token, user_token.token}
   end
 
+  @doc """
+  Returns the six-digit code an authenticator app would show right now.
+  """
+  def totp_code(secret), do: NimbleTOTP.verification_code(secret)
+
+  @doc """
+  Enables TOTP for `user` and returns the reloaded user, the raw secret, and
+  the plaintext recovery codes.
+
+  Enrollment marks the current time window as used, so `totp_last_used_at`
+  is rewound to let tests verify a code in the same window straight away.
+  """
+  def enable_totp_fixture(user) do
+    secret = Accounts.generate_totp_secret()
+    {:ok, {user, recovery_codes}} = Accounts.enable_totp(user, secret, totp_code(secret))
+
+    rewound = DateTime.add(DateTime.utc_now(:second), -60, :second)
+
+    McEmcomm.Repo.update_all(
+      from(u in Accounts.User, where: u.id == ^user.id),
+      set: [totp_last_used_at: rewound]
+    )
+
+    %{user: Accounts.get_user!(user.id), secret: secret, recovery_codes: recovery_codes}
+  end
+
+  @doc """
+  A confirmed user with a password and TOTP enabled. Returns the same map as
+  `enable_totp_fixture/1`.
+  """
+  def user_with_totp_fixture(attrs \\ %{}) do
+    attrs |> user_fixture() |> set_password() |> enable_totp_fixture()
+  end
+
   def offset_user_token(token, amount_to_add, unit) do
     dt = DateTime.add(DateTime.utc_now(:second), amount_to_add, unit)
 

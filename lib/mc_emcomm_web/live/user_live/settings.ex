@@ -65,6 +65,23 @@ defmodule McEmcommWeb.UserLive.Settings do
           Save Password
         </.button>
       </.form>
+
+      <div class="divider" />
+
+      <section id="settings-two-factor" class="space-y-2">
+        <p>
+          Two-factor authentication is <span id="settings-two-factor-status" class="font-semibold">
+            {if @totp_enabled?, do: "on", else: "off"}
+          </span>.
+        </p>
+        <.link
+          id="settings-two-factor-link"
+          navigate={~p"/users/settings/two-factor"}
+          class="btn btn-soft"
+        >
+          Manage two-factor authentication
+        </.link>
+      </section>
     </Layouts.app>
     """
   end
@@ -94,6 +111,7 @@ defmodule McEmcommWeb.UserLive.Settings do
       |> assign(:current_email, user.email)
       |> assign(:email_form, to_form(email_changeset))
       |> assign(:password_form, to_form(password_changeset))
+      |> assign(:totp_enabled?, Accounts.totp_enabled?(user))
       |> assign(:trigger_submit, false)
 
     {:ok, socket}

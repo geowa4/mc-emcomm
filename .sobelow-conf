@@ -36,9 +36,10 @@
     # inbound server-to-server delivery authenticated by its Svix HMAC
     # signature in McEmcommWeb.Plugs.VerifyResendSignature.
     "Config.CSRFRoute",
-    # The one raw/1 in the app renders a QR SVG that EQRCode builds from a
-    # server-side URL, never from user input
-    # (McEmcommWeb.AdminLive.InventoryIndex.qr_svg/1).
+    # The raw/1 calls in the app render QR SVGs that EQRCode builds from
+    # server-side strings, never from user input
+    # (McEmcommWeb.AdminLive.InventoryIndex.qr_svg/1 and
+    # McEmcommWeb.UserLive.TwoFactor.qr_svg/1).
     "XSS.Raw"
   ],
   # Dev and test configuration carry the generated secret_key_base that

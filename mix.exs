@@ -130,6 +130,7 @@ defmodule McEmcomm.MixProject do
 
       # Auth
       {:argon2_elixir, "~> 4.0"},
+      {:nimble_totp, "~> 1.0"},
 
       # Email + HTTP
       {:swoosh, "~> 1.20"},

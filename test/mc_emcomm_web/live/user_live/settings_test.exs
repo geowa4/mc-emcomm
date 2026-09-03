@@ -16,6 +16,20 @@ defmodule McEmcommWeb.UserLive.SettingsTest do
       assert html =~ "Save Password"
     end
 
+    test "links to two-factor settings with the current status", %{conn: conn} do
+      {:ok, lv, _html} =
+        conn
+        |> log_in_user(user_fixture())
+        |> live(~p"/users/settings")
+
+      assert has_element?(lv, "#settings-two-factor-link")
+      assert has_element?(lv, "#settings-two-factor-status", "off")
+
+      %{user: user} = user_with_totp_fixture()
+      {:ok, lv, _html} = conn |> log_in_user(user) |> live(~p"/users/settings")
+      assert has_element?(lv, "#settings-two-factor-status", "on")
+    end
+
     test "redirects if user is not logged in", %{conn: conn} do
       assert {:error, redirect} = live(conn, ~p"/users/settings")
 

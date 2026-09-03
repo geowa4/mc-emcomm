@@ -6,7 +6,10 @@ defmodule McEmcomm.Accounts do
   import Ecto.Query, warn: false
   alias McEmcomm.Repo
 
-  alias McEmcomm.Accounts.{User, UserNotifier, UserToken}
+  alias McEmcomm.Accounts.{RecoveryCode, User, UserNotifier, UserToken}
+
+  @totp_issuer "Monroe County ARES/RACES"
+  @totp_code_format ~r/^\d{6}$/
 
   ## Database getters
 
@@ -321,6 +324,170 @@ defmodule McEmcomm.Accounts do
   def delete_user_session_token(token) do
     Repo.delete_all(from(UserToken, where: [token: ^token, context: "session"]))
     :ok
+  end
+
+  ## Two-factor authentication
+
+  @doc """
+  Returns true when the user has confirmed TOTP two-factor authentication.
+  """
+  @spec totp_enabled?(User.t() | nil) :: boolean()
+  def totp_enabled?(%User{totp_confirmed_at: %DateTime{}}), do: true
+  def totp_enabled?(_user), do: false
+
+  @doc """
+  Generates a raw TOTP secret for a new enrollment.
+
+  The secret is not persisted; it lives only in the enrollment UI until the
+  user confirms a code with `enable_totp/3`.
+  """
+  @spec generate_totp_secret() :: binary()
+  def generate_totp_secret, do: NimbleTOTP.secret()
+
+  @doc """
+  Builds the `otpauth://` URI an authenticator app scans (usually as a QR code).
+  """
+  @spec totp_provisioning_uri(User.t(), binary()) :: String.t()
+  def totp_provisioning_uri(%User{email: email}, secret) when is_binary(secret) do
+    NimbleTOTP.otpauth_uri("#{@totp_issuer}:#{email}", secret, issuer: @totp_issuer)
+  end
+
+  @doc """
+  Turns on TOTP for the user once they prove they hold the secret.
+
+  Persists the secret, marks the enrollment code as used so it cannot be
+  replayed at login, replaces any existing recovery codes, and returns the
+  new plaintext recovery codes. They are shown to the user once and only
+  their hashes are stored.
+
+  ## Examples
+
+      iex> enable_totp(user, secret, "123456")
+      {:ok, {%User{}, ["abcd-efgh-ijkl-mnop", ...]}}
+
+      iex> enable_totp(user, secret, "000000")
+      {:error, :invalid_code}
+
+  """
+  @spec enable_totp(User.t(), binary(), String.t()) ::
+          {:ok, {User.t(), [String.t()]}} | {:error, :invalid_code}
+  def enable_totp(%User{} = user, secret, code) when is_binary(secret) and is_binary(code) do
+    if NimbleTOTP.valid?(secret, code) do
+      Repo.transact(fn -> persist_totp(user, secret) end)
+    else
+      {:error, :invalid_code}
+    end
+  end
+
+  defp persist_totp(user, secret) do
+    with {:ok, user} <- user |> User.totp_enable_changeset(secret) |> Repo.update() do
+      {:ok, {user, replace_recovery_codes(user)}}
+    end
+  end
+
+  @doc """
+  Turns off TOTP for the user, forgetting the secret and deleting every
+  recovery code. Idempotent.
+  """
+  @spec disable_totp(User.t()) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+  def disable_totp(%User{} = user) do
+    Repo.transact(fn ->
+      with {:ok, user} <- user |> User.totp_disable_changeset() |> Repo.update() do
+        Repo.delete_all(from(r in RecoveryCode, where: r.user_id == ^user.id))
+        {:ok, user}
+      end
+    end)
+  end
+
+  @doc """
+  Verifies a six-digit authenticator code for the user.
+
+  A code is accepted at most once: the time window of the last successful
+  verification is remembered and rejected if presented again.
+  """
+  @spec verify_totp(User.t(), String.t()) :: :ok | {:error, :invalid_code}
+  def verify_totp(%User{totp_secret: secret} = user, code)
+      when is_binary(secret) and is_binary(code) do
+    if NimbleTOTP.valid?(secret, code, since: user.totp_last_used_at) do
+      user
+      |> User.totp_used_changeset(DateTime.utc_now())
+      |> Repo.update!()
+
+      :ok
+    else
+      {:error, :invalid_code}
+    end
+  end
+
+  def verify_totp(_user, _code), do: {:error, :invalid_code}
+
+  @doc """
+  Consumes one of the user's unused recovery codes.
+
+  Input is case-insensitive and dashes or spaces are ignored. The update is
+  a single statement, so a code cannot be spent twice by concurrent requests.
+  """
+  @spec verify_recovery_code(User.t(), String.t()) :: :ok | {:error, :invalid_code}
+  def verify_recovery_code(%User{id: user_id}, code) when is_binary(code) do
+    hashed = RecoveryCode.hash(code)
+    now = DateTime.utc_now(:second)
+
+    query =
+      from(r in RecoveryCode,
+        where: r.user_id == ^user_id and r.hashed_code == ^hashed and is_nil(r.used_at)
+      )
+
+    case Repo.update_all(query, set: [used_at: now]) do
+      {1, _} -> :ok
+      _ -> {:error, :invalid_code}
+    end
+  end
+
+  @doc """
+  Verifies either second factor: six digits are treated as an authenticator
+  code, anything else as a recovery code.
+  """
+  @spec verify_two_factor(User.t(), String.t()) ::
+          {:ok, :totp} | {:ok, :recovery_code} | {:error, :invalid_code}
+  def verify_two_factor(%User{} = user, code) when is_binary(code) do
+    code = String.trim(code)
+
+    if Regex.match?(@totp_code_format, code) do
+      with :ok <- verify_totp(user, code), do: {:ok, :totp}
+    else
+      with :ok <- verify_recovery_code(user, code), do: {:ok, :recovery_code}
+    end
+  end
+
+  @doc """
+  Replaces the user's recovery codes with a fresh batch and returns the new
+  plaintext codes. Only meaningful while TOTP is enabled.
+  """
+  @spec regenerate_recovery_codes(User.t()) :: {:ok, [String.t()]} | {:error, :totp_disabled}
+  def regenerate_recovery_codes(%User{} = user) do
+    if totp_enabled?(user) do
+      Repo.transact(fn -> {:ok, replace_recovery_codes(user)} end)
+    else
+      {:error, :totp_disabled}
+    end
+  end
+
+  @doc """
+  Counts the user's recovery codes that have not been used yet.
+  """
+  @spec count_unused_recovery_codes(User.t()) :: non_neg_integer()
+  def count_unused_recovery_codes(%User{id: user_id}) do
+    Repo.aggregate(
+      from(r in RecoveryCode, where: r.user_id == ^user_id and is_nil(r.used_at)),
+      :count
+    )
+  end
+
+  defp replace_recovery_codes(%User{id: user_id} = user) do
+    Repo.delete_all(from(r in RecoveryCode, where: r.user_id == ^user_id))
+    {codes, structs} = RecoveryCode.build_batch(user)
+    Enum.each(structs, &Repo.insert!/1)
+    codes
   end
 
   ## Token helper

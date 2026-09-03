@@ -55,6 +55,44 @@ defmodule McEmcomm.Release do
     end
   end
 
+  @doc """
+  Turns off two-factor authentication for the user registered under `email`.
+
+  The escape hatch for a member who has lost both their authenticator and all
+  of their recovery codes. Verify who you are talking to out of band before
+  running it:
+
+      fly ssh console -C "/app/bin/mc_emcomm eval 'McEmcomm.Release.disable_totp(\"you@example.org\")'"
+
+  Idempotent. Forgets the TOTP secret and deletes every recovery code; existing
+  sessions are left alone. Returns `{:ok, user}`, or `{:error, :not_found}`
+  when no user has that email.
+  """
+  @spec disable_totp(String.t()) :: {:ok, McEmcomm.Accounts.User.t()} | {:error, :not_found}
+  def disable_totp(email) when is_binary(email) do
+    load_app()
+
+    {:ok, result, _} =
+      Ecto.Migrator.with_repo(McEmcomm.Repo, fn _repo -> do_disable_totp(email) end)
+
+    result
+  end
+
+  defp do_disable_totp(email) do
+    alias McEmcomm.Accounts
+
+    case Accounts.get_user_by_email(email) do
+      nil ->
+        IO.puts("No user found with email #{email}")
+        {:error, :not_found}
+
+      user ->
+        {:ok, user} = Accounts.disable_totp(user)
+        IO.puts("Two-factor authentication disabled for #{user.email}")
+        {:ok, user}
+    end
+  end
+
   defp repos do
     Application.fetch_env!(@app, :ecto_repos)
   end

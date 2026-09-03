@@ -26,4 +26,24 @@ defmodule McEmcomm.ReleaseTest do
       assert output =~ "No user found"
     end
   end
+
+  describe "disable_totp/1" do
+    test "turns off two-factor authentication for the user with that email" do
+      %{user: user, recovery_codes: [code | _]} = user_with_totp_fixture()
+
+      {result, output} = with_io(fn -> Release.disable_totp(user.email) end)
+
+      assert {:ok, %User{totp_secret: nil}} = result
+      assert output =~ "Two-factor authentication disabled"
+      refute Accounts.totp_enabled?(Accounts.get_user!(user.id))
+      assert {:error, :invalid_code} = Accounts.verify_recovery_code(user, code)
+    end
+
+    test "reports an unknown email without raising" do
+      {result, output} = with_io(fn -> Release.disable_totp("nobody@example.com") end)
+
+      assert result == {:error, :not_found}
+      assert output =~ "No user found"
+    end
+  end
 end

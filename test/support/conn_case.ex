@@ -94,6 +94,30 @@ defmodule McEmcommWeb.ConnCase do
     |> Plug.Conn.put_session(:user_token, token)
   end
 
+  @doc """
+  Parks a two-factor login for `user` in the `conn` session, as
+  `McEmcommWeb.UserAuth.challenge_two_factor/4` would after a successful
+  password or magic-link login.
+
+  Options: `:remember_me` (`"true"` or nil), `:info` (the success flash),
+  `:at` (unix seconds, to simulate an old challenge), `:attempts`.
+  """
+  def put_pending_two_factor(conn, user, opts \\ []) do
+    pending =
+      McEmcommWeb.UserAuth.build_pending_two_factor(
+        user,
+        %{"remember_me" => opts[:remember_me]},
+        opts[:info] || "Welcome back!"
+      )
+
+    overrides =
+      opts
+      |> Keyword.take([:at, :attempts])
+      |> Map.new(fn {key, value} -> {Atom.to_string(key), value} end)
+
+    Phoenix.ConnTest.init_test_session(conn, %{pending_two_factor: Map.merge(pending, overrides)})
+  end
+
   defp maybe_set_token_authenticated_at(_token, nil), do: nil
 
   defp maybe_set_token_authenticated_at(token, authenticated_at) do
