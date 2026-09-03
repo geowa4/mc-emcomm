@@ -13,6 +13,74 @@ defmodule McEmcommWeb.Layouts do
   # and other static content.
   embed_templates "layouts/*"
 
+  @site_name "Monroe County ARES/RACES"
+
+  @default_description "Monroe County ARES/RACES is a group of licensed Amateur Radio " <>
+                         "operators who volunteer their time, equipment, and expertise to " <>
+                         "provide emergency communications support to Monroe County, NY and " <>
+                         "the surrounding area."
+
+  @social_profiles [
+    "https://www.facebook.com/MCARESNY",
+    "https://x.com/MCARESNY",
+    "https://groups.io/g/MonroeCountyEmcomm"
+  ]
+
+  ## SEO metadata for the root layout
+  #
+  # A page sets `:meta_description` (and `:noindex` to keep crawlers off it)
+  # in its assigns: controllers pass them to `render/3`, and LiveViews assign
+  # them in `mount/3` — the disconnected render hands the socket assigns to
+  # the root layout, so no plug or session plumbing is needed.
+
+  @doc "The organization-wide fallback for pages that set no description."
+  def default_description, do: @default_description
+
+  @doc "The page's meta description, falling back to the organization blurb."
+  def meta_description(assigns), do: assigns[:meta_description] || @default_description
+
+  @doc "The title shown in link previews, matching the `<title>` element."
+  def social_title(%{page_title: title}) when is_binary(title) and title != "",
+    do: "#{title} · #{@site_name}"
+
+  def social_title(_assigns), do: @site_name
+
+  @doc """
+  The canonical URL for the current request: the configured public origin
+  plus the request path, with no query string.
+  """
+  def canonical_url(%Plug.Conn{request_path: path} = conn), do: unverified_url(conn, path)
+
+  @doc "The image link previews show; a raster file, since most scrapers skip SVG."
+  def social_image_url, do: url(~p"/images/icons/icon-512.png")
+
+  @doc "Schema.org Organization markup, serialized for a JSON-LD script tag."
+  def organization_json_ld do
+    %{
+      "@context" => "https://schema.org",
+      "@type" => "Organization",
+      "name" => @site_name,
+      "legalName" => "Monroe County Amateur Radio Emergency Services, Inc.",
+      "url" => url(~p"/"),
+      "logo" => social_image_url(),
+      "email" => "secretary@monroecountyemcomm.org",
+      "address" => %{
+        "@type" => "PostalAddress",
+        "streetAddress" => "1100 Jefferson Rd., Suite 12 #1148",
+        "addressLocality" => "Rochester",
+        "addressRegion" => "NY",
+        "postalCode" => "14623",
+        "addressCountry" => "US"
+      },
+      "sameAs" => @social_profiles
+    }
+    |> JSON.encode!()
+    # A JSON-LD block is inert to the browser but still lives inside a script
+    # element, so "<" is escaped to keep "</script>" out of the document.
+    |> String.replace("<", "\\u003c")
+    |> raw()
+  end
+
   @doc """
   Renders your app layout.
 

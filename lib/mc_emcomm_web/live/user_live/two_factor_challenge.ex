@@ -88,6 +88,7 @@ defmodule McEmcommWeb.UserLive.TwoFactorChallenge do
       {:ok,
        socket
        |> assign(:page_title, "Two-factor authentication")
+       |> assign(:noindex, true)
        |> assign(:mode, :totp)
        |> assign(:trigger_submit, false)
        |> assign_blank_form()}

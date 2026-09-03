@@ -63,6 +63,14 @@ defmodule McEmcommWeb.UserLive.Registration do
   end
 
   def mount(_params, _session, socket) do
+    socket =
+      assign(socket,
+        page_title: "Register",
+        meta_description:
+          "Apply for membership in Monroe County ARES/RACES. Open to all licensed Amateur " <>
+            "Radio operators committed to public service."
+      )
+
     {:ok, assign_form(socket, registration_changeset(%{})), temporary_assigns: [form: nil]}
   end
 

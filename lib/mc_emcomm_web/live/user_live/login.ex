@@ -10,7 +10,7 @@ defmodule McEmcommWeb.UserLive.Login do
       <div class="mx-auto max-w-sm space-y-4">
         <div class="text-center">
           <.header>
-            <p>Log in</p>
+            Log in
             <:subtitle>
               <%= if @current_scope do %>
                 You need to reauthenticate to perform sensitive actions on your account.
@@ -103,7 +103,7 @@ defmodule McEmcommWeb.UserLive.Login do
 
     form = to_form(%{"email" => email}, as: "user")
 
-    {:ok, assign(socket, form: form, trigger_submit: false)}
+    {:ok, assign(socket, page_title: "Log in", noindex: true, form: form, trigger_submit: false)}
   end
 
   @impl true

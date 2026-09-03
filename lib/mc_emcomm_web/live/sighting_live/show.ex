@@ -50,6 +50,9 @@ defmodule McEmcommWeb.SightingLive.Show do
         {:ok,
          assign(socket,
            page_title: asset.name,
+           # A scan target, not a page for search engines: every crawl would
+           # otherwise record a sighting.
+           noindex: true,
            asset: asset,
            image_url: asset.image_key && Storage.presign_download_url(asset.image_key),
            sighting: sighting,

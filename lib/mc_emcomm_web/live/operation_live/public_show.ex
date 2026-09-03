@@ -7,7 +7,12 @@ defmodule McEmcommWeb.OperationLive.PublicShow do
   def mount(%{"id" => id}, _session, socket) do
     case fetch_public_operation(id) do
       {:ok, operation} ->
-        {:ok, assign(socket, page_title: operation.title, operation: operation)}
+        {:ok,
+         assign(socket,
+           page_title: operation.title,
+           meta_description: operation_description(operation),
+           operation: operation
+         )}
 
       :error ->
         {:ok,
@@ -15,6 +20,21 @@ defmodule McEmcommWeb.OperationLive.PublicShow do
          |> put_flash(:error, "That operation isn't public.")
          |> push_navigate(to: ~p"/operations")}
     end
+  end
+
+  # Search results show roughly the first 160 characters of a description.
+  @description_limit 160
+
+  defp operation_description(%{description: description})
+       when is_binary(description) and description != "" do
+    if String.length(description) <= @description_limit,
+      do: description,
+      else: String.slice(description, 0, @description_limit - 1) <> "…"
+  end
+
+  defp operation_description(operation) do
+    "#{operation.title}, a Monroe County ARES/RACES public operation on " <>
+      Calendar.strftime(operation.starts_at, "%B %d, %Y") <> "."
   end
 
   defp fetch_public_operation(id) do

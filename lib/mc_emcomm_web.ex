@@ -18,7 +18,7 @@ defmodule McEmcommWeb do
   """
 
   def static_paths,
-    do: ~w(assets fonts images favicon.ico apple-touch-icon.png site.webmanifest robots.txt)
+    do: ~w(assets fonts images favicon.ico apple-touch-icon.png site.webmanifest)
 
   def router do
     quote do

@@ -5,7 +5,14 @@ defmodule McEmcommWeb.PublicLive.About do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, page_title: "About", positions: Members.list_positions())}
+    {:ok,
+     assign(socket,
+       page_title: "About",
+       meta_description:
+         "Who Monroe County ARES/RACES is, the leadership team, when we meet, the services " <>
+           "we provide, how to become a member, and how to reach us.",
+       positions: Members.list_positions()
+     )}
   end
 
   @impl true

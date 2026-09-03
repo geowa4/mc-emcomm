@@ -25,6 +25,21 @@ defmodule McEmcomm.Sightings do
 
   ## Update point 0 — HTTP mount
 
+  # Tokens that nearly every crawler, indexer, and link-preview fetcher
+  # announces. UAInspector's bot database is the authority when it has been
+  # downloaded; this list stands in when it hasn't and catches the common
+  # cases either way.
+  @crawler_pattern ~r/bot|crawl|spider|slurp|fetch|preview|scan|facebookexternalhit/i
+
+  @doc """
+  Whether a user-agent string belongs to a crawler, indexer, or link-preview
+  fetcher rather than a person's browser.
+  """
+  @spec crawler_user_agent?(String.t()) :: boolean()
+  def crawler_user_agent?(user_agent) when is_binary(user_agent) do
+    Regex.match?(@crawler_pattern, user_agent) or UAInspector.bot?(user_agent)
+  end
+
   @spec record_visit(map()) :: {:ok, Sighting.t()} | {:error, Ecto.Changeset.t()}
   def record_visit(attrs) do
     %Sighting{}

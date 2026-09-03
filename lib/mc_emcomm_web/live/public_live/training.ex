@@ -3,7 +3,13 @@ defmodule McEmcommWeb.PublicLive.Training do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, page_title: "Training")}
+    {:ok,
+     assign(socket,
+       page_title: "Training",
+       meta_description:
+         "Recommended FEMA Independent Study courses and ARRL emergency communications " <>
+           "training for Monroe County ARES/RACES members and interested operators."
+     )}
   end
 
   @impl true

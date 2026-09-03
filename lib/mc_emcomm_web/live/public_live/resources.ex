@@ -14,6 +14,9 @@ defmodule McEmcommWeb.PublicLive.Resources do
     {:ok,
      assign(socket,
        page_title: "Resources",
+       meta_description:
+         "Documents, forms, and reference material for Monroe County ARES/RACES members and " <>
+           "the public.",
        # A visitor who cannot download a members-only document is not shown
        # one either: the titles and filenames are themselves operational
        # detail, and the tier matrix (spec §3) puts gated documents out of

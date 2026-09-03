@@ -6,7 +6,15 @@ defmodule McEmcommWeb.OperationLive.PublicIndex do
   @impl true
   def mount(_params, _session, socket) do
     operations = Operations.list_operations(visibility: :public)
-    {:ok, assign(socket, page_title: "Public Operations", operations: operations)}
+
+    {:ok,
+     assign(socket,
+       page_title: "Public Operations",
+       meta_description:
+         "Public service events and exercises where Monroe County ARES/RACES provides " <>
+           "communications support.",
+       operations: operations
+     )}
   end
 
   @impl true

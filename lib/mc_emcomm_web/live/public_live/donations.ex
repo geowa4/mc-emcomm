@@ -3,7 +3,13 @@ defmodule McEmcommWeb.PublicLive.Donations do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, page_title: "Donations")}
+    {:ok,
+     assign(socket,
+       page_title: "Donations",
+       meta_description:
+         "Support Monroe County ARES/RACES with a donation toward the equipment and training " <>
+           "that keep volunteer emergency communications ready."
+     )}
   end
 
   @impl true

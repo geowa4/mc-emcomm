@@ -16,10 +16,15 @@ defmodule McEmcommWeb.Plugs.RecordSighting do
   def init(opts), do: opts
 
   def call(%Plug.Conn{path_params: %{"public_id" => public_id}} = conn, _opts) do
-    case Assets.get_asset_by_public_id(public_id) do
-      # No row is written for an unknown or retired asset, and any sighting
-      # left in the session by an earlier scan is dropped so the LiveView
-      # cannot fall back to it for a different asset.
+    # A crawler or link-preview fetcher is not a sighting. robots.txt and the
+    # noindex header keep well-behaved ones away; this catches the rest so an
+    # indexer can't fill the log with phantom visits.
+    asset = if crawler?(conn), do: nil, else: Assets.get_asset_by_public_id(public_id)
+
+    case asset do
+      # No row is written for a crawler, an unknown asset, or a retired one,
+      # and any sighting left in the session by an earlier scan is dropped so
+      # the LiveView cannot fall back to it for a different asset.
       nil ->
         forget_sighting(conn)
 
@@ -56,6 +61,13 @@ defmodule McEmcommWeb.Plugs.RecordSighting do
     conn
     |> delete_session(:sighting_id)
     |> delete_session(:sighting_session_token)
+  end
+
+  defp crawler?(conn) do
+    case get_req_header_value(conn, "user-agent") do
+      nil -> false
+      user_agent -> Sightings.crawler_user_agent?(user_agent)
+    end
   end
 
   defp remote_ip(conn) do

@@ -38,7 +38,16 @@ defmodule McEmcommWeb.Router do
   # plug, from the disconnected conn, so the visit is captured even if the
   # socket never connects.
   pipeline :record_sighting do
+    plug :put_noindex_header
     plug McEmcommWeb.Plugs.RecordSighting
+  end
+
+  # The sighting page is a QR-code scan target, not a search result: a
+  # crawler indexing it would record a phantom sighting on every visit. The
+  # header reaches crawlers that never parse the page's robots meta tag;
+  # robots.txt disallows the prefix as well.
+  defp put_noindex_header(conn, _opts) do
+    put_resp_header(conn, "x-robots-tag", "noindex, nofollow")
   end
 
   scope "/", McEmcommWeb do
@@ -115,6 +124,14 @@ defmodule McEmcommWeb.Router do
       live "/certifications", AdminLive.CertificationIndex, :index
       live "/documents", AdminLive.DocumentIndex, :index
     end
+  end
+
+  ## Crawler files (no session, no CSRF; served fresh so they carry the
+  ## configured public origin and the current public operations)
+
+  scope "/", McEmcommWeb do
+    get "/robots.txt", SeoController, :robots
+    get "/sitemap.xml", SeoController, :sitemap
   end
 
   ## Health checks (no session, no CSRF; liveness has no dependencies)

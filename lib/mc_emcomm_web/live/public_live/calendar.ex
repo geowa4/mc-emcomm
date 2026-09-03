@@ -11,6 +11,9 @@ defmodule McEmcommWeb.PublicLive.Calendar do
     {:ok,
      assign(socket,
        page_title: "Calendar",
+       meta_description:
+         "Upcoming Monroe County ARES/RACES meetings, nets, training sessions, and public " <>
+           "service events, with a calendar you can subscribe to.",
        calendar_embed_src: @calendar_embed_src,
        calendar_ics_url: @calendar_ics_url,
        calendar_subscribe_url: @calendar_subscribe_url
