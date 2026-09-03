@@ -36,7 +36,8 @@ section referenced below before working in that area.
 ## Security & secrets
 
 - Never commit secrets. Runtime configuration comes from environment variables read
-  in `config/runtime.exs`; CONTRIBUTING.md § Deployment lists them.
+  in `config/runtime.exs`; CONTRIBUTING.md § Deployment lists them. Operator
+  procedures (first deploy, custom domain, runbook) are in DEPLOY.md.
 - Both magic-link and password login are first-class. Login is required at
   confirmation as pre-stuffing defense — do not weaken this.
 - Inbound webhook signature verification is manual by design (no `svix` dependency);
@@ -48,7 +49,7 @@ section referenced below before working in that area.
   single-use. Codes are verified and sessions minted only in
   `UserSessionController.verify_two_factor/2`; LiveViews never verify codes. The
   parked login in the session (`:pending_two_factor`) carries no secrets. Operator
-  reset: `McEmcomm.Release.disable_totp/1` (CONTRIBUTING.md § Deployment).
+  reset: `McEmcomm.Release.disable_totp/1` (DEPLOY.md § Runbook).
 
 ## Elixir / Phoenix rules
 

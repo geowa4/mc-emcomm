@@ -99,174 +99,29 @@ live in AGENTS.md; this file holds the detail those rules point to.
 
 ## Deployment
 
-- Fly.io, blue-green (`fly.toml`), migrations via the release command.
-- Secrets (`fly secrets set ...`): `SECRET_KEY_BASE`, `DATABASE_URL`,
-  `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `MAIL_FROM` (sender for account
-  emails; must be on a domain verified in Resend), and optionally
-  `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS`.
+Standing up and operating a production instance is documented in DEPLOY.md
+(first deploy, custom domain, continuous deployment, and the runbook for
+promoting the first administrator, resetting two-factor authentication, and
+rotating the database credential). What a contributor needs to know:
+
+- Fly.io, blue-green (`fly.toml`), migrations via the release command. Blue
+  and green run side by side during a deploy, which is why "Database &
+  migrations" above requires expand-contract.
+- Runtime configuration is read from environment variables in
+  `config/runtime.exs`. Secrets (`fly secrets set ...`): `SECRET_KEY_BASE`,
+  `DATABASE_URL`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `MAIL_FROM`
+  (sender for account emails; must be on a domain verified in Resend), and
+  optionally `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS`.
+  `PHX_HOST` and `MC_EMCOMM_QR_BASE_URL` name the public origin; anything
+  that builds an absolute URL (emails, canonical links, the sitemap, QR
+  codes) must derive from them rather than from the request.
 - `min_machines_running = 1` is mandatory: `auto_stop_machines` would otherwise
   stop the background GenServers (health probe, PromEx, schedulers).
-
-### First deploy
-
-Fly app names cannot contain underscores, so `fly.toml` uses the kebab-case
-form of the app name (`app` and `PHX_HOST`); `mix mc_emcomm.rename` rewrites both.
-
-```sh
-fly apps create <app> --org <org>
-
-# Database: use Managed Postgres (`fly mpg`) for anything real. It provides
-# backups, point-in-time restore, and HA plans. Note that MPG currently offers
-# Postgres 16/17 (the app runs 18 locally; nothing here depends on 18-only
-# features).
-fly mpg create --name <app>-db --org <org> --region iad --pg-major-version 17 --plan basic
-fly mpg attach <cluster-id> --app <app>      # sets DATABASE_URL
-# Both mpg commands print the full connection string, password included, to
-# the terminal. Treat scrollback, CI logs, and agent transcripts as tainted;
-# see "Rotating the database credential" below.
-
-# Secrets. Stage them so they ship with the first deploy instead of triggering
-# a release each.
-fly secrets set --app <app> --stage \
-  SECRET_KEY_BASE="$(mix phx.gen.secret)" \
-  RESEND_API_KEY="re_..." \
-  RESEND_WEBHOOK_SECRET="whsec_..." \
-  MAIL_FROM="noreply@<verified-domain>"
-
-# GIT_SHA is baked into the image; the remote builder never sees .git, so it
-# must be passed explicitly (the deploy workflow does this for you).
-fly deploy --remote-only --build-arg GIT_SHA="$(git rev-parse HEAD)"
-curl https://<app>.fly.dev/healthz/ready     # => ready
-curl https://<app>.fly.dev/healthz/version   # => {"version":"<sha>"}
-fly checks list --app <app>                # live + readiness passing per machine
-```
-
-### First administrator
-
-Nothing in the deploy path seeds an admin: migrations only create schema, and
-`priv/repo/seeds.exs` is dev-only. On a fresh database, register an account
-through the site as usual, then grant it the admin flag from the release:
-
-```sh
-fly ssh console --app <app> -C "/app/bin/mc_emcomm eval 'McEmcomm.Release.promote_admin(\"you@example.org\")'"
-```
-
-The call is idempotent and does not require a member profile; the admin
-console works with the flag alone. Member-only actions (running a net, marking
-attendance, holding a position) still need an approved member profile, which
-the admin can create and approve like anyone else's.
-
-### Resetting two-factor authentication
-
-Users can turn on TOTP two-factor authentication under Account → Manage
-two-factor authentication, and receive eight single-use recovery codes when
-they do. A member who has lost both their authenticator and every recovery
-code cannot log in; verify who you are talking to out of band, then clear
-their second factor from the release:
-
-```sh
-fly ssh console --app <app> -C "/app/bin/mc_emcomm eval 'McEmcomm.Release.disable_totp(\"you@example.org\")'"
-```
-
-The call is idempotent. It forgets the TOTP secret and deletes the recovery
-codes but leaves existing sessions alone; the member logs in with their
-password or a magic link and can re-enroll from settings.
-
-`fly postgres create` (unmanaged, "Fly Postgres") is acceptable for throwaway
-testing only: it is a plain Postgres VM with no backups or managed failover.
-Give it at least 512 MB (`--vm-size shared-cpu-1x` defaults to 256 MB, which
-the OOM killer takes down within minutes: postgres-flex runs postgres, repmgr,
-haproxy, and an exporter). Attach it with
-`fly postgres attach <db-app> --app <app>`; the app config is identical either
-way because it only consumes `DATABASE_URL`.
-
-The template repository itself is deployed as the reference instance
-`base-phoenix` without renaming, by overriding the placeholders at deploy time:
-`fly secrets set --app base-phoenix PHX_HOST=base-phoenix.fly.dev` once, then
-`fly deploy --remote-only -a base-phoenix --build-arg GIT_SHA="$(git rev-parse HEAD)"`
-(secrets take precedence over `[env]`).
-
-### Continuous deployment
-
-`.github/workflows/deploy.yml` deploys every successful CI run on the default
-branch, and can also be run by hand from the Actions tab (that deploys the ref
-you select). It is inert until the repository is configured, so a fresh copy of
-the template does nothing on push:
-
-- Repository variable `FLY_APP`: the Fly app name. The job is skipped while it
-  is unset.
-- Repository secret `FLY_API_TOKEN`: a deploy token scoped to that one app. The
-  job fails with an explicit error if `FLY_APP` is set but the token is missing.
-
-The workflow reads the app name from the variable rather than from `fly.toml`,
-so `mix mc_emcomm.rename` does not touch it and the template itself can deploy its
-reference instance without renaming.
-
-```sh
-gh variable set FLY_APP --body <app>
-
-# Deploy tokens are limited to one app. The default expiry is 20 years; prefer
-# something shorter and rotate. Piping into gh keeps the token out of your
-# scrollback.
-fly tokens create deploy --app <app> --name github-actions --expiry 8760h \
-  | gh secret set FLY_API_TOKEN
-```
-
-To rotate, run the same `fly tokens create ... | gh secret set` pipeline (it
-replaces the secret), then revoke the old token: `fly tokens list --scope app
---app <app>` and `fly tokens revoke <id>`.
-
-The deploy job runs in the `production` environment. Restrict that environment
-to the default branch so a manual run from the Actions tab cannot deploy an
-arbitrary ref: automatic deploys are already limited to pushes on the default
-branch by the workflow itself, but `workflow_dispatch` accepts any ref the
-person triggering it selects. The policy is a repository setting, not part of
-the workflow file, so each repository created from the template sets it once
-(replace `trunk` with your default branch). This is a custom branch policy
-rather than "protected branches only" because branch protection is not
-available on private repositories on the free plan.
-
-```sh
-gh api -X PUT repos/{owner}/{repo}/environments/production \
-  --input - <<'JSON'
-{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}
-JSON
-gh api -X POST repos/{owner}/{repo}/environments/production/deployment-branch-policies \
-  -f name=trunk -f type=branch
-```
-
-The equivalent UI path is Settings → Environments → production → Deployment
-branches and tags → Selected branches and tags. No reviewer is required: the
-gate is "what can be deployed", not "who approves it".
-
-### Rotating the database credential
-
-The connection string is an ordinary Fly secret: `fly mpg create`/`attach`
-print it, and `fly ssh console -C 'sh -c "printenv DATABASE_URL"'` reads it
-back from any machine. Rotation is zero-downtime if done in this order:
-
-```sh
-fly mpg users create <cluster-id> --username <new-user> --role schema_admin
-fly mpg attach <cluster-id> --app <app> --username <new-user>   # rewrites DATABASE_URL
-fly status --app <app>        # wait until only the new machine version remains
-fly mpg users delete <cluster-id> --username <old-user>
-```
-
-- The role **must** be `schema_admin`. MPG tables are owned by the shared
-  `schema_admin` role rather than by the user that created them, so a new
-  `schema_admin` user inherits ownership and migrations keep working; a
-  `writer` user can read and write but every `ALTER TABLE` and the migrator's
-  lock on `schema_migrations` will fail.
-- `attach` sets `DATABASE_URL` as an unstaged secret, which rolls the machines:
-  new ones pass the readiness gate on the new credential before old ones stop.
-- Deleting a user kills its live connections immediately. Delete the old user
-  only after the old machines are gone, never before re-attaching — otherwise
-  the pool cannot reconnect, `/healthz/ready` fails, and Fly stops routing to
-  the app until a new secret is deployed.
-
-After the first deploy, point the Resend `email.received` webhook at
-`https://<app>.fly.dev/webhooks/resend` and set `RESEND_WEBHOOK_SECRET` to the
-signing secret Resend shows for that endpoint.
+- Every successful CI run on the default branch deploys through
+  `.github/workflows/deploy.yml`; merging to trunk ships. Configuring the
+  workflow is covered in DEPLOY.md § Continuous deployment.
+- Operator commands live in `McEmcomm.Release` and run from the release with
+  `fly ssh console -C "/app/bin/mc_emcomm eval '...'"`; add new ones there.
 
 ## Sprites (cloud dev VM)
 

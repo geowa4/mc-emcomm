@@ -1,5 +1,5 @@
 # Continuous deployment to Fly.io. Inert until the repository is configured
-# (see CONTRIBUTING.md § Continuous deployment):
+# (see DEPLOY.md § Continuous deployment):
 #
 #   - variable FLY_APP       the Fly app name; the job is skipped when unset
 #   - secret   FLY_API_TOKEN a deploy token scoped to that app
@@ -33,7 +33,7 @@ jobs:
     # Automatic deploys require a successful CI run for a push to this
     # repository's default branch; manual dispatch deploys whichever ref was
     # selected, bounded by the production environment's deployment branch
-    # policy (CONTRIBUTING.md § Continuous deployment). workflow_run executes with this repository's secrets no matter
+    # policy (DEPLOY.md § Continuous deployment). workflow_run executes with this repository's secrets no matter
     # what triggered CI, and head_branch alone is not enough: a pull request
     # from a fork reports the fork's branch name, which can be anything.
     # Requiring a push event from this repository rules forks out entirely.
@@ -54,7 +54,7 @@ jobs:
       - name: Require FLY_API_TOKEN
         run: |
           if [ -z "$FLY_API_TOKEN" ]; then
-            echo "::error::FLY_APP is set but the FLY_API_TOKEN secret is missing (CONTRIBUTING.md § Continuous deployment)"
+            echo "::error::FLY_APP is set but the FLY_API_TOKEN secret is missing (DEPLOY.md § Continuous deployment)"
             exit 1
           fi
       - uses: actions/checkout@v7

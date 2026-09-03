@@ -41,8 +41,7 @@ specification this application implements.
 - Resend outbound email (Swoosh) and a signature-verified inbound webhook
 - Health endpoints, Prometheus on a private port, OpenTelemetry, JSON logs
 - A five-layer quality gate under `mix precommit`; Dialyzer in CI
-- Fly.io blue-green deployment with a release migrator (not yet provisioned
-  for this project — see Deployment below)
+- Fly.io blue-green deployment with a release migrator (see Deployment below)
 
 Built from the [`geowa4/base-phoenix`](https://github.com/geowa4/base-phoenix)
 template; see `AGENTS.md` for the conventions coding agents (and humans)
@@ -131,13 +130,16 @@ see `config/runtime.exs`.
 
 ## Deployment
 
-Not yet provisioned. Per the spec: a Fly Managed Postgres cluster created
-with PostGIS enabled (`fly mpg create --pg-major-version 17
---enable-postgis-support`, falling back to PG16 if PG17+PostGIS isn't
-available in the target region) and a private Tigris bucket (`fly storage
-create`). `fly.toml`, the release migrator, and blue-green settings are
-inherited from the template. See `CONTRIBUTING.md` for the general Fly.io
-deployment flow this project follows once provisioned.
+`DEPLOY.md` is the operator reference: first deploy on Fly.io, the custom
+domain (`PHX_HOST` and `MC_EMCOMM_QR_BASE_URL` must both name the public
+origin), continuous deployment setup, and the runbook for promoting the first
+administrator, resetting two-factor authentication, and rotating the database
+credential. The Managed Postgres cluster needs PostGIS enabled (`fly mpg create
+--pg-major-version 17 --enable-postgis-support`, falling back to PG16 if
+PG17+PostGIS isn't available in the target region) and files go in a private
+Tigris bucket (`fly storage create`). `fly.toml`, the release migrator, and
+blue-green settings are inherited from the template; `CONTRIBUTING.md`
+§ Deployment covers what contributors must respect.
 
 ## Privacy & retention
 
