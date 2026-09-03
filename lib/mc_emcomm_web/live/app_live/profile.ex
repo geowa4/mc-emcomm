@@ -76,7 +76,7 @@ defmodule McEmcommWeb.AppLive.Profile do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active_net={@active_net}>
       <.header>My Profile</.header>
 
       <.form for={@form} id="profile-form" phx-change="validate" phx-submit="save" class="max-w-lg">

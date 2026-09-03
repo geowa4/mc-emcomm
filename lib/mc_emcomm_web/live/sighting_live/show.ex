@@ -75,7 +75,7 @@ defmodule McEmcommWeb.SightingLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active_net={@active_net}>
       <div id="sighting-client" phx-hook="SightingClient" class="hidden"></div>
 
       <div class="max-w-md mx-auto">

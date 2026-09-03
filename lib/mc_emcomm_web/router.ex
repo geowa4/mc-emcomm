@@ -53,7 +53,7 @@ defmodule McEmcommWeb.Router do
     pipe_through :browser
 
     live_session :public,
-      on_mount: [{McEmcommWeb.UserAuth, :mount_current_scope}] do
+      on_mount: [{McEmcommWeb.UserAuth, :mount_current_scope}, McEmcommWeb.ActiveNet] do
       live "/about", PublicLive.About, :show
       live "/training", PublicLive.Training, :show
       live "/resources", PublicLive.Resources, :show
@@ -68,7 +68,7 @@ defmodule McEmcommWeb.Router do
     pipe_through [:browser, :record_sighting]
 
     live_session :sighting,
-      on_mount: [{McEmcommWeb.UserAuth, :mount_current_scope}] do
+      on_mount: [{McEmcommWeb.UserAuth, :mount_current_scope}, McEmcommWeb.ActiveNet] do
       live "/a/:public_id/s", SightingLive.Show, :show
     end
   end
@@ -79,7 +79,7 @@ defmodule McEmcommWeb.Router do
     pipe_through :browser
 
     live_session :member,
-      on_mount: [{McEmcommWeb.MemberAuth, :require_member}] do
+      on_mount: [{McEmcommWeb.MemberAuth, :require_member}, McEmcommWeb.ActiveNet] do
       live "/", AppLive.Dashboard, :show
       live "/profile", AppLive.Profile, :show
       live "/operations", OperationLive.Index, :index
@@ -97,7 +97,7 @@ defmodule McEmcommWeb.Router do
     pipe_through :browser
 
     live_session :admin,
-      on_mount: [{McEmcommWeb.MemberAuth, :require_admin}] do
+      on_mount: [{McEmcommWeb.MemberAuth, :require_admin}, McEmcommWeb.ActiveNet] do
       live "/", AdminLive.Dashboard, :show
       live "/members", AdminLive.MemberIndex, :index
       live "/positions", AdminLive.PositionIndex, :index
@@ -180,7 +180,7 @@ defmodule McEmcommWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     live_session :require_authenticated_user,
-      on_mount: [{McEmcommWeb.UserAuth, :require_authenticated}] do
+      on_mount: [{McEmcommWeb.UserAuth, :require_authenticated}, McEmcommWeb.ActiveNet] do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
       live "/users/settings/two-factor", UserLive.TwoFactor, :edit
@@ -193,7 +193,7 @@ defmodule McEmcommWeb.Router do
     pipe_through [:browser]
 
     live_session :current_user,
-      on_mount: [{McEmcommWeb.UserAuth, :mount_current_scope}] do
+      on_mount: [{McEmcommWeb.UserAuth, :mount_current_scope}, McEmcommWeb.ActiveNet] do
       live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
       live "/users/log-in/:token", UserLive.Confirmation, :new

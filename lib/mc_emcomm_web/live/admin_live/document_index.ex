@@ -20,7 +20,7 @@ defmodule McEmcommWeb.AdminLive.DocumentIndex do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active_net={@active_net}>
       <.header>Documents</.header>
 
       <form id="document-form" phx-change="validate" phx-submit="save" class="max-w-md mb-6">

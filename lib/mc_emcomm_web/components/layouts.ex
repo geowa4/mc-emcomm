@@ -22,7 +22,7 @@ defmodule McEmcommWeb.Layouts do
 
   ## Examples
 
-      <Layouts.app flash={@flash}>
+      <Layouts.app flash={@flash} current_scope={@current_scope} active_net={@active_net}>
         <h1>Content</h1>
       </Layouts.app>
 
@@ -33,6 +33,10 @@ defmodule McEmcommWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://phoenix.hexdocs.pm/scopes.html)"
 
+  attr :active_net, :boolean,
+    default: false,
+    doc: "whether a net is on the air; lights up the header emblem"
+
   slot :inner_block, required: true
 
   def app(assigns) do
@@ -40,7 +44,14 @@ defmodule McEmcommWeb.Layouts do
     <header class="navbar px-4 sm:px-6 lg:px-8">
       <div class="flex-1">
         <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} alt="" class="size-9" />
+          <span
+            id="header-emblem"
+            class={["rounded-full", @active_net && "net-active"]}
+            data-active-net={@active_net}
+            title={@active_net && "A net is on the air"}
+          >
+            <img src={~p"/images/logo.svg"} alt="" class="size-9 block" />
+          </span>
           <span class="text-sm font-semibold">Monroe County ARES/RACES</span>
         </a>
       </div>

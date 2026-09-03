@@ -11,7 +11,7 @@ defmodule McEmcommWeb.OperationLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active_net={@active_net}>
       <.header>Operations</.header>
 
       <ul :if={@operations != []} class="list bg-base-100 rounded-box border border-base-300 mt-4">

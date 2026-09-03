@@ -78,7 +78,7 @@ defmodule McEmcommWeb.InventoryLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active_net={@active_net}>
       <.header>
         {@asset.name}
         <:subtitle><span class="font-mono">{@asset.public_id}</span></:subtitle>

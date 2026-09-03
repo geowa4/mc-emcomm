@@ -11,7 +11,7 @@ defmodule McEmcommWeb.PublicLive.About do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active_net={@active_net}>
       <.header>About Monroe County ARES/RACES</.header>
 
       <p>

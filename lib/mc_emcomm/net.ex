@@ -61,6 +61,13 @@ defmodule McEmcomm.Net do
     |> Repo.all()
   end
 
+  @doc "Whether any net is currently on the air."
+  def active_session? do
+    NetSession
+    |> where([n], is_nil(n.ended_at))
+    |> Repo.exists?()
+  end
+
   def list_past_sessions do
     NetSession
     |> where([n], not is_nil(n.ended_at))

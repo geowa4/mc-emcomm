@@ -113,3 +113,25 @@
   width: 100%;
   border-radius: var(--radius-box);
 }
+
+/* Header emblem glows while a net is on the air (Layouts.app @active_net). */
+@keyframes net-active-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-green-500) 80%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0.75rem 0.375rem color-mix(in oklab, var(--color-green-500) 30%, transparent);
+  }
+}
+
+.net-active {
+  animation: net-active-pulse 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .net-active {
+    animation: none;
+    box-shadow: 0 0 0.5rem 0.25rem color-mix(in oklab, var(--color-green-500) 60%, transparent);
+  }
+}

@@ -9,7 +9,7 @@ defmodule McEmcommWeb.AppLive.Dashboard do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} active_net={@active_net}>
       <.header>Member Portal</.header>
 
       <div class="grid gap-4 sm:grid-cols-2 mt-4">
