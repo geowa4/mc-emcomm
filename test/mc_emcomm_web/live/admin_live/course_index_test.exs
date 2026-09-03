@@ -23,11 +23,11 @@ defmodule McEmcommWeb.AdminLive.CourseIndexTest do
 
     course = Enum.find(Courses.list_courses(), &(&1.name == "IS-100"))
 
-    lv |> element("a", "Edit") |> render_click()
+    lv |> element("button", "Edit") |> render_click()
     lv |> form("#course-form", course: %{name: "IS-100.C"}) |> render_submit()
     assert Courses.get_course!(course.id).name == "IS-100.C"
 
-    lv |> element("a", "Delete") |> render_click()
+    lv |> element("button", "Delete") |> render_click()
     assert Courses.list_courses() == []
   end
 end

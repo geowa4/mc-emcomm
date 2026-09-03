@@ -48,16 +48,13 @@ defmodule McEmcommWeb.OperationLive.Show do
       <p :if={@operation.description}>{@operation.description}</p>
 
       <h2 class="text-lg font-semibold mt-6">Locations</h2>
-      <div
+      <.static_map
         :if={@operation.locations != []}
         id="operation-map"
-        phx-hook="LeafletMap"
-        phx-update="ignore"
-        class="map-canvas"
-        data-markers={@markers_json}
-        data-tile-url={@tile_url}
-      >
-      </div>
+        label={"Map of #{@operation.title} locations"}
+        markers_json={@markers_json}
+        tile_url={@tile_url}
+      />
       <ul class="mt-2 space-y-1">
         <li :for={loc <- @operation.locations} class="text-sm">
           <strong>{loc.name}</strong>
@@ -76,7 +73,13 @@ defmodule McEmcommWeb.OperationLive.Show do
             <div class="font-semibold">{att.filename}</div>
             <div class="text-sm text-base-content/70">{att.description}</div>
           </div>
-          <button class="btn btn-sm btn-outline" phx-click="download_attachment" phx-value-id={att.id}>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline"
+            phx-click="download_attachment"
+            phx-value-id={att.id}
+            aria-label={"Download #{att.filename}"}
+          >
             Download
           </button>
         </li>

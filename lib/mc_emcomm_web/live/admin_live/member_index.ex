@@ -49,13 +49,19 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
           <:col :let={m} label="Call sign">{m.call_sign}</:col>
           <:col :let={m} label="Registered">{Calendar.strftime(m.inserted_at, "%Y-%m-%d")}</:col>
           <:action :let={m}>
-            <.link phx-click="approve" phx-value-id={m.id}>Approve</.link>
+            <button type="button" class="link link-hover" phx-click="approve" phx-value-id={m.id}>Approve</button>
           </:action>
           <:action :let={m}>
-            <.link phx-click="show_reason" phx-value-id={m.id} phx-value-to="rejected">Reject</.link>
+            <button
+              type="button"
+              class="link link-hover"
+              phx-click="show_reason"
+              phx-value-id={m.id}
+              phx-value-to="rejected"
+            >Reject</button>
           </:action>
           <:action :let={m}>
-            <.link phx-click="show_audit" phx-value-id={m.id}>Audit</.link>
+            <button type="button" class="link link-hover" phx-click="show_audit" phx-value-id={m.id}>Audit</button>
           </:action>
         </.table>
       </section>
@@ -73,16 +79,18 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
               class="btn btn-sm btn-outline max-w-56 justify-between gap-2 font-normal"
               popovertarget={"positions-popover-#{m.id}"}
               style={"anchor-name:--positions-anchor-#{m.id}"}
+              aria-label={"Positions held by #{m.name}: #{position_summary(m)}"}
             >
               <span class="truncate">{position_summary(m)}</span>
               <.icon name="hero-chevron-down" class="size-4 shrink-0" />
             </button>
-            <div
+            <fieldset
               id={"positions-popover-#{m.id}"}
               popover
               class="dropdown w-64 rounded-box border border-base-300 bg-base-100 p-2 shadow-md"
               style={"position-anchor:--positions-anchor-#{m.id}"}
             >
+              <legend class="sr-only">Positions held by {m.name}</legend>
               <label
                 :for={position <- @positions}
                 class="label flex cursor-pointer justify-start gap-2 py-1 text-sm"
@@ -99,80 +107,83 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
                 />
                 {position.name}
               </label>
-            </div>
+            </fieldset>
           </form>
         </:col>
         <:action :let={m}>
-          <.link
+          <button
             :if={m.status == :approved}
+            type="button"
+            class="link link-hover"
             phx-click="show_reason"
             phx-value-id={m.id}
             phx-value-to="inactive"
           >
             Deactivate
-          </.link>
-          <.link :if={m.status == :inactive} phx-click="approve" phx-value-id={m.id}>Reactivate</.link>
-          <.link :if={m.status == :rejected} phx-click="reopen" phx-value-id={m.id}>Reopen</.link>
+          </button>
+          <button
+            :if={m.status == :inactive}
+            type="button"
+            class="link link-hover"
+            phx-click="approve"
+            phx-value-id={m.id}
+          >Reactivate</button>
+          <button
+            :if={m.status == :rejected}
+            type="button"
+            class="link link-hover"
+            phx-click="reopen"
+            phx-value-id={m.id}
+          >Reopen</button>
         </:action>
         <:action :let={m}>
-          <.link phx-click="show_audit" phx-value-id={m.id}>Audit</.link>
+          <button type="button" class="link link-hover" phx-click="show_audit" phx-value-id={m.id}>Audit</button>
         </:action>
       </.table>
 
-      <dialog
+      <.modal
         :if={@reason_for}
         id="reason-modal"
-        class="modal modal-open"
-        phx-window-keydown="cancel_reason"
-        phx-key="escape"
+        title={if @reason_for.to == "inactive", do: "Deactivate member", else: "Reject member"}
+        on_close="cancel_reason"
       >
-        <div class="modal-box">
-          <h3 class="text-lg font-semibold mb-2">
-            {if @reason_for.to == "inactive", do: "Deactivate member", else: "Reject member"}
-          </h3>
-          <.form
-            for={to_form(%{"reason" => ""}, as: "transition")}
-            id="reason-form"
-            phx-submit="do_transition"
-          >
-            <input type="hidden" name="transition[id]" value={@reason_for.id} />
-            <input type="hidden" name="transition[to]" value={@reason_for.to} />
-            <.input
-              name="transition[reason]"
-              value=""
-              label={"Reason for #{@reason_for.to}"}
-              required
-            />
-            <div class="modal-action">
-              <button type="button" phx-click="cancel_reason" class="btn btn-ghost">Cancel</button>
-              <.button class="btn btn-primary">Confirm</.button>
-            </div>
-          </.form>
-        </div>
-        <button type="button" class="modal-backdrop" phx-click="cancel_reason" aria-label="Close"></button>
-      </dialog>
+        <.form
+          for={to_form(%{"reason" => ""}, as: "transition")}
+          id="reason-form"
+          phx-submit="do_transition"
+        >
+          <input type="hidden" name="transition[id]" value={@reason_for.id} />
+          <input type="hidden" name="transition[to]" value={@reason_for.to} />
+          <.input
+            name="transition[reason]"
+            value=""
+            label={"Reason for #{@reason_for.to}"}
+            required
+          />
+          <div class="modal-action">
+            <button type="button" phx-click="cancel_reason" class="btn btn-ghost">Cancel</button>
+            <.button class="btn btn-primary">Confirm</.button>
+          </div>
+        </.form>
+      </.modal>
 
-      <dialog
+      <.modal
         :if={@audit_for}
         id="audit-modal"
-        class="modal modal-open"
-        phx-window-keydown="close_audit"
-        phx-key="escape"
+        title={"Audit trail — #{@audit_for.call_sign || @audit_for.name}"}
+        on_close="close_audit"
       >
-        <div class="modal-box">
-          <h3 class="text-lg font-semibold mb-2">Audit trail &mdash; {@audit_for.call_sign}</h3>
-          <ul class="list bg-base-100 rounded-box border border-base-300">
-            <li :for={a <- Members.list_audit_for_member(@audit_for.id)} class="list-row">
-              {a.from_status} &rarr; {a.to_status} &middot; {a.inserted_at}
-              <span :if={a.reason}> &mdash; {a.reason}</span>
-            </li>
-          </ul>
-          <div class="modal-action">
-            <button type="button" phx-click="close_audit" class="btn btn-ghost">Close</button>
-          </div>
+        <ul class="list bg-base-100 rounded-box border border-base-300">
+          <li :for={a <- Members.list_audit_for_member(@audit_for.id)} class="list-row">
+            {a.from_status} <span class="sr-only">to</span><span aria-hidden="true">&rarr;</span>
+            {a.to_status} &middot; {a.inserted_at}
+            <span :if={a.reason}> &mdash; {a.reason}</span>
+          </li>
+        </ul>
+        <div class="modal-action">
+          <button type="button" phx-click="close_audit" class="btn btn-ghost">Close</button>
         </div>
-        <button type="button" class="modal-backdrop" phx-click="close_audit" aria-label="Close"></button>
-      </dialog>
+      </.modal>
     </Layouts.app>
     """
   end

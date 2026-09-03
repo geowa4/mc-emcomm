@@ -40,7 +40,7 @@ defmodule McEmcommWeb.PublicLive.About do
         <li :for={position <- @positions} id={"position-#{position.id}"} class="list-row">
           <div>
             <div class="font-semibold">{position.name}</div>
-            <div :if={position.members == []} class="text-sm text-base-content/50 italic">
+            <div :if={position.members == []} class="text-sm text-base-content/70 italic">
               Vacant
             </div>
             <div
@@ -108,19 +108,19 @@ defmodule McEmcommWeb.PublicLive.About do
         <li>
           Facebook:
           <a class="link" href="https://www.facebook.com/MCARESNY" target="_blank" rel="noopener">
-            Monroe County ARES
+            Monroe County ARES <.new_tab_note />
           </a>
         </li>
         <li>
           X:
           <a class="link" href="https://x.com/MCARESNY" target="_blank" rel="noopener">
-            @MCARESNY
+            @MCARESNY <.new_tab_note />
           </a>
         </li>
         <li>
           Groups.io:
           <a class="link" href="https://groups.io/g/MonroeCountyEmcomm" target="_blank" rel="noopener">
-            Monroe County Emcomm
+            Monroe County Emcomm <.new_tab_note />
           </a>
         </li>
         <li>
@@ -131,7 +131,7 @@ defmodule McEmcommWeb.PublicLive.About do
             target="_blank"
             rel="noopener"
           >
-            Subscribe to our calendar
+            Subscribe to our calendar <.new_tab_note />
           </a>
         </li>
       </ul>

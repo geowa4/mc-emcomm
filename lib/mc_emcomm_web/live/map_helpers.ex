@@ -9,6 +9,43 @@ defmodule McEmcommWeb.MapHelpers do
     %Geo.Point{coordinates: {lng, lat}, srid: 4326}
   end
 
+  @doc """
+  Parses the `lat`/`lng` strings a coordinate form submits (see
+  `McEmcommWeb.MapComponents.map_picker/1`) into a `%Geo.Point{}`, or
+  `:error` when either is missing, malformed, or out of range.
+  """
+  @spec parse_coordinates(map()) :: {:ok, Geo.Point.t()} | :error
+  def parse_coordinates(%{"lat" => lat, "lng" => lng}) do
+    with {:ok, lat} <- parse_float(lat, -90.0, 90.0),
+         {:ok, lng} <- parse_float(lng, -180.0, 180.0) do
+      {:ok, point(lat, lng)}
+    end
+  end
+
+  def parse_coordinates(_params), do: :error
+
+  defp parse_float(value, min, max) when is_binary(value) do
+    case Float.parse(String.trim(value)) do
+      {float, ""} when float >= min and float <= max -> {:ok, float}
+      _invalid -> :error
+    end
+  end
+
+  defp parse_float(_value, _min, _max), do: :error
+
+  @doc "Moves the pin on the `LeafletPicker` map with the given DOM id to `point`."
+  def push_point(socket, map_id, %Geo.Point{} = point) do
+    Phoenix.LiveView.push_event(socket, "picker:set_point", %{
+      id: map_id,
+      lat: lat(point),
+      lng: lng(point)
+    })
+  end
+
+  @doc "The message shown when a coordinate form is submitted with unusable values."
+  def invalid_coordinates_message,
+    do: "Enter a latitude from -90 to 90 and a longitude from -180 to 180."
+
   def lat(%Geo.Point{coordinates: {_lng, lat}}), do: lat
   def lat(_), do: nil
 

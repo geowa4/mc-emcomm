@@ -229,11 +229,15 @@ defmodule McEmcommWeb.CoreComponents do
             value="true"
             checked={@checked}
             class={@class || "checkbox checkbox-sm"}
+            aria-invalid={@errors != [] && "true"}
+            aria-describedby={error_ids(@id, @errors)}
             {@rest}
           />{@label}
         </span>
       </label>
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <.error :for={{msg, index} <- Enum.with_index(@errors)} id={error_id(@id, index)}>
+        {msg}
+      </.error>
     </div>
     """
   end
@@ -248,13 +252,17 @@ defmodule McEmcommWeb.CoreComponents do
           name={@name}
           class={[@class || "w-full select", @errors != [] && (@error_class || "select-error")]}
           multiple={@multiple}
+          aria-invalid={@errors != [] && "true"}
+          aria-describedby={error_ids(@id, @errors)}
           {@rest}
         >
           <option :if={@prompt} value="">{@prompt}</option>
           {Phoenix.HTML.Form.options_for_select(@options, @value)}
         </select>
       </label>
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <.error :for={{msg, index} <- Enum.with_index(@errors)} id={error_id(@id, index)}>
+        {msg}
+      </.error>
     </div>
     """
   end
@@ -271,10 +279,14 @@ defmodule McEmcommWeb.CoreComponents do
             @class || "w-full textarea",
             @errors != [] && (@error_class || "textarea-error")
           ]}
+          aria-invalid={@errors != [] && "true"}
+          aria-describedby={error_ids(@id, @errors)}
           {@rest}
         >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
       </label>
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <.error :for={{msg, index} <- Enum.with_index(@errors)} id={error_id(@id, index)}>
+        {msg}
+      </.error>
     </div>
     """
   end
@@ -294,22 +306,43 @@ defmodule McEmcommWeb.CoreComponents do
             @class || "w-full input",
             @errors != [] && (@error_class || "input-error")
           ]}
+          aria-invalid={@errors != [] && "true"}
+          aria-describedby={error_ids(@id, @errors)}
           {@rest}
         />
       </label>
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <.error :for={{msg, index} <- Enum.with_index(@errors)} id={error_id(@id, index)}>
+        {msg}
+      </.error>
     </div>
     """
   end
 
   # Helper used by inputs to generate form errors
+  attr :id, :string, default: nil
+  slot :inner_block, required: true
+
   defp error(assigns) do
     ~H"""
-    <p class="mt-1.5 flex gap-2 items-center text-sm text-error">
+    <p id={@id} class="mt-1.5 flex gap-2 items-center text-sm text-error">
       <.icon name="hero-exclamation-circle" class="size-5" />
       {render_slot(@inner_block)}
     </p>
     """
+  end
+
+  # Error paragraphs carry ids so the input can name them in
+  # aria-describedby; both are nil when there is no input id to build from.
+  defp error_id(nil, _index), do: nil
+  defp error_id(input_id, index), do: "#{input_id}-error-#{index}"
+
+  defp error_ids(nil, _errors), do: nil
+  defp error_ids(_input_id, []), do: nil
+
+  defp error_ids(input_id, errors) do
+    errors
+    |> Enum.with_index()
+    |> Enum.map_join(" ", fn {_msg, index} -> error_id(input_id, index) end)
   end
 
   @doc """
@@ -374,8 +407,8 @@ defmodule McEmcommWeb.CoreComponents do
       <table class="table table-zebra">
         <thead>
           <tr>
-            <th :for={col <- @col}>{col[:label]}</th>
-            <th :if={@action != []}>
+            <th :for={col <- @col} scope="col">{col[:label]}</th>
+            <th :if={@action != []} scope="col">
               <span class="sr-only">{gettext("Actions")}</span>
             </th>
           </tr>
@@ -431,6 +464,62 @@ defmodule McEmcommWeb.CoreComponents do
   end
 
   @doc """
+  Renders a modal dialog.
+
+  The dialog is opened with the native `showModal()` by the `Modal` hook, so
+  focus is trapped inside it, Escape closes it, and focus returns to the
+  element that opened it when it leaves the page. Closing (Escape, the
+  backdrop, or any button wired to `@on_close`) pushes the `@on_close` event
+  to the LiveView, which is expected to stop rendering the dialog.
+
+  ## Examples
+
+      <.modal :if={@editing} id="edit-modal" title="Edit item" on_close="cancel">
+        <.form ...>...</.form>
+      </.modal>
+  """
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :on_close, :string, required: true, doc: "the LiveView event pushed when the dialog closes"
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def modal(assigns) do
+    ~H"""
+    <dialog
+      id={@id}
+      class="modal"
+      phx-hook="Modal"
+      data-on-close={@on_close}
+      aria-labelledby={"#{@id}-title"}
+      {@rest}
+    >
+      <div class="modal-box">
+        <h2 id={"#{@id}-title"} class="text-lg font-semibold mb-2">{@title}</h2>
+        {render_slot(@inner_block)}
+      </div>
+      <button type="button" class="modal-backdrop" phx-click={@on_close} aria-label={gettext("Close")}></button>
+    </dialog>
+    """
+  end
+
+  @doc """
+  Screen-reader-only note for links that open in a new tab, placed inside the
+  link text so the surprise is announced with the link name.
+
+  ## Examples
+
+      <a href="https://example.com" target="_blank" rel="noopener">
+        Example <.new_tab_note />
+      </a>
+  """
+  def new_tab_note(assigns) do
+    ~H"""
+    <span class="sr-only">{gettext("(opens in a new tab)")}</span>
+    """
+  end
+
+  @doc """
   Renders a [Heroicon](https://heroicons.com).
 
   Heroicons come in three styles – outline, solid, and mini.
@@ -453,7 +542,7 @@ defmodule McEmcommWeb.CoreComponents do
 
   def icon(%{name: "hero-" <> _} = assigns) do
     ~H"""
-    <span class={[@name, @class]} />
+    <span class={[@name, @class]} aria-hidden="true" />
     """
   end
 

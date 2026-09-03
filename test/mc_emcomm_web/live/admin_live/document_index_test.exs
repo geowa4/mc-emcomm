@@ -39,11 +39,11 @@ defmodule McEmcommWeb.AdminLive.DocumentIndexTest do
     assert document.filename == "net-script.pdf"
     assert document.members_only == true
 
-    html = lv |> element("a", "Deactivate") |> render_click()
+    html = lv |> element("button", "Deactivate") |> render_click()
     assert Content.get_document!(document.id).active == false
     assert html =~ "Activate"
 
-    lv |> element("a", "Delete") |> render_click()
+    lv |> element("button", "Delete") |> render_click()
     assert Content.list_documents(members_only_allowed: true) == []
   end
 end

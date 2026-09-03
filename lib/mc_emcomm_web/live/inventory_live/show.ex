@@ -109,15 +109,12 @@ defmodule McEmcommWeb.InventoryLive.Show do
             class="input input-sm w-auto"
           />
         </form>
-        <div
+        <.static_map
           id="asset-map"
-          phx-hook="LeafletMap"
-          phx-update="ignore"
-          class="map-canvas"
-          data-markers={@markers_json}
-          data-tile-url={@tile_url}
-        >
-        </div>
+          label={"Map of sightings of #{@asset.name}"}
+          markers_json={@markers_json}
+          tile_url={@tile_url}
+        />
       </div>
 
       <h2 class="text-lg font-semibold mt-6">

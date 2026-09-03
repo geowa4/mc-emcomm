@@ -43,7 +43,10 @@ defmodule McEmcommWeb.AdminLive.InventoryIndex do
       <form :if={@form} id="asset-form" phx-change="validate" phx-submit="save" class="max-w-md mb-6">
         <.input field={@form[:name]} label="Name" required />
         <.input field={@form[:description]} type="textarea" label="Description" />
-        <.live_file_input upload={@uploads.image} />
+        <div class="fieldset mb-2">
+          <label for={@uploads.image.ref} class="label mb-1">Image</label>
+          <.live_file_input upload={@uploads.image} />
+        </div>
         <.input field={@form[:active]} type="checkbox" label="Active" />
         <.button class="btn btn-primary mt-2">Save</.button>
         <button type="button" phx-click="cancel" class="btn btn-ghost mt-2">Cancel</button>
@@ -54,20 +57,41 @@ defmodule McEmcommWeb.AdminLive.InventoryIndex do
         <:col :let={a} label="Public ID"><span class="font-mono">{a.public_id}</span></:col>
         <:col :let={a} label="Active">{a.active}</:col>
         <:action :let={a}>
-          <.link phx-click="show_qr" phx-value-id={a.id}>QR code</.link>
+          <button
+            type="button"
+            class="link link-hover"
+            phx-click="show_qr"
+            phx-value-id={a.id}
+            aria-label={"QR code #{a.name}"}
+          >QR code</button>
         </:action>
         <:action :let={a}>
-          <.link phx-click="edit" phx-value-id={a.id}>Edit</.link>
+          <button
+            type="button"
+            class="link link-hover"
+            phx-click="edit"
+            phx-value-id={a.id}
+            aria-label={"Edit #{a.name}"}
+          >Edit</button>
         </:action>
         <:action :let={a}>
-          <.link phx-click="delete" phx-value-id={a.id} data-confirm="Delete this asset?">Delete</.link>
+          <button
+            type="button"
+            class="link link-hover"
+            phx-click="delete"
+            phx-value-id={a.id}
+            data-confirm="Delete this asset?"
+            aria-label={"Delete #{a.name}"}
+          >Delete</button>
         </:action>
       </.table>
 
-      <div :if={@qr_for} class="mt-6 max-w-xs">
+      <div :if={@qr_for} id="qr-code" class="mt-6 max-w-xs" tabindex="-1" phx-mounted={JS.focus()}>
         <h2 class="text-lg font-semibold">QR code &mdash; {@qr_for.name}</h2>
         <p class="text-sm text-base-content/70 font-mono break-all">{sighting_url(@qr_for)}</p>
-        {raw(qr_svg(@qr_for))}
+        <div role="img" aria-label={"QR code linking to the sighting page for #{@qr_for.name}"}>
+          {raw(qr_svg(@qr_for))}
+        </div>
       </div>
     </Layouts.app>
     """

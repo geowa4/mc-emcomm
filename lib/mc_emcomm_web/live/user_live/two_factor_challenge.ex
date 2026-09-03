@@ -68,13 +68,13 @@ defmodule McEmcommWeb.UserLive.TwoFactorChallenge do
 
         <p class="text-center text-sm">
           <%= if @mode == :totp do %>
-            <.link id="two-factor-use-recovery" phx-click="use_recovery" class="link">
+            <button type="button" id="two-factor-use-recovery" phx-click="use_recovery" class="link">
               Use a recovery code instead
-            </.link>
+            </button>
           <% else %>
-            <.link id="two-factor-use-totp" phx-click="use_totp" class="link">
+            <button type="button" id="two-factor-use-totp" phx-click="use_totp" class="link">
               Use your authenticator app instead
-            </.link>
+            </button>
           <% end %>
         </p>
       </div>

@@ -87,6 +87,7 @@ defmodule McEmcommWeb do
       import Phoenix.HTML
       # Core UI components
       import McEmcommWeb.CoreComponents
+      import McEmcommWeb.MapComponents
 
       # Common modules used in templates
       alias McEmcommWeb.Layouts

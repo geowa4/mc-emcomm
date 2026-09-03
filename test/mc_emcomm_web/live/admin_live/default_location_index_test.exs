@@ -31,12 +31,53 @@ defmodule McEmcommWeb.AdminLive.DefaultLocationIndexTest do
     assert location.point.coordinates == {-77.55, 43.21}
   end
 
+  test "creating a location from typed coordinates", %{conn: conn} do
+    {:ok, lv, _html} = live(conn, ~p"/admin/locations")
+
+    lv |> element("button", "New location") |> render_click()
+    assert has_element?(lv, "#default-location-map[role='application'][aria-label]")
+
+    lv
+    |> form("#default-location-map-coordinates", %{"lat" => "43.21", "lng" => "-77.55"})
+    |> render_submit()
+
+    assert_push_event(lv, "picker:set_point", %{
+      id: "default-location-map",
+      lat: 43.21,
+      lng: -77.55
+    })
+
+    assert has_element?(lv, "#default-location-pending-point", "43.21")
+
+    lv
+    |> form("#default-location-form", default_location: %{name: "Typed", position: 1})
+    |> render_submit()
+
+    assert [location] = Locations.list_default_locations()
+    assert location.point.coordinates == {-77.55, 43.21}
+  end
+
+  test "unusable coordinates are reported instead of applied", %{conn: conn} do
+    {:ok, lv, _html} = live(conn, ~p"/admin/locations")
+
+    lv |> element("button", "New location") |> render_click()
+
+    html =
+      lv
+      |> form("#default-location-map-coordinates", %{"lat" => "95", "lng" => "-77.55"})
+      |> render_submit()
+
+    assert html =~ "Enter a latitude from -90 to 90"
+    refute_push_event(lv, "picker:set_point", %{})
+    assert has_element?(lv, "#default-location-pending-point", "No new point set")
+  end
+
   test "editing without re-dropping a pin keeps the point", %{conn: conn} do
     location = McEmcommFixtures.default_location_fixture(%{name: "SW"})
 
     {:ok, lv, _html} = live(conn, ~p"/admin/locations")
 
-    lv |> element("a", "Edit") |> render_click()
+    lv |> element("button", "Edit") |> render_click()
     lv |> form("#default-location-form", default_location: %{name: "SW Rally"}) |> render_submit()
 
     reloaded = Locations.get_default_location!(location.id)
@@ -49,7 +90,7 @@ defmodule McEmcommWeb.AdminLive.DefaultLocationIndexTest do
 
     {:ok, lv, _html} = live(conn, ~p"/admin/locations")
 
-    lv |> element("a", "Delete") |> render_click()
+    lv |> element("button", "Delete") |> render_click()
     assert Locations.list_default_locations() == []
   end
 

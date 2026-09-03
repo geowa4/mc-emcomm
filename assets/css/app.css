@@ -108,6 +108,35 @@
 
 /* This file is for your main application CSS */
 
+/* Skip link (Layouts.app): off-screen until it takes keyboard focus. */
+.skip-link {
+  position: absolute;
+  left: -100vw;
+  top: 0.5rem;
+  z-index: 100;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-field);
+  background: var(--color-primary);
+  color: var(--color-primary-content);
+  font-weight: 600;
+}
+
+.skip-link:focus {
+  left: 0.5rem;
+}
+
+/* Keyboard focus stays visible on every interactive element; :where() keeps
+   this below daisyUI's own focus styles for buttons and inputs. */
+:where(a, button, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* <summary> used as a menu button: no disclosure triangle in any engine. */
+summary.list-none::-webkit-details-marker {
+  display: none;
+}
+
 .map-canvas {
   height: 20rem;
   width: 100%;

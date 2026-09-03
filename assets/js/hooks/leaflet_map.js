@@ -36,7 +36,7 @@ const LeafletMap = {
       const latlng = [m.lat, m.lng]
       bounds.push(latlng)
 
-      const marker = L.marker(latlng)
+      const marker = L.marker(latlng, {alt: m.title || "Marker"})
       if (m.title) marker.bindPopup(m.title)
       marker.addTo(this.layerGroup)
 

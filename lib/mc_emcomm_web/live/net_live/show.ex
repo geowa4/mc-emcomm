@@ -60,9 +60,11 @@ defmodule McEmcommWeb.NetLive.Show do
           {@session.name || "Net ##{@session.id}"}
           <button
             id="edit-net-name"
+            type="button"
             phx-click="edit_name"
             class="btn btn-ghost btn-xs align-middle"
             title="Edit net name"
+            aria-label="Edit net name"
           >
             <.icon name="hero-pencil-square" class="size-4" />
           </button>
@@ -84,24 +86,32 @@ defmodule McEmcommWeb.NetLive.Show do
         <span :if={@session.net_control_member}>
           {@session.net_control_member.name}<span :if={@session.net_control_member.call_sign}> &middot; <span class="font-mono">{@session.net_control_member.call_sign}</span></span>
         </span>
-        <span :if={is_nil(@session.net_control_member)} class="text-base-content/50 italic">
+        <span :if={is_nil(@session.net_control_member)} class="text-base-content/70 italic">
           Vacant
         </span>
         <%= if is_nil(@session.ended_at) do %>
           <button
             :if={not net_control?(@current_scope, @session)}
             id="take-net-control"
+            type="button"
             phx-click="take_net_control"
             class="btn btn-outline btn-xs"
           >
             Take net control
           </button>
-          <button id="change-net-control" phx-click="open_ncs_modal" class="btn btn-ghost btn-xs">
+          <button
+            id="change-net-control"
+            type="button"
+            phx-click="open_ncs_modal"
+            class="btn btn-ghost btn-xs"
+            aria-label="Change net control"
+          >
             Change
           </button>
           <button
             :if={@session.net_control_member}
             id="vacate-net-control"
+            type="button"
             phx-click="vacate_net_control"
             data-confirm="Vacate net control?"
             class="btn btn-ghost btn-xs"
@@ -139,13 +149,15 @@ defmodule McEmcommWeb.NetLive.Show do
               {@session.operation.title}
             </.link>
           </span>
-          <span :if={is_nil(@session.operation)} class="text-base-content/50 italic">None</span>
+          <span :if={is_nil(@session.operation)} class="text-base-content/70 italic">None</span>
           <button
             :if={is_nil(@session.ended_at)}
             id="edit-net-operation"
+            type="button"
             phx-click="edit_operation"
             class="btn btn-ghost btn-xs"
             title="Assign operation"
+            aria-label="Assign operation"
           >
             <.icon name="hero-pencil-square" class="size-4" />
           </button>
@@ -180,9 +192,11 @@ defmodule McEmcommWeb.NetLive.Show do
           <button
             :if={is_nil(@session.ended_at)}
             id="edit-net-aprs-keyword"
+            type="button"
             phx-click="edit_aprs_keyword"
             class="btn btn-ghost btn-xs"
             title="Edit APRS keyword"
+            aria-label="Edit APRS keyword"
           >
             <.icon name="hero-pencil-square" class="size-4" />
           </button>
@@ -192,29 +206,23 @@ defmodule McEmcommWeb.NetLive.Show do
         <% end %>
       </div>
 
-      <dialog
-        :if={@ncs_modal?}
-        id="ncs-modal"
-        class="modal modal-open"
-        phx-window-keydown="close_ncs_modal"
-        phx-key="escape"
-      >
-        <div class="modal-box">
-          <h3 class="text-lg font-semibold mb-2">Change net control</h3>
-          <form id="ncs-search-form" phx-submit="search_ncs">
-            <.input
-              name="call_sign"
-              value={@ncs_query}
-              label="Call sign"
-              placeholder="Full or partial call sign, then Enter"
-              phx-mounted={JS.focus()}
-              autocomplete="off"
-            />
-          </form>
+      <.modal :if={@ncs_modal?} id="ncs-modal" title="Change net control" on_close="close_ncs_modal">
+        <form id="ncs-search-form" phx-submit="search_ncs">
+          <.input
+            name="call_sign"
+            value={@ncs_query}
+            label="Call sign"
+            placeholder="Full or partial call sign, then Enter"
+            phx-mounted={JS.focus()}
+            autocomplete="off"
+          />
+        </form>
+        <div id="ncs-results-region" aria-live="polite">
           <ul
             :if={@ncs_results}
             id="ncs-results"
             class="menu bg-base-100 rounded-box border border-base-300 mt-2 w-full"
+            aria-label="Matching members"
           >
             <li :if={@ncs_results == []} class="menu-title">No members match that call sign.</li>
             <li :for={member <- @ncs_results}>
@@ -224,17 +232,11 @@ defmodule McEmcommWeb.NetLive.Show do
               </button>
             </li>
           </ul>
-          <div class="modal-action">
-            <button type="button" phx-click="close_ncs_modal" class="btn btn-ghost">Close</button>
-          </div>
         </div>
-        <button
-          type="button"
-          class="modal-backdrop"
-          phx-click="close_ncs_modal"
-          aria-label="Close"
-        ></button>
-      </dialog>
+        <div class="modal-action">
+          <button type="button" phx-click="close_ncs_modal" class="btn btn-ghost">Close</button>
+        </div>
+      </.modal>
 
       <.form
         :if={is_nil(@session.ended_at)}
@@ -277,46 +279,36 @@ defmodule McEmcommWeb.NetLive.Show do
 
       <h2 class="text-lg font-semibold mt-8">Roster</h2>
 
-      <dialog
+      <.modal
         :if={@editing_checkin}
         id="edit-checkin-modal"
-        class="modal modal-open"
-        phx-window-keydown="cancel_edit_checkin"
-        phx-key="escape"
+        title="Edit check-in"
+        on_close="cancel_edit_checkin"
       >
-        <div class="modal-box">
-          <h3 class="text-lg font-semibold mb-2">Edit check-in</h3>
-          <.form for={@edit_checkin_form} id="edit-checkin-form" phx-submit="update_checkin">
-            <.input
-              field={@edit_checkin_form[:call_sign]}
-              id="edit-checkin-call-sign"
-              label="Call sign"
-              required
-            />
-            <.input
-              type="select"
-              id="edit-checkin-location"
-              name="location_ref"
-              value=""
-              label="Location"
-              options={edit_location_options(@session, @default_locations, @editing_checkin)}
-            />
-            <.input field={@edit_checkin_form[:notes]} id="edit-checkin-notes" label="Notes" />
-            <div class="modal-action">
-              <button type="button" phx-click="cancel_edit_checkin" class="btn btn-ghost">
-                Cancel
-              </button>
-              <.button class="btn btn-primary">Save</.button>
-            </div>
-          </.form>
-        </div>
-        <button
-          type="button"
-          class="modal-backdrop"
-          phx-click="cancel_edit_checkin"
-          aria-label="Close"
-        ></button>
-      </dialog>
+        <.form for={@edit_checkin_form} id="edit-checkin-form" phx-submit="update_checkin">
+          <.input
+            field={@edit_checkin_form[:call_sign]}
+            id="edit-checkin-call-sign"
+            label="Call sign"
+            required
+          />
+          <.input
+            type="select"
+            id="edit-checkin-location"
+            name="location_ref"
+            value=""
+            label="Location"
+            options={edit_location_options(@session, @default_locations, @editing_checkin)}
+          />
+          <.input field={@edit_checkin_form[:notes]} id="edit-checkin-notes" label="Notes" />
+          <div class="modal-action">
+            <button type="button" phx-click="cancel_edit_checkin" class="btn btn-ghost">
+              Cancel
+            </button>
+            <.button class="btn btn-primary">Save</.button>
+          </div>
+        </.form>
+      </.modal>
 
       <.table id="checkins" rows={@session.checkins} row_id={&"checkin-row-#{&1.id}"}>
         <:col :let={c} label="Call sign">
@@ -327,7 +319,7 @@ defmodule McEmcommWeb.NetLive.Show do
             class="badge badge-outline badge-xs ml-1"
             title="Position via APRS-IS"
           >
-            APRS · {c.aprs_call_sign}
+            <span class="sr-only">Position via</span> APRS · {c.aprs_call_sign}
           </span>
         </:col>
         <:col :let={c} label="Member">{c.member && c.member.name}</:col>
@@ -341,20 +333,24 @@ defmodule McEmcommWeb.NetLive.Show do
         <:action :let={c}>
           <button
             id={"edit-checkin-#{c.id}"}
+            type="button"
             phx-click="edit_checkin"
             phx-value-id={c.id}
             class="btn btn-ghost btn-xs"
             title="Edit check-in"
+            aria-label={"Edit check-in for #{c.call_sign}"}
           >
             <.icon name="hero-pencil-square" class="size-4" />
           </button>
           <button
             :if={is_nil(c.ended_at) and is_nil(@session.ended_at)}
             id={"checkout-checkin-#{c.id}"}
+            type="button"
             phx-click="check_out"
             phx-value-id={c.id}
             class="btn btn-ghost btn-xs"
             title="Log leaving the net"
+            aria-label={"Log #{c.call_sign} leaving the net"}
           >
             Leave
           </button>
@@ -369,15 +365,12 @@ defmodule McEmcommWeb.NetLive.Show do
           Everyone who checked in with a known location.
         <% end %>
       </p>
-      <div
+      <.static_map
         id="net-map"
-        phx-hook="LeafletMap"
-        phx-update="ignore"
-        class="map-canvas"
-        data-markers={@net_markers_json}
-        data-tile-url={@tile_url}
-      >
-      </div>
+        label="Map of stations on the net"
+        markers_json={@net_markers_json}
+        tile_url={@tile_url}
+      />
     </Layouts.app>
     """
   end

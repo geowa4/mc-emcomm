@@ -35,7 +35,7 @@ defmodule McEmcommWeb.PublicLive.Training do
             target="_blank"
             rel="noopener"
           >
-            IS-100.C: Introduction to the Incident Command System
+            IS-100.C: Introduction to the Incident Command System <.new_tab_note />
           </a>
           — learn the fundamentals of ICS for effective emergency response coordination.
         </li>
@@ -46,7 +46,7 @@ defmodule McEmcommWeb.PublicLive.Training do
             target="_blank"
             rel="noopener"
           >
-            IS-200.C: Basic Incident Command System for Initial Response
+            IS-200.C: Basic Incident Command System for Initial Response <.new_tab_note />
           </a>
           — build on ICS basics with skills for initial response operations.
         </li>
@@ -57,7 +57,7 @@ defmodule McEmcommWeb.PublicLive.Training do
             target="_blank"
             rel="noopener"
           >
-            IS-700.B: An Introduction to the National Incident Management System
+            IS-700.B: An Introduction to the National Incident Management System <.new_tab_note />
           </a>
           — understand NIMS and its role in national emergency management.
         </li>
@@ -68,7 +68,7 @@ defmodule McEmcommWeb.PublicLive.Training do
             target="_blank"
             rel="noopener"
           >
-            IS-800.D: National Response Framework, An Introduction
+            IS-800.D: National Response Framework, An Introduction <.new_tab_note />
           </a>
           — learn about the NRF and how communities respond to disasters.
         </li>
@@ -83,14 +83,14 @@ defmodule McEmcommWeb.PublicLive.Training do
             target="_blank"
             rel="noopener"
           >
-            ARRL Emergency Communications Training
+            ARRL Emergency Communications Training <.new_tab_note />
           </a>
           — ARRL's comprehensive emergency operations courses, including integrated FEMA and
           Skywarn training.
         </li>
         <li>
           <a class="link" href="https://www.auxcommusa.org/training" target="_blank" rel="noopener">
-            AuxComm Training
+            AuxComm Training <.new_tab_note />
           </a>
           — auxiliary communications training program for emergency communicators.
         </li>

@@ -41,6 +41,31 @@ defmodule McEmcommWeb.AppLive.ProfileTest do
     assert %Geo.Point{} = updated.qth_point
   end
 
+  test "typed coordinates persist the QTH point and move the pin", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    assert has_element?(lv, "#qth-map[role='application'][aria-label]")
+
+    lv
+    |> form("#qth-map-coordinates", %{"lat" => "43.15", "lng" => "-77.6"})
+    |> render_submit()
+
+    assert_push_event(lv, "picker:set_point", %{id: "qth-map", lat: 43.15, lng: -77.6})
+    assert McEmcomm.Members.get_member!(member.id).qth_point.coordinates == {-77.6, 43.15}
+  end
+
+  test "capability checkboxes are labelled by the capability name", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    capability = McEmcommFixtures.capability_fixture(%{name: "APRS"})
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    assert has_element?(lv, "label[for='capability-#{capability.id}']", "APRS")
+    assert has_element?(lv, "input#capability-#{capability.id}")
+  end
+
   test "toggling a capability adds and removes it", %{conn: conn} do
     member = McEmcommFixtures.member_fixture()
     capability = McEmcommFixtures.capability_fixture(%{name: "APRS"})

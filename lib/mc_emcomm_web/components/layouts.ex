@@ -110,6 +110,8 @@ defmodule McEmcommWeb.Layouts do
 
   def app(assigns) do
     ~H"""
+    <a id="skip-to-content" href="#main-content" class="skip-link">Skip to main content</a>
+
     <header class="navbar px-4 sm:px-6 lg:px-8">
       <div class="flex-1">
         <a
@@ -126,9 +128,10 @@ defmodule McEmcommWeb.Layouts do
             <img src={~p"/images/logo.svg"} alt="" class="size-9 block" />
           </span>
           <span class="text-sm font-semibold">Monroe County ARES/RACES</span>
+          <span :if={@active_net} class="sr-only">({@active_net.name} is on the air)</span>
         </a>
       </div>
-      <div class="flex-none">
+      <nav class="flex-none" aria-label="Main">
         <ul class="hidden lg:flex px-1 space-x-2 xl:space-x-4 items-center text-sm">
           <li><a id="nav-home" href={~p"/"} class="btn btn-ghost btn-sm">Home</a></li>
           <li><a href={~p"/about"} class="btn btn-ghost btn-sm">About</a></li>
@@ -137,18 +140,15 @@ defmodule McEmcommWeb.Layouts do
           <li><a href={~p"/operations"} class="btn btn-ghost btn-sm">Operations</a></li>
           <li><a href={~p"/calendar"} class="btn btn-ghost btn-sm">Calendar</a></li>
           <li>
-            <.theme_toggle />
+            <.theme_toggle id="theme-toggle" />
           </li>
           <li :if={@current_scope && @current_scope.user}>
-            <div class="dropdown dropdown-end">
-              <button id="user-menu" tabindex="0" class="btn btn-ghost btn-sm">
+            <details id="user-menu" class="dropdown dropdown-end">
+              <summary id="user-menu-button" class="btn btn-ghost btn-sm list-none">
                 {display_name(@current_scope)}
                 <.icon name="hero-chevron-down-micro" class="size-4" />
-              </button>
-              <ul
-                tabindex="0"
-                class="dropdown-content menu bg-base-100 rounded-box z-20 mt-1 w-44 p-2 shadow"
-              >
+              </summary>
+              <ul class="dropdown-content menu bg-base-100 rounded-box z-20 mt-1 w-44 p-2 shadow">
                 <li>
                   <.link id="user-menu-portal" href={~p"/app"}>Member Portal</.link>
                 </li>
@@ -168,7 +168,7 @@ defmodule McEmcommWeb.Layouts do
                   </.link>
                 </li>
               </ul>
-            </div>
+            </details>
           </li>
           <li :if={!(@current_scope && @current_scope.user)}>
             <a href={~p"/users/register"} class="btn btn-ghost btn-sm">Register</a>
@@ -177,14 +177,15 @@ defmodule McEmcommWeb.Layouts do
             <a href={~p"/users/log-in"} class="btn btn-primary btn-sm">Log in</a>
           </li>
         </ul>
-        <div class="dropdown dropdown-end lg:hidden">
-          <button id="mobile-menu" tabindex="0" class="btn btn-ghost btn-square" aria-label="Menu">
-            <.icon name="hero-bars-3" class="size-6" />
-          </button>
-          <ul
-            tabindex="0"
-            class="dropdown-content menu bg-base-100 rounded-box z-20 mt-1 w-52 p-2 shadow"
+        <details id="mobile-menu" class="dropdown dropdown-end lg:hidden">
+          <summary
+            id="mobile-menu-button"
+            class="btn btn-ghost btn-square list-none"
+            aria-label="Menu"
           >
+            <.icon name="hero-bars-3" class="size-6" />
+          </summary>
+          <ul class="dropdown-content menu bg-base-100 rounded-box z-20 mt-1 w-52 p-2 shadow">
             <li><a id="mobile-nav-home" href={~p"/"}>Home</a></li>
             <li><a href={~p"/about"}>About</a></li>
             <li><a href={~p"/training"}>Training</a></li>
@@ -217,14 +218,14 @@ defmodule McEmcommWeb.Layouts do
             </li>
             <li class="divider my-1" aria-hidden="true"></li>
             <li class="p-1">
-              <.theme_toggle />
+              <.theme_toggle id="mobile-theme-toggle" />
             </li>
           </ul>
-        </div>
-      </div>
+        </details>
+      </nav>
     </header>
 
-    <main class="px-4 py-12 sm:px-6 lg:px-8">
+    <main id="main-content" tabindex="-1" class="px-4 py-12 sm:px-6 lg:px-8 outline-none">
       <div class="mx-auto max-w-4xl space-y-4">
         {render_slot(@inner_block)}
       </div>
@@ -243,12 +244,12 @@ defmodule McEmcommWeb.Layouts do
               target="_blank"
               rel="noopener"
             >
-              Facebook
+              Facebook <.new_tab_note />
             </a>
           </li>
           <li>
             <a class="link link-hover" href="https://x.com/MCARESNY" target="_blank" rel="noopener">
-              X
+              X <.new_tab_note />
             </a>
           </li>
           <li>
@@ -258,7 +259,7 @@ defmodule McEmcommWeb.Layouts do
               target="_blank"
               rel="noopener"
             >
-              Groups.io
+              Groups.io <.new_tab_note />
             </a>
           </li>
           <li>
@@ -268,7 +269,7 @@ defmodule McEmcommWeb.Layouts do
               target="_blank"
               rel="noopener"
             >
-              Calendar
+              Calendar <.new_tab_note />
             </a>
           </li>
         </ul>
@@ -342,33 +343,49 @@ defmodule McEmcommWeb.Layouts do
   @doc """
   Provides dark vs light theme toggle based on themes defined in app.css.
 
-  See <head> in root.html.heex which applies the theme before page load.
+  See <head> in root.html.heex which applies the theme before page load. The
+  `ThemeToggle` hook keeps `aria-pressed` on each button in step with the
+  theme the document is showing, which only the client knows.
   """
+  attr :id, :string, required: true
+
   def theme_toggle(assigns) do
     ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
+    <div
+      id={@id}
+      phx-hook="ThemeToggle"
+      role="group"
+      aria-label="Color theme"
+      class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full"
+    >
       <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 [[data-theme-source=system]_&]:!left-0 transition-[left]" />
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        type="button"
+        class="flex p-2 cursor-pointer w-1/3 rounded-full"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="system"
+        aria-label="Match system theme"
       >
         <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        type="button"
+        class="flex p-2 cursor-pointer w-1/3 rounded-full"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="light"
+        aria-label="Light theme"
       >
         <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        type="button"
+        class="flex p-2 cursor-pointer w-1/3 rounded-full"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="dark"
+        aria-label="Dark theme"
       >
         <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>

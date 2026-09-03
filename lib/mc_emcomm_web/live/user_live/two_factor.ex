@@ -93,7 +93,12 @@ defmodule McEmcommWeb.UserLive.TwoFactor do
               <li>Open your authenticator app and scan this QR code.</li>
               <li>Enter the six-digit code it shows to finish.</li>
             </ol>
-            <figure id="two-factor-qr" class="mx-auto w-fit rounded bg-white p-2">
+            <figure
+              id="two-factor-qr"
+              class="mx-auto w-fit rounded bg-white p-2"
+              role="img"
+              aria-label="QR code to scan with your authenticator app"
+            >
               {raw(@qr_svg)}
             </figure>
             <p class="text-center text-sm">

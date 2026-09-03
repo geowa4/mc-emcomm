@@ -40,6 +40,26 @@ topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
+// <details class="dropdown"> menus in the header: the browser handles opening
+// them from the keyboard, but not closing them. Escape closes and returns
+// focus to the summary; a click or Tab that leaves the menu closes it too.
+const openDropdowns = () => document.querySelectorAll("details.dropdown[open]")
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return
+  openDropdowns().forEach(details => {
+    details.removeAttribute("open")
+    const summary = details.querySelector("summary")
+    summary && summary.focus()
+  })
+})
+const closeDropdownsOutside = e => {
+  openDropdowns().forEach(details => {
+    if (!details.contains(e.target)) details.removeAttribute("open")
+  })
+}
+document.addEventListener("click", closeDropdownsOutside)
+document.addEventListener("focusin", closeDropdownsOutside)
+
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 

@@ -47,10 +47,23 @@ defmodule McEmcommWeb.AdminLive.CourseIndex do
         <:col :let={c} label="Code">{c.code}</:col>
         <:col :let={c} label="Active">{c.active}</:col>
         <:action :let={c}>
-          <.link phx-click="edit" phx-value-id={c.id}>Edit</.link>
+          <button
+            type="button"
+            class="link link-hover"
+            phx-click="edit"
+            phx-value-id={c.id}
+            aria-label={"Edit #{c.name}"}
+          >Edit</button>
         </:action>
         <:action :let={c}>
-          <.link phx-click="delete" phx-value-id={c.id} data-confirm="Delete this course?">Delete</.link>
+          <button
+            type="button"
+            class="link link-hover"
+            phx-click="delete"
+            phx-value-id={c.id}
+            data-confirm="Delete this course?"
+            aria-label={"Delete #{c.name}"}
+          >Delete</button>
         </:action>
       </.table>
     </Layouts.app>

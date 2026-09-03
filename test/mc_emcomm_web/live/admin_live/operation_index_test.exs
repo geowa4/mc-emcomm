@@ -42,6 +42,36 @@ defmodule McEmcommWeb.AdminLive.OperationIndexTest do
     assert Enum.any?(Operations.list_operations(), &(&1.title == "New Operation"))
   end
 
+  test "adding a location from typed coordinates", %{conn: conn} do
+    operation = McEmcommFixtures.operation_fixture(%{"title" => "Typed Site"}, %{"name" => "HQ"})
+    {:ok, lv, _html} = live(conn, ~p"/admin/operations/#{operation.id}/edit")
+
+    lv
+    |> form("#location-map-coordinates", %{"lat" => "43.2", "lng" => "-77.5"})
+    |> render_submit()
+
+    assert_push_event(lv, "picker:set_point", %{id: "location-map", lat: 43.2, lng: -77.5})
+    assert has_element?(lv, "#location-pending-point", "43.2")
+
+    lv
+    |> form("#location-form", operation_location: %{name: "Typed", geofence_radius_m: 100})
+    |> render_submit()
+
+    typed = Enum.find(Operations.get_operation!(operation.id).locations, &(&1.name == "Typed"))
+    assert typed.point.coordinates == {-77.5, 43.2}
+  end
+
+  test "operations are reachable by a link as well as a row click", %{conn: conn} do
+    operation = McEmcommFixtures.operation_fixture(%{"title" => "Field Day"})
+    {:ok, lv, _html} = live(conn, ~p"/admin/operations")
+
+    assert has_element?(
+             lv,
+             "#operations a[href='/admin/operations/#{operation.id}/edit']",
+             "Field Day"
+           )
+  end
+
   test "adding and removing a location via the map picker", %{conn: conn} do
     operation = McEmcommFixtures.operation_fixture(%{"title" => "Multi Site"}, %{"name" => "HQ"})
     {:ok, lv, _html} = live(conn, ~p"/admin/operations/#{operation.id}/edit")
@@ -63,7 +93,7 @@ defmodule McEmcommWeb.AdminLive.OperationIndexTest do
 
     html =
       lv
-      |> element("a[phx-value-id='#{new_location.id}']", "Remove")
+      |> element("button[phx-value-id='#{new_location.id}']", "Remove")
       |> render_click()
 
     refute html =~ "Repeater Site"
@@ -121,7 +151,7 @@ defmodule McEmcommWeb.AdminLive.OperationIndexTest do
     operation = McEmcommFixtures.operation_fixture(%{"title" => "To Delete"})
     {:ok, lv, _html} = live(conn, ~p"/admin/operations")
 
-    lv |> element("a[phx-value-id='#{operation.id}']", "Delete") |> render_click()
+    lv |> element("button[phx-value-id='#{operation.id}']", "Delete") |> render_click()
 
     refute Enum.any?(Operations.list_operations(), &(&1.id == operation.id))
   end

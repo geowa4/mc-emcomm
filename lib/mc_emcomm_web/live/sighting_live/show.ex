@@ -86,7 +86,7 @@ defmodule McEmcommWeb.SightingLive.Show do
         <h1 class="text-2xl font-bold mt-4">{@asset.name}</h1>
         <p :if={@asset.description} class="text-base-content/70">{@asset.description}</p>
 
-        <div :if={@submitted} class="alert alert-success mt-6">
+        <div :if={@submitted} id="sighting-submitted" role="status" class="alert alert-success mt-6">
           Thanks — this sighting has been recorded.
         </div>
 

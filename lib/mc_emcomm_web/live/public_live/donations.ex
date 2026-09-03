@@ -43,7 +43,7 @@ defmodule McEmcommWeb.PublicLive.Donations do
           target="_blank"
           rel="noopener"
         >
-          Donate online via Zeffy
+          Donate online via Zeffy <.new_tab_note />
         </a>
       </p>
 

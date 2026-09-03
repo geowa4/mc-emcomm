@@ -25,7 +25,10 @@ defmodule McEmcommWeb.AdminLive.DocumentIndex do
 
       <form id="document-form" phx-change="validate" phx-submit="save" class="max-w-md mb-6">
         <.input name="title" label="Title" value="" required />
-        <.live_file_input upload={@uploads.file} />
+        <div class="fieldset mb-2">
+          <label for={@uploads.file.ref} class="label mb-1">File</label>
+          <.live_file_input upload={@uploads.file} />
+        </div>
         <label class="label mt-2">
           <input
             type="checkbox"
@@ -44,12 +47,25 @@ defmodule McEmcommWeb.AdminLive.DocumentIndex do
         <:col :let={d} label="Members only">{d.members_only}</:col>
         <:col :let={d} label="Active">{d.active}</:col>
         <:action :let={d}>
-          <.link phx-click="toggle_active" phx-value-id={d.id}>
+          <button
+            type="button"
+            class="link link-hover"
+            phx-click="toggle_active"
+            phx-value-id={d.id}
+            aria-label={"#{if d.active, do: "Deactivate", else: "Activate"} #{d.title}"}
+          >
             {if d.active, do: "Deactivate", else: "Activate"}
-          </.link>
+          </button>
         </:action>
         <:action :let={d}>
-          <.link phx-click="delete" phx-value-id={d.id} data-confirm="Delete this document?">Delete</.link>
+          <button
+            type="button"
+            class="link link-hover"
+            phx-click="delete"
+            phx-value-id={d.id}
+            data-confirm="Delete this document?"
+            aria-label={"Delete #{d.title}"}
+          >Delete</button>
         </:action>
       </.table>
     </Layouts.app>

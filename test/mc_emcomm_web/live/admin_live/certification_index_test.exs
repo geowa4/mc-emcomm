@@ -36,11 +36,11 @@ defmodule McEmcommWeb.AdminLive.CertificationIndexTest do
     certification = Enum.find(Certifications.list_certifications(), &(&1.name == "AUXC"))
     assert certification.prerequisite_course_id == course.id
 
-    lv |> element("a", "Edit") |> render_click()
+    lv |> element("button", "Edit") |> render_click()
     lv |> form("#certification-form", certification: %{name: "AUXC Renewed"}) |> render_submit()
     assert Certifications.get_certification!(certification.id).name == "AUXC Renewed"
 
-    lv |> element("a", "Delete") |> render_click()
+    lv |> element("button", "Delete") |> render_click()
     assert Certifications.list_certifications() == []
   end
 end

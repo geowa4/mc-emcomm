@@ -38,7 +38,7 @@ defmodule McEmcommWeb.PublicLive.Calendar do
           target="_blank"
           rel="noopener"
         >
-          Subscribe (Google Calendar)
+          Subscribe (Google Calendar) <.new_tab_note />
         </a>
         <button
           id="copy-ics-btn"
@@ -49,14 +49,20 @@ defmodule McEmcommWeb.PublicLive.Calendar do
         >
           Copy ICS link
         </button>
+        <span id="copy-ics-status" role="status" class="sr-only"></span>
         <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyIcs">
           export default {
             mounted() {
+              const status = document.getElementById("copy-ics-status")
               this.el.addEventListener("click", () => {
                 navigator.clipboard.writeText(this.el.dataset.icsUrl).then(() => {
                   const original = this.el.textContent
                   this.el.textContent = "Copied!"
-                  setTimeout(() => { this.el.textContent = original }, 2000)
+                  if (status) status.textContent = "ICS link copied to the clipboard."
+                  setTimeout(() => {
+                    this.el.textContent = original
+                    if (status) status.textContent = ""
+                  }, 2000)
                 })
               })
             }
@@ -67,6 +73,7 @@ defmodule McEmcommWeb.PublicLive.Calendar do
       <div class="mt-4 aspect-video w-full">
         <iframe
           src={@calendar_embed_src}
+          title="Monroe County ARES/RACES Google Calendar"
           class="w-full h-full border border-base-300 rounded-box"
           loading="lazy"
         ></iframe>

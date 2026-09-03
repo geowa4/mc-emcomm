@@ -91,26 +91,27 @@ defmodule McEmcommWeb.AppLive.Profile do
         />
         <.input field={@form[:qth_address]} label="QTH address" />
 
-        <label class="label">QTH location (click the map to drop a pin)</label>
-        <div
-          id="qth-map"
-          phx-hook="LeafletPicker"
-          phx-update="ignore"
-          class="map-canvas"
-          data-lat={MapHelpers.lat(@member.qth_point)}
-          data-lng={MapHelpers.lng(@member.qth_point)}
-          data-tile-url={@tile_url}
-        >
-        </div>
-
         <.button phx-disable-with="Saving..." class="btn btn-primary mt-4">Save profile</.button>
       </.form>
+
+      <section id="qth-location" class="max-w-lg" aria-labelledby="qth-location-heading">
+        <h2 id="qth-location-heading" class="text-lg font-semibold mt-8">QTH location</h2>
+        <.map_picker
+          id="qth-map"
+          label="QTH location map"
+          point={@member.qth_point}
+          tile_url={@tile_url}
+          on_submit="set_qth_point"
+          instructions="Click the map to drop a pin, or enter the coordinates below. Either saves right away."
+        />
+      </section>
 
       <h2 class="text-lg font-semibold mt-8">Capabilities</h2>
       <ul class="list bg-base-100 rounded-box border border-base-300">
         <li :for={cap <- @capabilities} class="list-row items-center">
-          <div class="flex-1">{cap.name}</div>
+          <label for={"capability-#{cap.id}"} class="flex-1 cursor-pointer">{cap.name}</label>
           <input
+            id={"capability-#{cap.id}"}
             type="checkbox"
             class="checkbox"
             checked={Enum.any?(@member_capabilities, &(&1.capability_id == cap.id))}
@@ -133,17 +134,25 @@ defmodule McEmcommWeb.AppLive.Profile do
             </span>
           </div>
           <form
+            id={"course-form-#{course.id}"}
             phx-submit="save_course"
             phx-value-course_id={course.id}
             class="flex flex-wrap gap-2 items-end"
+            aria-label={"#{course.name} completion"}
           >
             <.input
               type="date"
+              id={"course-completed-on-#{course.id}"}
               name="completed_on"
               label="Completed on"
               value={completed_on(@member_courses, course.id)}
             />
-            <.live_file_input upload={@uploads[course_upload_name(course.id)]} />
+            <div class="fieldset mb-2">
+              <label for={@uploads[course_upload_name(course.id)].ref} class="label mb-1">
+                Evidence
+              </label>
+              <.live_file_input upload={@uploads[course_upload_name(course.id)]} />
+            </div>
             <.button class="btn btn-sm btn-secondary">Save</.button>
           </form>
         </li>
@@ -172,22 +181,29 @@ defmodule McEmcommWeb.AppLive.Profile do
             </div>
           </div>
           <form
+            id={"certification-form-#{cert.id}"}
             phx-submit="save_certification"
             phx-value-certification_id={cert.id}
             class="flex gap-2 items-end flex-wrap mt-2"
+            aria-label={"#{cert.name} certification"}
           >
             <.input
               type="date"
+              id={"certification-issued-on-#{cert.id}"}
               name="issued_on"
               label="Issued on"
               value={cert_field(@member_certifications, cert.id, :issued_on)}
             />
-            <div>
-              <label class="label">Task book</label>
+            <div class="fieldset mb-2">
+              <label for={@uploads[task_book_upload_name(cert.id)].ref} class="label mb-1">
+                Task book
+              </label>
               <.live_file_input upload={@uploads[task_book_upload_name(cert.id)]} />
             </div>
-            <div>
-              <label class="label">Certificate</label>
+            <div class="fieldset mb-2">
+              <label for={@uploads[certificate_upload_name(cert.id)].ref} class="label mb-1">
+                Certificate
+              </label>
               <.live_file_input upload={@uploads[certificate_upload_name(cert.id)]} />
             </div>
             <.button class="btn btn-sm btn-secondary">Save</.button>
@@ -234,14 +250,14 @@ defmodule McEmcommWeb.AppLive.Profile do
   end
 
   def handle_event("point_selected", %{"lat" => lat, "lng" => lng}, socket) do
-    params = %{"qth_point" => MapHelpers.point(lat, lng)}
+    save_qth_point(socket, MapHelpers.point(lat, lng))
+  end
 
-    case Members.update_profile(socket.assigns.member, params) do
-      {:ok, member} ->
-        {:noreply, assign(socket, member: member, form: to_form(Members.change_profile(member)))}
-
-      {:error, changeset} ->
-        {:noreply, assign(socket, form: to_form(changeset))}
+  # The typed-coordinates alternative to clicking the map.
+  def handle_event("set_qth_point", params, socket) do
+    case MapHelpers.parse_coordinates(params) do
+      {:ok, point} -> save_qth_point(socket, point)
+      :error -> {:noreply, put_flash(socket, :error, MapHelpers.invalid_coordinates_message())}
     end
   end
 
@@ -395,5 +411,18 @@ defmodule McEmcommWeb.AppLive.Profile do
     presigned = Storage.presign_upload(key, entry.client_type)
     meta = %{uploader: "S3", key: key, url: presigned.url, fields: presigned.fields}
     {:ok, meta, socket}
+  end
+
+  defp save_qth_point(socket, point) do
+    case Members.update_profile(socket.assigns.member, %{"qth_point" => point}) do
+      {:ok, member} ->
+        {:noreply,
+         socket
+         |> assign(member: member, form: to_form(Members.change_profile(member)))
+         |> MapHelpers.push_point("qth-map", point)}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, form: to_form(changeset))}
+    end
   end
 end

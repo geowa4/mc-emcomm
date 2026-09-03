@@ -33,7 +33,7 @@ defmodule McEmcommWeb.AdminLive.InventoryIndexTest do
     asset = McEmcommFixtures.asset_fixture(%{name: "Repeater Trailer"})
     {:ok, lv, _html} = live(conn, ~p"/admin/inventory")
 
-    html = lv |> element("a", "QR code") |> render_click()
+    html = lv |> element("button", "QR code") |> render_click()
 
     assert html =~ "QR code &mdash; Repeater Trailer" or html =~ "Repeater Trailer"
     assert html =~ "/a/#{asset.public_id}/s"
@@ -44,7 +44,7 @@ defmodule McEmcommWeb.AdminLive.InventoryIndexTest do
     asset = McEmcommFixtures.asset_fixture(%{name: "Old Name"})
     {:ok, lv, _html} = live(conn, ~p"/admin/inventory")
 
-    lv |> element("a", "Edit") |> render_click()
+    lv |> element("button", "Edit") |> render_click()
     lv |> form("#asset-form", asset: %{name: "New Name"}) |> render_submit()
 
     assert Assets.get_asset!(asset.id).name == "New Name"
@@ -54,7 +54,7 @@ defmodule McEmcommWeb.AdminLive.InventoryIndexTest do
     McEmcommFixtures.asset_fixture()
     {:ok, lv, _html} = live(conn, ~p"/admin/inventory")
 
-    lv |> element("a", "Delete") |> render_click()
+    lv |> element("button", "Delete") |> render_click()
 
     assert Assets.list_assets() == []
   end

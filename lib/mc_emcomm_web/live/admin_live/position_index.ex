@@ -32,59 +32,81 @@ defmodule McEmcommWeb.AdminLive.PositionIndex do
         </:actions>
       </.header>
 
-      <dialog
+      <.modal
         :if={@form}
         id="position-modal"
-        class="modal modal-open"
-        phx-window-keydown="cancel"
-        phx-key="escape"
+        title={if @editing && @editing.id, do: "Edit position", else: "New position"}
+        on_close="cancel"
       >
-        <div class="modal-box">
-          <h3 class="text-lg font-semibold mb-2">
-            {if @editing && @editing.id, do: "Edit position", else: "New position"}
-          </h3>
-          <.form for={@form} id="position-form" phx-change="validate" phx-submit="save">
-            <.input field={@form[:name]} label="Name" required />
-            <.input field={@form[:sort_order]} type="number" label="Sort order" min="1" required />
-            <.input
-              field={@form[:grants_admin]}
-              type="checkbox"
-              label="Grants site admin to the holder"
-            />
-            <.input
-              field={@form[:notify_on_new_member]}
-              type="checkbox"
-              label="Email the holder when a new member joins"
-            />
-            <div class="modal-action">
-              <button type="button" phx-click="cancel" class="btn btn-ghost">Cancel</button>
-              <.button class="btn btn-primary">Save</.button>
-            </div>
-          </.form>
-        </div>
-        <button type="button" class="modal-backdrop" phx-click="cancel" aria-label="Close"></button>
-      </dialog>
+        <.form for={@form} id="position-form" phx-change="validate" phx-submit="save">
+          <.input field={@form[:name]} label="Name" required />
+          <.input field={@form[:sort_order]} type="number" label="Sort order" min="1" required />
+          <.input
+            field={@form[:grants_admin]}
+            type="checkbox"
+            label="Grants site admin to the holder"
+          />
+          <.input
+            field={@form[:notify_on_new_member]}
+            type="checkbox"
+            label="Email the holder when a new member joins"
+          />
+          <div class="modal-action">
+            <button type="button" phx-click="cancel" class="btn btn-ghost">Cancel</button>
+            <.button class="btn btn-primary">Save</.button>
+          </div>
+        </.form>
+      </.modal>
 
+      <p id="positions-reorder-help" class="text-sm text-base-content/70">
+        Drag a row, or use its move buttons, to change the order positions are listed in.
+      </p>
       <div class="overflow-x-auto">
-        <table class="table table-zebra">
+        <table class="table table-zebra" aria-describedby="positions-reorder-help">
           <thead>
             <tr>
-              <th><span class="sr-only">Drag to reorder</span></th>
-              <th>Sort</th>
-              <th>Name</th>
-              <th>Holder</th>
-              <th><span class="sr-only">Actions</span></th>
+              <th scope="col"><span class="sr-only">Reorder</span></th>
+              <th scope="col">Sort</th>
+              <th scope="col">Name</th>
+              <th scope="col">Holder</th>
+              <th scope="col"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody id="positions-rows" phx-hook=".SortableRows">
             <tr
-              :for={p <- @positions}
+              :for={{p, index} <- Enum.with_index(@positions)}
               id={"position-row-#{p.id}"}
               data-id={p.id}
               draggable="true"
               class="cursor-grab"
             >
-              <td><.icon name="hero-bars-3" class="size-4 text-base-content/40" /></td>
+              <td class="whitespace-nowrap">
+                <.icon name="hero-bars-3" class="size-4 text-base-content/40" />
+                <button
+                  id={"move-up-#{p.id}"}
+                  type="button"
+                  class="btn btn-ghost btn-xs"
+                  phx-click="move"
+                  phx-value-id={p.id}
+                  phx-value-dir="up"
+                  disabled={index == 0}
+                  aria-label={"Move #{p.name} up"}
+                >
+                  <.icon name="hero-chevron-up" class="size-4" />
+                </button>
+                <button
+                  id={"move-down-#{p.id}"}
+                  type="button"
+                  class="btn btn-ghost btn-xs"
+                  phx-click="move"
+                  phx-value-id={p.id}
+                  phx-value-dir="down"
+                  disabled={index == length(@positions) - 1}
+                  aria-label={"Move #{p.name} down"}
+                >
+                  <.icon name="hero-chevron-down" class="size-4" />
+                </button>
+              </td>
               <td>{p.sort_order}</td>
               <td>
                 {p.name}
@@ -94,22 +116,44 @@ defmodule McEmcommWeb.AdminLive.PositionIndex do
                 </span>
               </td>
               <td>
-                <.link id={"change-holder-#{p.id}"} phx-click="change_holder" phx-value-id={p.id}>
-                  <span :if={p.members == []} class="text-base-content/50 italic">Vacant</span>
+                <button
+                  type="button"
+                  class="link link-hover"
+                  id={"change-holder-#{p.id}"}
+                  phx-click="change_holder"
+                  phx-value-id={p.id}
+                  aria-label={"Change holder of #{p.name}"}
+                >
+                  <span :if={p.members == []} class="text-base-content/70 italic">Vacant</span>
                   <span :for={member <- p.members}>
                     {member.name}
                     <span :if={member.status != :approved} class="badge badge-sm">
                       {member.status}
                     </span>
                   </span>
-                </.link>
+                </button>
               </td>
               <td class="w-0 font-semibold">
                 <div class="flex gap-4">
-                  <.link phx-click="edit" phx-value-id={p.id}>Edit</.link>
-                  <.link phx-click="delete" phx-value-id={p.id} data-confirm="Delete this position?">
+                  <button
+                    type="button"
+                    class="link link-hover"
+                    phx-click="edit"
+                    phx-value-id={p.id}
+                    aria-label={"Edit #{p.name}"}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="link link-hover"
+                    phx-click="delete"
+                    phx-value-id={p.id}
+                    data-confirm="Delete this position?"
+                    aria-label={"Delete #{p.name}"}
+                  >
                     Delete
-                  </.link>
+                  </button>
                 </div>
               </td>
             </tr>
@@ -117,36 +161,35 @@ defmodule McEmcommWeb.AdminLive.PositionIndex do
         </table>
       </div>
 
-      <dialog
+      <.modal
         :if={@holder_for}
         id="holder-modal"
-        class="modal modal-open"
-        phx-window-keydown="close_holder"
-        phx-key="escape"
+        title={"Change holder — #{@holder_for.name}"}
+        on_close="close_holder"
       >
-        <div class="modal-box">
-          <h3 class="text-lg font-semibold mb-2">Change holder &mdash; {@holder_for.name}</h3>
-          <p class="text-sm mb-4">
-            Current holder:
-            <span :if={@holder_for.members == []} class="text-base-content/50 italic">Vacant</span>
-            <span :for={member <- @holder_for.members} class="font-semibold">
-              {member.name}<span :if={member.call_sign}> &middot; {member.call_sign}</span>
-            </span>
-          </p>
-          <form id="holder-search-form" phx-submit="search_members">
-            <.input
-              name="call_sign"
-              value={@holder_query}
-              label="Call sign"
-              placeholder="Full or partial call sign, then Enter"
-              phx-mounted={JS.focus()}
-              autocomplete="off"
-            />
-          </form>
+        <p class="text-sm mb-4">
+          Current holder:
+          <span :if={@holder_for.members == []} class="text-base-content/70 italic">Vacant</span>
+          <span :for={member <- @holder_for.members} class="font-semibold">
+            {member.name}<span :if={member.call_sign}> &middot; {member.call_sign}</span>
+          </span>
+        </p>
+        <form id="holder-search-form" phx-submit="search_members">
+          <.input
+            name="call_sign"
+            value={@holder_query}
+            label="Call sign"
+            placeholder="Full or partial call sign, then Enter"
+            phx-mounted={JS.focus()}
+            autocomplete="off"
+          />
+        </form>
+        <div id="holder-results-region" aria-live="polite">
           <ul
             :if={@holder_results}
             id="holder-results"
             class="menu bg-base-100 rounded-box border border-base-300 mt-2 w-full"
+            aria-label="Matching members"
           >
             <li :if={@holder_results == []} class="menu-title">No members match that call sign.</li>
             <li :for={member <- @holder_results}>
@@ -156,20 +199,19 @@ defmodule McEmcommWeb.AdminLive.PositionIndex do
               </button>
             </li>
           </ul>
-          <div class="modal-action">
-            <button
-              :if={@holder_for.members != []}
-              type="button"
-              phx-click="vacate_holder"
-              class="btn btn-outline btn-warning"
-            >
-              Vacate
-            </button>
-            <button type="button" phx-click="close_holder" class="btn btn-ghost">Close</button>
-          </div>
         </div>
-        <button type="button" class="modal-backdrop" phx-click="close_holder" aria-label="Close"></button>
-      </dialog>
+        <div class="modal-action">
+          <button
+            :if={@holder_for.members != []}
+            type="button"
+            phx-click="vacate_holder"
+            class="btn btn-outline btn-warning"
+          >
+            Vacate
+          </button>
+          <button type="button" phx-click="close_holder" class="btn btn-ghost">Close</button>
+        </div>
+      </.modal>
 
       <script :type={Phoenix.LiveView.ColocatedHook} name=".SortableRows">
         export default {
@@ -304,17 +346,20 @@ defmodule McEmcommWeb.AdminLive.PositionIndex do
     do: {:noreply, assign(socket, holder_for: nil, holder_results: nil)}
 
   def handle_event("reorder", %{"ids" => ids}, socket) do
-    ids = ids |> Enum.map(&ParamHelpers.id/1) |> Enum.reject(&is_nil/1)
+    ids |> Enum.map(&ParamHelpers.id/1) |> Enum.reject(&is_nil/1) |> reorder(socket)
+  end
 
-    case Members.reorder_positions(ids) do
-      :ok ->
-        {:noreply, assign(socket, positions: Members.list_positions(holders: :all))}
+  # Keyboard alternative to dragging: swap the row with its neighbour.
+  def handle_event("move", %{"id" => id, "dir" => dir}, socket) when dir in ~w(up down) do
+    ids = Enum.map(socket.assigns.positions, & &1.id)
+    id = ParamHelpers.id(id)
+    index = Enum.find_index(ids, &(&1 == id))
+    target = if dir == "up", do: index && index - 1, else: index && index + 1
 
-      {:error, :stale} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "The list changed underneath you — showing the latest order.")
-         |> assign(positions: Members.list_positions(holders: :all))}
+    if index && target >= 0 && target < length(ids) do
+      ids |> List.delete_at(index) |> List.insert_at(target, id) |> reorder(socket)
+    else
+      {:noreply, socket}
     end
   end
 
@@ -326,6 +371,19 @@ defmodule McEmcommWeb.AdminLive.PositionIndex do
       {:error, :position_held} ->
         {:noreply,
          put_flash(socket, :error, "A member holds that position. Remove it from them first.")}
+    end
+  end
+
+  defp reorder(ids, socket) do
+    case Members.reorder_positions(ids) do
+      :ok ->
+        {:noreply, assign(socket, positions: Members.list_positions(holders: :all))}
+
+      {:error, :stale} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "The list changed underneath you — showing the latest order.")
+         |> assign(positions: Members.list_positions(holders: :all))}
     end
   end
 end

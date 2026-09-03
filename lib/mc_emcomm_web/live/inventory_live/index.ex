@@ -19,7 +19,9 @@ defmodule McEmcommWeb.InventoryLive.Index do
         rows={@assets}
         row_click={fn a -> JS.navigate(~p"/app/inventory/#{a.public_id}") end}
       >
-        <:col :let={a} label="Name">{a.name}</:col>
+        <:col :let={a} label="Name">
+          <.link navigate={~p"/app/inventory/#{a.public_id}"} class="link link-hover">{a.name}</.link>
+        </:col>
         <:col :let={a} label="Public ID"><span class="font-mono">{a.public_id}</span></:col>
       </.table>
     </Layouts.app>

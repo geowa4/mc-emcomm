@@ -36,21 +36,23 @@ defmodule McEmcommWeb.AdminLive.DefaultLocationIndex do
       </p>
 
       <div :if={@form} class="mb-6">
-        <div
+        <.map_picker
           id="default-location-map"
-          phx-hook="LeafletPicker"
-          phx-update="ignore"
-          class="map-canvas"
-          data-lat={@editing && MapHelpers.lat(@editing.point)}
-          data-lng={@editing && MapHelpers.lng(@editing.point)}
-          data-tile-url={@tile_url}
+          label="Location map"
+          point={pending_point(@pending_point) || (@editing && @editing.point)}
+          tile_url={@tile_url}
+          instructions="Click the map, or enter coordinates below, to place the location's point."
+        />
+        <p
+          id="default-location-pending-point"
+          class="text-sm text-base-content/70 mt-1"
+          aria-live="polite"
         >
-        </div>
-        <p class="text-sm text-base-content/70 mt-1">
-          Click the map to place the location's point.
-          <span :if={@pending_point} class="font-mono">
-            ({elem(@pending_point, 0)}, {elem(@pending_point, 1)})
-          </span>
+          <%= if @pending_point do %>
+            Point set to <span class="font-mono">({elem(@pending_point, 0)}, {elem(@pending_point, 1)})</span>.
+          <% else %>
+            No new point set.
+          <% end %>
         </p>
 
         <.form
@@ -78,12 +80,27 @@ defmodule McEmcommWeb.AdminLive.DefaultLocationIndex do
         <:col :let={l} label="Latitude">{MapHelpers.lat(l.point)}</:col>
         <:col :let={l} label="Longitude">{MapHelpers.lng(l.point)}</:col>
         <:action :let={l}>
-          <.link phx-click="edit" phx-value-id={l.id}>Edit</.link>
+          <button
+            type="button"
+            class="link link-hover"
+            phx-click="edit"
+            phx-value-id={l.id}
+            aria-label={"Edit #{l.name}"}
+          >
+            Edit
+          </button>
         </:action>
         <:action :let={l}>
-          <.link phx-click="delete" phx-value-id={l.id} data-confirm="Delete this location?">
+          <button
+            type="button"
+            class="link link-hover"
+            phx-click="delete"
+            phx-value-id={l.id}
+            data-confirm="Delete this location?"
+            aria-label={"Delete #{l.name}"}
+          >
             Delete
-          </.link>
+          </button>
         </:action>
       </.table>
     </Layouts.app>
@@ -116,6 +133,20 @@ defmodule McEmcommWeb.AdminLive.DefaultLocationIndex do
 
   def handle_event("point_selected", %{"lat" => lat, "lng" => lng}, socket) do
     {:noreply, assign(socket, pending_point: {lat, lng})}
+  end
+
+  # The typed-coordinates alternative to clicking the map.
+  def handle_event("set_point", params, socket) do
+    case MapHelpers.parse_coordinates(params) do
+      {:ok, point} ->
+        {:noreply,
+         socket
+         |> assign(pending_point: {MapHelpers.lat(point), MapHelpers.lng(point)})
+         |> MapHelpers.push_point("default-location-map", point)}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, MapHelpers.invalid_coordinates_message())}
+    end
   end
 
   def handle_event("validate", %{"default_location" => params}, socket) do
@@ -160,4 +191,7 @@ defmodule McEmcommWeb.AdminLive.DefaultLocationIndex do
     {:ok, _} = Locations.get_default_location!(id) |> Locations.delete_default_location()
     {:noreply, assign(socket, locations: Locations.list_default_locations())}
   end
+
+  defp pending_point({lat, lng}), do: MapHelpers.point(lat, lng)
+  defp pending_point(nil), do: nil
 end

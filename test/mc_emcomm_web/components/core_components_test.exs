@@ -11,6 +11,96 @@ defmodule McEmcommWeb.CoreComponentsTest do
 
   defp count(lazy, selector), do: lazy |> LazyHTML.query(selector) |> Enum.count()
 
+  describe "input/1 accessibility" do
+    test "ties error messages to the input for assistive technology" do
+      assigns = %{}
+
+      html =
+        parse(~H"""
+        <CoreComponents.input id="email" name="email" value="" errors={["can't be blank", "is bad"]} />
+        """)
+
+      input = LazyHTML.query(html, "input#email")
+      assert LazyHTML.attribute(input, "aria-invalid") == ["true"]
+      assert LazyHTML.attribute(input, "aria-describedby") == ["email-error-0 email-error-1"]
+      assert count(html, "p#email-error-0") == 1
+      assert count(html, "p#email-error-1") == 1
+    end
+
+    test "leaves a valid input unmarked" do
+      assigns = %{}
+
+      html =
+        parse(~H"""
+        <CoreComponents.input id="email" name="email" value="" />
+        """)
+
+      assert LazyHTML.attribute(LazyHTML.query(html, "input#email"), "aria-invalid") == []
+      assert LazyHTML.attribute(LazyHTML.query(html, "input#email"), "aria-describedby") == []
+    end
+
+    test "marks selects and textareas the same way" do
+      assigns = %{}
+
+      html =
+        parse(~H"""
+        <CoreComponents.input
+          type="select"
+          id="kind"
+          name="kind"
+          value=""
+          options={[{"A", "a"}]}
+          errors={["pick one"]}
+        />
+        <CoreComponents.input type="textarea" id="notes" name="notes" value="" errors={["too long"]} />
+        """)
+
+      assert LazyHTML.attribute(LazyHTML.query(html, "select#kind"), "aria-describedby") == [
+               "kind-error-0"
+             ]
+
+      assert LazyHTML.attribute(LazyHTML.query(html, "textarea#notes"), "aria-invalid") == [
+               "true"
+             ]
+    end
+  end
+
+  describe "modal/1" do
+    test "renders a labelled dialog wired to the Modal hook" do
+      assigns = %{}
+
+      html =
+        parse(~H"""
+        <CoreComponents.modal id="edit-modal" title="Edit thing" on_close="cancel">
+          <p>Body</p>
+        </CoreComponents.modal>
+        """)
+
+      dialog = LazyHTML.query(html, "dialog#edit-modal")
+      assert LazyHTML.attribute(dialog, "phx-hook") == ["Modal"]
+      assert LazyHTML.attribute(dialog, "data-on-close") == ["cancel"]
+      assert LazyHTML.attribute(dialog, "aria-labelledby") == ["edit-modal-title"]
+      assert count(html, "#edit-modal-title") == 1
+
+      assert LazyHTML.attribute(LazyHTML.query(html, "button.modal-backdrop"), "phx-click") == [
+               "cancel"
+             ]
+    end
+  end
+
+  describe "icon/1" do
+    test "is hidden from assistive technology" do
+      assigns = %{}
+
+      html =
+        parse(~H"""
+        <CoreComponents.icon name="hero-x-mark" />
+        """)
+
+      assert LazyHTML.attribute(LazyHTML.query(html, "span"), "aria-hidden") == ["true"]
+    end
+  end
+
   describe "button/1" do
     test "renders a link when given a navigation attribute" do
       assigns = %{}

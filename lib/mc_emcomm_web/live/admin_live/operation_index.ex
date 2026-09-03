@@ -69,13 +69,24 @@ defmodule McEmcommWeb.AdminLive.OperationIndex do
         rows={@operations}
         row_click={fn e -> JS.navigate(~p"/admin/operations/#{e.id}/edit") end}
       >
-        <:col :let={e} label="Title">{e.title}</:col>
+        <:col :let={e} label="Title">
+          <.link navigate={~p"/admin/operations/#{e.id}/edit"} class="link link-hover">
+            {e.title}
+          </.link>
+        </:col>
         <:col :let={e} label="Starts">{Calendar.strftime(e.starts_at, "%Y-%m-%d %H:%M")}</:col>
         <:col :let={e} label="Visibility">{e.visibility}</:col>
         <:action :let={e}>
-          <.link phx-click="delete" phx-value-id={e.id} data-confirm="Delete this operation?">
+          <button
+            type="button"
+            class="link link-hover"
+            phx-click="delete"
+            phx-value-id={e.id}
+            data-confirm="Delete this operation?"
+            aria-label={"Delete #{e.title}"}
+          >
             Delete
-          </.link>
+          </button>
         </:action>
       </.table>
 
@@ -96,19 +107,19 @@ defmodule McEmcommWeb.AdminLive.OperationIndex do
 
         <div :if={@live_action == :edit}>
           <h2 class="text-lg font-semibold mt-8">Locations</h2>
-          <div
+          <.map_picker
             id="location-map"
-            phx-hook="LeafletPicker"
-            phx-update="ignore"
-            class="map-canvas"
-            data-tile-url={@tile_url}
-          >
-          </div>
-          <p class="text-sm text-base-content/70 mt-1">
-            Click the map to place a point for the new location below.
-            <span :if={@pending_point} class="font-mono">
-              ({elem(@pending_point, 0)}, {elem(@pending_point, 1)})
-            </span>
+            label="New location map"
+            point={pending_point(@pending_point)}
+            tile_url={@tile_url}
+            instructions="Click the map, or enter coordinates below, to place the point for the new location."
+          />
+          <p id="location-pending-point" class="text-sm text-base-content/70 mt-1" aria-live="polite">
+            <%= if @pending_point do %>
+              Point set to <span class="font-mono">({elem(@pending_point, 0)}, {elem(@pending_point, 1)})</span>.
+            <% else %>
+              No point set yet.
+            <% end %>
           </p>
 
           <.form
@@ -134,19 +145,25 @@ defmodule McEmcommWeb.AdminLive.OperationIndex do
               <div class="flex-1">
                 <strong>{loc.name}</strong> &middot; {loc.geofence_radius_m}m
               </div>
-              <.link
+              <button
+                type="button"
+                class="link link-hover"
                 phx-click="delete_location"
                 phx-value-id={loc.id}
                 data-confirm="Remove this location?"
+                aria-label={"Remove #{loc.name}"}
               >
                 Remove
-              </.link>
+              </button>
             </li>
           </ul>
 
           <h2 class="text-lg font-semibold mt-8">Attachments</h2>
           <form id="attachment-form" phx-change="validate_attachment" phx-submit="save_attachment">
-            <.live_file_input upload={@uploads.attachment} />
+            <div class="fieldset mb-2">
+              <label for={@uploads.attachment.ref} class="label mb-1">File</label>
+              <.live_file_input upload={@uploads.attachment} />
+            </div>
             <.input
               name="description"
               value=""
@@ -162,13 +179,16 @@ defmodule McEmcommWeb.AdminLive.OperationIndex do
                 <div class="font-semibold">{att.filename}</div>
                 <div class="text-sm text-base-content/70">{att.description}</div>
               </div>
-              <.link
+              <button
+                type="button"
+                class="link link-hover"
                 phx-click="delete_attachment"
                 phx-value-id={att.id}
                 data-confirm="Delete this attachment?"
+                aria-label={"Delete #{att.filename}"}
               >
                 Delete
-              </.link>
+              </button>
             </li>
           </ul>
         </div>
@@ -201,6 +221,20 @@ defmodule McEmcommWeb.AdminLive.OperationIndex do
 
   def handle_event("point_selected", %{"lat" => lat, "lng" => lng}, socket) do
     {:noreply, assign(socket, pending_point: {lat, lng})}
+  end
+
+  # The typed-coordinates alternative to clicking the map.
+  def handle_event("set_point", params, socket) do
+    case MapHelpers.parse_coordinates(params) do
+      {:ok, point} ->
+        {:noreply,
+         socket
+         |> assign(pending_point: {MapHelpers.lat(point), MapHelpers.lng(point)})
+         |> MapHelpers.push_point("location-map", point)}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, MapHelpers.invalid_coordinates_message())}
+    end
   end
 
   def handle_event("add_location", %{"operation_location" => params}, socket) do
@@ -332,4 +366,7 @@ defmodule McEmcommWeb.AdminLive.OperationIndex do
     |> Enum.map(&%{point: &1.point, title: &1.name, radius_m: &1.geofence_radius_m})
     |> MapHelpers.markers_json()
   end
+
+  defp pending_point({lat, lng}), do: MapHelpers.point(lat, lng)
+  defp pending_point(nil), do: nil
 end

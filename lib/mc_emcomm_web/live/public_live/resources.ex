@@ -50,7 +50,7 @@ defmodule McEmcommWeb.PublicLive.Resources do
           target="_blank"
           rel="noopener"
         >
-          View documents on Google Drive
+          View documents on Google Drive <.new_tab_note />
         </a>
       </p>
       <p>The folder contains essential documents and resources for our organization:</p>
@@ -85,7 +85,13 @@ defmodule McEmcommWeb.PublicLive.Resources do
             </div>
           </div>
           <div>
-            <button class="btn btn-sm btn-outline" phx-click="download" phx-value-id={doc.id}>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline"
+              phx-click="download"
+              phx-value-id={doc.id}
+              aria-label={"Download #{doc.title}"}
+            >
               Download
             </button>
           </div>

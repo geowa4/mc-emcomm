@@ -26,12 +26,43 @@ defmodule McEmcommWeb.AdminLive.PositionIndexTest do
 
     position = Enum.find(Members.list_positions(), &(&1.name == "President"))
 
-    lv |> element("a", "Edit") |> render_click()
+    lv |> element("button", "Edit") |> render_click()
     lv |> form("#position-form", position: %{name: "Club President"}) |> render_submit()
     assert Members.get_position!(position.id).name == "Club President"
 
-    lv |> element("a", "Delete") |> render_click()
+    lv |> element("button", "Delete") |> render_click()
     assert Members.list_positions() == []
+  end
+
+  test "move buttons reorder positions without dragging", %{conn: conn} do
+    {:ok, first} = Members.create_position(%{name: "President", sort_order: 1})
+    {:ok, second} = Members.create_position(%{name: "Secretary", sort_order: 2})
+
+    {:ok, lv, _html} = live(conn, ~p"/admin/positions")
+
+    assert has_element?(lv, "#move-up-#{first.id}[disabled]")
+    assert has_element?(lv, "#move-down-#{second.id}[disabled]")
+    assert has_element?(lv, "#move-down-#{first.id}[aria-label='Move President down']")
+
+    lv |> element("#move-down-#{first.id}") |> render_click()
+
+    assert Enum.map(Members.list_positions(), & &1.name) == ["Secretary", "President"]
+    assert has_element?(lv, "#move-down-#{first.id}[disabled]")
+
+    lv |> element("#move-up-#{first.id}") |> render_click()
+    assert Enum.map(Members.list_positions(), & &1.name) == ["President", "Secretary"]
+  end
+
+  test "moving past either end of the list changes nothing", %{conn: conn} do
+    {:ok, only} = Members.create_position(%{name: "President", sort_order: 1})
+
+    {:ok, lv, _html} = live(conn, ~p"/admin/positions")
+
+    render_click(lv, "move", %{"id" => Integer.to_string(only.id), "dir" => "up"})
+    render_click(lv, "move", %{"id" => "not-an-id", "dir" => "down"})
+
+    assert [%{id: id}] = Members.list_positions()
+    assert id == only.id
   end
 
   test "a position created with the admin checkbox grants admin and shows a badge", %{conn: conn} do
@@ -96,7 +127,7 @@ defmodule McEmcommWeb.AdminLive.PositionIndexTest do
 
     {:ok, lv, _html} = live(conn, ~p"/admin/positions")
 
-    html = lv |> element("a", "Delete") |> render_click()
+    html = lv |> element("button", "Delete") |> render_click()
 
     assert html =~ "A member holds that position"
     assert Members.get_position!(position.id)

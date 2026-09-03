@@ -15,7 +15,7 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     member = McEmcommFixtures.pending_member_fixture(%{name: "Pat Pending"})
     {:ok, lv, _html} = live(conn, ~p"/admin/members")
 
-    lv |> element("a", "Approve") |> render_click()
+    lv |> element("button", "Approve") |> render_click()
 
     assert Members.get_member!(member.id).status == :approved
   end
@@ -24,7 +24,7 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     member = McEmcommFixtures.pending_member_fixture()
     {:ok, lv, _html} = live(conn, ~p"/admin/members")
 
-    lv |> element("a", "Reject") |> render_click()
+    lv |> element("button", "Reject") |> render_click()
     assert has_element?(lv, "#reason-modal")
     assert has_element?(lv, "#reason-form")
 
@@ -43,7 +43,7 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     member = McEmcommFixtures.member_fixture()
     {:ok, lv, _html} = live(conn, ~p"/admin/members")
 
-    lv |> element("a", "Deactivate") |> render_click()
+    lv |> element("button", "Deactivate") |> render_click()
 
     lv
     |> form("#reason-form", transition: %{reason: "Moved away"})
@@ -51,7 +51,7 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
 
     assert Members.get_member!(member.id).status == :inactive
 
-    lv |> element("a", "Reactivate") |> render_click()
+    lv |> element("button", "Reactivate") |> render_click()
     assert Members.get_member!(member.id).status == :approved
   end
 
@@ -59,7 +59,7 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     McEmcommFixtures.member_fixture()
     {:ok, lv, _html} = live(conn, ~p"/admin/members")
 
-    lv |> element("a", "Deactivate") |> render_click()
+    lv |> element("button", "Deactivate") |> render_click()
     assert has_element?(lv, "#reason-modal")
 
     lv |> element("#reason-modal .modal-backdrop") |> render_click()
@@ -72,7 +72,7 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     {:ok, member} = Members.transition_status(member, :rejected, actor, "incomplete")
 
     {:ok, lv, _html} = live(conn, ~p"/admin/members")
-    lv |> element("a", "Reopen") |> render_click()
+    lv |> element("button", "Reopen") |> render_click()
 
     assert Members.get_member!(member.id).status == :pending
   end
@@ -137,7 +137,7 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     assert has_element?(lv, "#members tr#members-#{approved.id}")
     refute has_element?(lv, "#pending-members-empty")
 
-    lv |> element("#pending-members a", "Approve") |> render_click()
+    lv |> element("#pending-members button", "Approve") |> render_click()
 
     assert has_element?(lv, "#pending-members-empty")
     assert has_element?(lv, "#members tr#members-#{pending.id}")
@@ -170,8 +170,8 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     McEmcommFixtures.pending_member_fixture()
     {:ok, lv, _html} = live(conn, ~p"/admin/members")
 
-    lv |> element("a", "Approve") |> render_click()
-    html = lv |> element("a", "Audit") |> render_click()
+    lv |> element("button", "Approve") |> render_click()
+    html = lv |> element("button", "Audit") |> render_click()
 
     assert has_element?(lv, "#audit-modal")
     assert html =~ "pending"
@@ -182,7 +182,7 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     McEmcommFixtures.member_fixture()
     {:ok, lv, _html} = live(conn, ~p"/admin/members")
 
-    lv |> element("a", "Audit") |> render_click()
+    lv |> element("button", "Audit") |> render_click()
     assert has_element?(lv, "#audit-modal")
 
     lv |> element("#audit-modal .modal-backdrop") |> render_click()

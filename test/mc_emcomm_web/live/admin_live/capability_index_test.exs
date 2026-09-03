@@ -20,11 +20,11 @@ defmodule McEmcommWeb.AdminLive.CapabilityIndexTest do
 
     capability = Enum.find(Capabilities.list_capabilities(), &(&1.name == "APRS"))
 
-    lv |> element("a", "Edit") |> render_click()
+    lv |> element("button", "Edit") |> render_click()
     lv |> form("#capability-form", capability: %{name: "APRS Digipeater"}) |> render_submit()
     assert Capabilities.get_capability!(capability.id).name == "APRS Digipeater"
 
-    lv |> element("a", "Delete") |> render_click()
+    lv |> element("button", "Delete") |> render_click()
     assert Capabilities.list_capabilities() == []
   end
 
