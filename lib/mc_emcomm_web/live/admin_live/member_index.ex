@@ -9,13 +9,14 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
-     assign(socket,
+     socket
+     |> assign(
        page_title: "Members",
-       members: Members.list_members(),
        positions: Members.list_positions(),
        reason_for: nil,
        audit_for: nil
-     )}
+     )
+     |> load_members()}
   end
 
   @impl true
@@ -24,7 +25,43 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
     <Layouts.app flash={@flash} current_scope={@current_scope} active_net={@active_net}>
       <.header>Members</.header>
 
-      <.table id="members" rows={@members}>
+      <section id="pending-members-section" class="mb-10">
+        <h2 class="flex items-center gap-2 text-lg font-semibold">
+          Pending approval
+          <span :if={@pending_members != []} class="badge badge-warning badge-sm">
+            {length(@pending_members)}
+          </span>
+        </h2>
+        <p
+          :if={@pending_members == []}
+          id="pending-members-empty"
+          class="text-sm text-base-content/60"
+        >
+          No members are waiting for approval.
+        </p>
+        <.table
+          :if={@pending_members != []}
+          id="pending-members"
+          rows={@pending_members}
+          row_id={&"pending-members-#{&1.id}"}
+        >
+          <:col :let={m} label="Name">{m.name}</:col>
+          <:col :let={m} label="Call sign">{m.call_sign}</:col>
+          <:col :let={m} label="Registered">{Calendar.strftime(m.inserted_at, "%Y-%m-%d")}</:col>
+          <:action :let={m}>
+            <.link phx-click="approve" phx-value-id={m.id}>Approve</.link>
+          </:action>
+          <:action :let={m}>
+            <.link phx-click="show_reason" phx-value-id={m.id} phx-value-to="rejected">Reject</.link>
+          </:action>
+          <:action :let={m}>
+            <.link phx-click="show_audit" phx-value-id={m.id}>Audit</.link>
+          </:action>
+        </.table>
+      </section>
+
+      <h2 class="text-lg font-semibold">All members</h2>
+      <.table id="members" rows={@members} row_id={&"members-#{&1.id}"}>
         <:col :let={m} label="Name">{m.name}</:col>
         <:col :let={m} label="Call sign">{m.call_sign}</:col>
         <:col :let={m} label="Status"><span class="badge badge-sm">{m.status}</span></:col>
@@ -66,17 +103,6 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
           </form>
         </:col>
         <:action :let={m}>
-          <.link :if={m.status == :pending} phx-click="approve" phx-value-id={m.id}>Approve</.link>
-        </:action>
-        <:action :let={m}>
-          <.link
-            :if={m.status == :pending}
-            phx-click="show_reason"
-            phx-value-id={m.id}
-            phx-value-to="rejected"
-          >
-            Reject
-          </.link>
           <.link
             :if={m.status == :approved}
             phx-click="show_reason"
@@ -198,14 +224,19 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
 
     case Members.update_member_positions(member, position_ids) do
       {:ok, _} ->
-        {:noreply, assign(socket, members: Members.list_members())}
+        {:noreply, load_members(socket)}
 
       {:error, :not_approved} ->
         {:noreply,
          socket
          |> put_flash(:error, "Only approved members can hold positions.")
-         |> assign(members: Members.list_members())}
+         |> load_members()}
     end
+  end
+
+  defp load_members(socket) do
+    {pending, others} = Enum.split_with(Members.list_members(), &(&1.status == :pending))
+    assign(socket, pending_members: pending, members: others)
   end
 
   defp position_summary(%{positions: []}), do: "None"
@@ -216,7 +247,7 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
 
     case Members.transition_status(member, to_status, actor, reason) do
       {:ok, _} ->
-        {:noreply, assign(socket, members: Members.list_members())}
+        {:noreply, load_members(socket)}
 
       {:error, :illegal_transition} ->
         {:noreply, put_flash(socket, :error, "That status change isn't allowed.")}

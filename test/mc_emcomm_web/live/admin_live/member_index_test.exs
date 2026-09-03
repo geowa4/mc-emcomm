@@ -126,8 +126,27 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
            )
   end
 
-  test "a pending member's unheld position checkboxes are disabled", %{conn: conn} do
-    member = McEmcommFixtures.pending_member_fixture()
+  test "pending members are listed in their own section above the rest", %{conn: conn} do
+    pending = McEmcommFixtures.pending_member_fixture(%{name: "Pat Pending"})
+    approved = McEmcommFixtures.member_fixture(%{name: "Alex Approved"})
+
+    {:ok, lv, _html} = live(conn, ~p"/admin/members")
+
+    assert has_element?(lv, "#pending-members tr#pending-members-#{pending.id}")
+    refute has_element?(lv, "#members tr#members-#{pending.id}")
+    assert has_element?(lv, "#members tr#members-#{approved.id}")
+    refute has_element?(lv, "#pending-members-empty")
+
+    lv |> element("#pending-members a", "Approve") |> render_click()
+
+    assert has_element?(lv, "#pending-members-empty")
+    assert has_element?(lv, "#members tr#members-#{pending.id}")
+  end
+
+  test "an inactive member's unheld position checkboxes are disabled", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    actor = McEmcommFixtures.admin_scope_fixture().user
+    {:ok, member} = Members.transition_status(member, :inactive, actor, "moved")
     position = McEmcommFixtures.position_fixture(%{name: "Treasurer"})
 
     {:ok, lv, _html} = live(conn, ~p"/admin/members")
