@@ -3,7 +3,7 @@ defmodule Mix.Tasks.Podman.Up do
 
   @moduledoc """
   Runs the two podman containers local development depends on, exactly as
-  documented in README § Local setup:
+  documented in CONTRIBUTING.md § Setup:
 
     * `mc-emcomm-pg` — PostGIS-enabled PostgreSQL 17
       (`postgres`/`postgres` on `localhost:5432`, matching config's default,
@@ -11,7 +11,7 @@ defmodule Mix.Tasks.Podman.Up do
       arm64 build, so it is pinned to `linux/amd64` and runs under emulation
       on Apple Silicon. A host Postgres already on 5432 will make the
       container fail to bind; stop it, or run this container on another port
-      by hand and `export PGPORT` (README § Local setup).
+      by hand and `export PGPORT` (CONTRIBUTING.md § Setup).
     * `mc-emcomm-s3` — S3Mock on `localhost:9090` with the `mc-emcomm-dev`
       bucket pre-created, so presigned uploads round-trip without a real
       bucket.

@@ -12,7 +12,7 @@ defmodule Mix.Tasks.Sprite.Up do
        and runs it as the `postgres` Sprite service (`postgres`/`postgres` on
        `localhost:5432`, matching `config/dev.exs`)
     3. downloads the checksum-pinned S3Mock standalone jar — the same app as
-       the `adobe/s3mock` container image README § Setup runs locally — and
+       the `adobe/s3mock` container image CONTRIBUTING.md § Setup runs locally — and
        runs it as the `s3mock` Sprite service on `localhost:9090` so
        presigned uploads round-trip without a real bucket. Containers are not
        an option here: rootless podman cannot reach `/dev/fuse` or
@@ -426,7 +426,7 @@ defmodule Mix.Tasks.Sprite.Up do
     Sprite.step("Configuring the Phoenix service")
 
     # req_s3 reads the AWS_* variables straight from the process environment,
-    # and presigning raises without them (README § Setup). S3Mock accepts any
+    # and presigning raises without them (CONTRIBUTING.md § Setup). S3Mock accepts any
     # non-empty credentials.
     env = [
       "AWS_ACCESS_KEY_ID=s3mock",

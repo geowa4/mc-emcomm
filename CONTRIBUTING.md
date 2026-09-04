@@ -6,20 +6,58 @@ live in AGENTS.md; this file holds the detail those rules point to.
 ## Setup
 
 - Toolchain: Erlang/OTP 28 and Elixir 1.20 (pinned in `mise.toml`; `mise install`).
-  PostGIS-enabled PostgreSQL 17 with `postgres`/`postgres` — plain Postgres will
-  not run this app (the first migration creates the `postgis` extension).
-  `mix podman.up` runs it with podman on `localhost:5432` (config's default)
-  along with S3Mock for uploads; the official image has no arm64 build, so
-  the task pins `--platform linux/amd64` (README § Local setup has the raw
-  commands, and `PGPORT` covers a non-default port).
-  `mix podman.down` removes both containers and the `mc-emcomm-pgdata`
-  volume, deleting the local database.
-- Install and set up everything: `mix setup`
+- Install and set up everything: `mix setup` (deps, database create/migrate/seed,
+  assets). Requires the containers below to be running.
 - Run everything for local dev in one command: `mix dev.server` — containers
   (`mix podman.up`), create/migrate/seed, `ua_inspector` databases, then
   `mix phx.server` with the S3Mock storage environment defaulted (already
-  exported variables win).
-- Create/migrate/seed the database: `mix ecto.setup`
+  exported variables win). The rest of this section describes what that runs
+  and how to do each piece by hand.
+- Database: PostGIS-enabled PostgreSQL 17 with `postgres`/`postgres` on
+  `localhost:5432` (config's default). Plain Postgres will not run this app:
+  the first migration creates the `postgis` extension, and the app stores
+  `geography(Point,4326)` columns and geofence-matches with
+  `ST_DWithin`/`ST_Distance`. `mix podman.up` runs it with podman together
+  with S3Mock (below); `mix podman.down` removes both containers and the
+  `mc-emcomm-pgdata` volume, deleting the local database. The official
+  `postgis/postgis` image has no arm64 build, so the task pins
+  `--platform linux/amd64` and it runs under emulation on Apple Silicon.
+  By hand:
+
+      podman run -d --name mc-emcomm-pg --platform linux/amd64 \
+        -e POSTGRES_PASSWORD=postgres -p 5432:5432 \
+        -v mc-emcomm-pgdata:/var/lib/postgresql/data postgis/postgis:17-3.6-alpine
+
+  CI runs the same Postgres 17 major via its `postgis/postgis:17-3.5` service
+  container. If 5432 is taken — say, by a host-installed Postgres — publish
+  the container on another port and `export PGPORT` to match, once per shell.
+- Uploads: presigning raises unless `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, and `BUCKET_NAME` are set —
+  fine for browsing everything else. Locally, [S3Mock](https://github.com/adobe/S3Mock)
+  covers all three operations the app performs (presigned POST form,
+  presigned GET, presigned DELETE) with path-style URLs. `mix podman.up`
+  starts it and `mix dev.server` exports the matching environment; by hand:
+
+      podman run -d --name mc-emcomm-s3 -p 9090:9090 \
+        -e COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS=mc-emcomm-dev \
+        -t adobe/s3mock
+
+      AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1 \
+        AWS_ENDPOINT_URL_S3=http://localhost:9090 BUCKET_NAME=mc-emcomm-dev \
+        mix phx.server
+
+  Two things S3Mock does not do: validate signatures (any credentials pass),
+  or enforce POST policy conditions — an upload over the presign's
+  `content-length-range` cap is accepted where Tigris rejects it with 400.
+  Its store lives in the container's tmpdir and is wiped when it stops.
+  Tests never touch real storage: `McEmcomm.Storage` dispatches to
+  `McEmcomm.StorageMock` in test (`config/test.exs`), so `ReqS3` is never
+  called.
+- Create/migrate/seed the database: `mix ecto.setup`. The seeds
+  (`mix run priv/repo/seeds.exs`, idempotent — safe to re-run) create an
+  admin account, members across roles/quadrants, the capabilities/courses/
+  certifications catalogs, two operations (single- and multi-location), and
+  a few sample assets. The seed output prints the admin login.
 - Drop and recreate the database: `mix ecto.reset`
 - Run the app: `mix phx.server` (or `iex -S mix phx.server`)
 - Quality gate: `mix precommit` (steps defined by the alias in `mix.exs`).
@@ -114,7 +152,8 @@ rotating the database credential). What a contributor needs to know:
   optionally `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS`.
   `PHX_HOST` and `MC_EMCOMM_QR_BASE_URL` name the public origin; anything
   that builds an absolute URL (emails, canonical links, the sitemap, QR
-  codes) must derive from them rather than from the request.
+  codes) must derive from them rather than from the request. The
+  application-specific variables are tabulated under "Configuration" below.
 - `min_machines_running = 1` is mandatory: `auto_stop_machines` would otherwise
   stop the background GenServers (health probe, PromEx, schedulers).
 - Every successful CI run on the default branch deploys through
@@ -122,6 +161,36 @@ rotating the database credential). What a contributor needs to know:
   workflow is covered in DEPLOY.md § Continuous deployment.
 - Operator commands live in `McEmcomm.Release` and run from the release with
   `fly ssh console -C "/app/bin/mc_emcomm eval '...'"`; add new ones there.
+
+## Configuration
+
+Application-specific environment variables, all read in `config/runtime.exs`.
+The standard template variables (`DATABASE_URL`, `SECRET_KEY_BASE`,
+`PHX_HOST`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `MAIL_FROM`, …) are
+unchanged from the template; see the same file.
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `MC_EMCOMM_QR_BASE_URL` | Canonical public origin encoded into sighting QR codes | `http://localhost:4000` |
+| `MC_EMCOMM_SIGHTING_RAW_RETENTION_DAYS` | Days of raw sighting telemetry kept before the retention task scrubs it | `90` |
+| `MC_EMCOMM_NOMINATIM_USER_AGENT` | Identifying UA if geocoding is ever enabled (unused today — map-click is primary) | dev placeholder |
+| `MC_EMCOMM_MAP_TILE_URL` | Leaflet OSM tile URL template | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` |
+| `MC_EMCOMM_APRS_SERVER` | APRS-IS server the net logger listens to for keyword check-ins | `rotate.aprs2.net` |
+| `MC_EMCOMM_APRS_PORT` | APRS-IS filter port | `14580` |
+| `MC_EMCOMM_APRS_CALLSIGN` | Call sign the client logs in as (receive-only; never becomes a check-in) | `WB2EOC` |
+| `MC_EMCOMM_APRS_PASSCODE` | APRS-IS passcode; `-1` is receive-only | `-1` |
+| `MC_EMCOMM_APRS_RADIUS_KM` | Radius around every net location the APRS-IS filter covers | `25` |
+| `BUCKET_NAME`, `AWS_*` | Tigris/S3 bucket + credentials (`ReqS3`) | — |
+| `PGPORT` | Local/CI Postgres port | `5432` |
+
+## Privacy & retention
+
+- Member PII (call signs, addresses, QTH points) never renders on public
+  routes. Sighting IP/user-agent/client-hint/geolocation columns are
+  admin-only, gated at the query layer as well as the template.
+- A supervised `McEmcomm.RetentionScrubber` GenServer (no Oban — see the
+  spec's non-goals) periodically nulls raw sighting telemetry older than
+  `MC_EMCOMM_SIGHTING_RAW_RETENTION_DAYS`.
 
 ## Sprites (cloud dev VM)
 
@@ -140,7 +209,7 @@ provision one as a complete copy of this development environment via the
   `CREATE EXTENSION postgis` needs the extension packages) and runs it as the
   `postgres` service (`postgres`/`postgres` on `localhost:5432`), downloads
   the checksum-pinned S3Mock standalone jar — the same app as the
-  `adobe/s3mock` container in README § Setup — and runs it as the `s3mock`
+  `adobe/s3mock` container in Setup above — and runs it as the `s3mock`
   service on `localhost:9090` with a persistent store under
   `~/.local/share/s3mock`, installs the Elixir pinned in `mise.toml`,
   generates a key pair in the sprite and registers it as a write-enabled

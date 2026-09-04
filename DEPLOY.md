@@ -14,7 +14,7 @@ environment variables and the blue-green constraints the code must respect.
   emails; must be on a domain verified in Resend), and optionally
   `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS`. The
   application-specific variables (`MC_EMCOMM_*`, the Tigris bucket) are
-  tabulated in README.md.
+  tabulated in CONTRIBUTING.md § Configuration.
 - `min_machines_running = 1` is mandatory: `auto_stop_machines` would otherwise
   stop the background GenServers (health probe, PromEx, schedulers).
 
@@ -39,6 +39,10 @@ fly mpg attach <cluster-id> --app <app>      # sets DATABASE_URL
 # Both mpg commands print the full connection string, password included, to
 # the terminal. Treat scrollback, CI logs, and agent transcripts as tainted;
 # see "Rotating the database credential" below.
+
+# Uploads go in a private Tigris bucket. This sets BUCKET_NAME and the AWS_*
+# credentials as secrets on the app.
+fly storage create --name <app>-uploads --org <org> --app <app>
 
 # Secrets. Stage them so they ship with the first deploy instead of triggering
 # a release each.

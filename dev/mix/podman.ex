@@ -2,7 +2,7 @@ defmodule Mix.Podman do
   @moduledoc """
   Shared helpers and container definitions for `mix podman.up` and
   `mix podman.down`, which manage the app's local container dependencies
-  (README § Local setup): a PostGIS-enabled Postgres and S3Mock.
+  (CONTRIBUTING.md § Setup): a PostGIS-enabled Postgres and S3Mock.
   """
 
   @pg_container "mc-emcomm-pg"
@@ -21,7 +21,7 @@ defmodule Mix.Podman do
 
   def assert_installed! do
     System.find_executable("podman") ||
-      Mix.raise("podman is not on PATH; see README § Local setup")
+      Mix.raise("podman is not on PATH; see CONTRIBUTING.md § Setup")
 
     :ok
   end

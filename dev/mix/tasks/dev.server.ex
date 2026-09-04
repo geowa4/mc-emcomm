@@ -6,7 +6,7 @@ defmodule Mix.Tasks.Dev.Server do
 
     1. `mix podman.up` — the PostGIS Postgres and S3Mock containers
     2. defaults the S3Mock storage environment (`AWS_*`, `BUCKET_NAME`;
-       README § Local setup) for any variable not already exported, so
+       CONTRIBUTING.md § Setup) for any variable not already exported, so
        presigned uploads round-trip — set them yourself first to point at a
        real bucket instead
     3. `mix ecto.create` + `mix ecto.migrate`

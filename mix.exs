@@ -52,7 +52,7 @@ defmodule McEmcomm.MixProject do
         # dev/ tooling: exercised only against a real sprite (CONTRIBUTING.md § Sprites).
         Mix.Sprite,
         ~r/^Mix\.Tasks\.Sprite\./,
-        # dev/ tooling: exercised only against a real podman (README § Local setup).
+        # dev/ tooling: exercised only against a real podman (CONTRIBUTING.md § Setup).
         Mix.Podman,
         ~r/^Mix\.Tasks\.Podman\./,
         Mix.Tasks.Dev.Server,
