@@ -15,7 +15,7 @@ handful of spreadsheets with one Phoenix LiveView app.
 
 - **For the public** — who the group is, how to get trained, resources,
   the calendar, donations, and the schedule of upcoming operations.
-- **For members** — a private portal with a profile (location, quadrant,
+- **For members** — a private portal with a profile (location, emergency contact,
   capabilities, courses, certifications), operation details with locations,
   attachments, and attendance, the equipment inventory, and a live net
   logger for running on-air check-ins.
@@ -48,7 +48,7 @@ retention period.
 
 ## Documentation
 
-- [`mcemcomm-app.md`](mcemcomm-app.md) — the technical specification this
+- [`SPEC.md`](SPEC.md) — the technical specification this
   application implements.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — local setup, testing, database
   changes, configuration, and everything else a contributor needs.
