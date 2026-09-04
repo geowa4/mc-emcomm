@@ -6,6 +6,72 @@ defmodule McEmcomm.MembersTest do
   alias McEmcomm.Members
   alias McEmcomm.Members.MemberPosition
 
+  describe "update_profile/2 — emergency contact" do
+    test "is optional and blank fields are stored as nil" do
+      member = McEmcommFixtures.member_fixture()
+
+      assert {:ok, member} =
+               Members.update_profile(member, %{
+                 emergency_contact_name: "",
+                 emergency_contact_phone: "  ",
+                 emergency_contact_relation: ""
+               })
+
+      assert member.emergency_contact_name == nil
+      assert member.emergency_contact_phone == nil
+      assert member.emergency_contact_relation == nil
+    end
+
+    test "requires name and phone once any field is given" do
+      member = McEmcommFixtures.member_fixture()
+
+      assert {:error, changeset} =
+               Members.update_profile(member, %{emergency_contact_relation: "Spouse"})
+
+      assert %{emergency_contact_name: ["can't be blank"], emergency_contact_phone: _} =
+               errors_on(changeset)
+
+      assert {:ok, member} =
+               Members.update_profile(member, %{
+                 emergency_contact_name: "Pat Example",
+                 emergency_contact_phone: "+1 585 555 0100"
+               })
+
+      assert member.emergency_contact_relation == nil
+    end
+
+    test "rejects a phone number that is not a phone number" do
+      member = McEmcommFixtures.member_fixture()
+
+      assert {:error, changeset} =
+               Members.update_profile(member, %{
+                 emergency_contact_name: "Pat Example",
+                 emergency_contact_phone: "call my office"
+               })
+
+      assert %{emergency_contact_phone: ["must be a phone number"]} = errors_on(changeset)
+    end
+
+    test "can be cleared again" do
+      member = McEmcommFixtures.member_fixture()
+
+      {:ok, member} =
+        Members.update_profile(member, %{
+          emergency_contact_name: "Pat Example",
+          emergency_contact_phone: "585-555-0100"
+        })
+
+      assert {:ok, member} =
+               Members.update_profile(member, %{
+                 emergency_contact_name: "",
+                 emergency_contact_phone: ""
+               })
+
+      assert member.emergency_contact_name == nil
+      assert member.emergency_contact_phone == nil
+    end
+  end
+
   describe "transition_status/4 — legal transitions" do
     test "pending -> approved (no reason required), writes an audit row" do
       member = McEmcommFixtures.pending_member_fixture()

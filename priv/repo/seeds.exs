@@ -79,6 +79,15 @@ admin_member =
   |> then(&approve.(&1, admin_user))
   |> then(&set_qth.(&1, {-77.5895, 43.2001}))
 
+# One seeded emergency contact (fictional, 555 number) so the admin members
+# page has something to render in that column.
+{:ok, admin_member} =
+  Members.update_profile(admin_member, %{
+    emergency_contact_name: "Casey Rivera",
+    emergency_contact_phone: "585-555-0142",
+    emergency_contact_relation: "Spouse"
+  })
+
 member_specs = [
   %{
     email: "president@monroecountyemcomm.org",

@@ -30,6 +30,44 @@ defmodule McEmcommWeb.AppLive.ProfileTest do
     assert html =~ "W2NEW"
   end
 
+  test "saves an optional emergency contact", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    assert has_element?(lv, "#emergency-contact")
+
+    lv
+    |> form("#profile-form",
+      member: %{
+        emergency_contact_name: " Pat Example ",
+        emergency_contact_phone: "(585) 555-0100",
+        emergency_contact_relation: "Spouse"
+      }
+    )
+    |> render_submit()
+
+    updated = McEmcomm.Members.get_member!(member.id)
+    assert updated.emergency_contact_name == "Pat Example"
+    assert updated.emergency_contact_phone == "(585) 555-0100"
+    assert updated.emergency_contact_relation == "Spouse"
+  end
+
+  test "a partial emergency contact is rejected", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    html =
+      lv
+      |> form("#profile-form", member: %{emergency_contact_name: "Pat Example"})
+      |> render_submit()
+
+    refute html =~ "Profile updated"
+    assert html =~ "can&#39;t be blank"
+    assert McEmcomm.Members.get_member!(member.id).emergency_contact_name == nil
+  end
+
   test "dropping a pin persists the QTH point", %{conn: conn} do
     member = McEmcommFixtures.member_fixture()
     conn = log_in_user(conn, member.user)

@@ -91,6 +91,20 @@ defmodule McEmcommWeb.AppLive.Profile do
         />
         <.input field={@form[:qth_address]} label="QTH address" />
 
+        <fieldset id="emergency-contact" class="mt-6">
+          <legend class="text-lg font-semibold">Emergency contact</legend>
+          <p class="text-sm text-base-content/60">
+            Optional. Who should we reach if something happens to you during a deployment?
+          </p>
+          <.input field={@form[:emergency_contact_name]} label="Contact name" />
+          <.input field={@form[:emergency_contact_phone]} type="tel" label="Contact phone" />
+          <.input
+            field={@form[:emergency_contact_relation]}
+            label="Relation to you"
+            placeholder="Spouse, parent, neighbor…"
+          />
+        </fieldset>
+
         <.button phx-disable-with="Saving..." class="btn btn-primary mt-4">Save profile</.button>
       </.form>
 

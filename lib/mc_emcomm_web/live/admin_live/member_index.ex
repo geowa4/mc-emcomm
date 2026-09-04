@@ -71,6 +71,16 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
         <:col :let={m} label="Name">{m.name}</:col>
         <:col :let={m} label="Call sign">{m.call_sign}</:col>
         <:col :let={m} label="Status"><span class="badge badge-sm">{m.status}</span></:col>
+        <:col :let={m} label="Emergency contact">
+          <span :if={m.emergency_contact_name} id={"emergency-contact-#{m.id}"} class="text-sm">
+            {m.emergency_contact_name}
+            <span :if={m.emergency_contact_relation}>({m.emergency_contact_relation})</span>
+            <br />
+            <a href={"tel:#{m.emergency_contact_phone}"} class="link link-hover">
+              {m.emergency_contact_phone}
+            </a>
+          </span>
+        </:col>
         <:col :let={m} label="Positions">
           <form id={"positions-form-#{m.id}"} phx-change="update_positions" phx-value-id={m.id}>
             <input type="hidden" name="position_ids[]" value="" />

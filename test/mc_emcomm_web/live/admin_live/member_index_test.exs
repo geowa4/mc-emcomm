@@ -166,6 +166,22 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     |> Enum.sort()
   end
 
+  test "shows a member's emergency contact", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+
+    {:ok, _} =
+      Members.update_profile(member, %{
+        emergency_contact_name: "Pat Example",
+        emergency_contact_phone: "585-555-0100",
+        emergency_contact_relation: "Spouse"
+      })
+
+    {:ok, lv, _html} = live(conn, ~p"/admin/members")
+
+    assert has_element?(lv, "#emergency-contact-#{member.id}", "Pat Example")
+    assert has_element?(lv, "#emergency-contact-#{member.id} a[href='tel:585-555-0100']")
+  end
+
   test "viewing the audit trail opens a modal", %{conn: conn} do
     McEmcommFixtures.pending_member_fixture()
     {:ok, lv, _html} = live(conn, ~p"/admin/members")
