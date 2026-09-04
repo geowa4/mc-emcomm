@@ -49,9 +49,9 @@ jobs:
       - run: mix credo --strict
       # Phoenix-specific static analysis; accepted findings live in .sobelow-conf.
       - run: mix sobelow --config
-      # AGENTS.md <-> CLAUDE.md bridge guard
-      - name: Verify CLAUDE.md bridge
-        run: grep -qxF '@AGENTS.md' CLAUDE.md
+      # AGENTS.md <-> CLAUDE.md / GEMINI.md bridge guard
+      - name: Verify CLAUDE.md and GEMINI.md bridges
+        run: grep -qxF '@AGENTS.md' CLAUDE.md && grep -qxF '@AGENTS.md' GEMINI.md
       # usage_rules drift guard: exits non-zero if a sync would change AGENTS.md.
       - name: Verify usage_rules sync is current
         run: mix usage_rules.sync --check

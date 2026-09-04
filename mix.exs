@@ -63,7 +63,6 @@ defmodule McEmcomm.MixProject do
         McEmcommWeb.ConnCase,
         McEmcomm.AccountsFixtures,
         McEmcomm.ResendHelpers,
-        McEmcomm.ResendMock,
         McEmcommWeb.FailingBodyAdapter,
         McEmcomm.McEmcommFixtures,
         McEmcomm.StorageMock,
@@ -219,7 +218,7 @@ defmodule McEmcomm.MixProject do
         "compile --warnings-as-errors",
         "credo --strict",
         "sobelow --config",
-        &check_claude_md_bridge/1,
+        &check_agents_md_bridges/1,
         "usage_rules.sync --check",
         &ensure_ua_inspector_databases/1,
         "test --cover",
@@ -257,11 +256,12 @@ defmodule McEmcomm.MixProject do
     end
   end
 
-  # CI's "Verify CLAUDE.md bridge" step: CLAUDE.md must contain a line that is
-  # exactly `@AGENTS.md` so agents loading CLAUDE.md pull in AGENTS.md.
-  defp check_claude_md_bridge(_args) do
-    if "@AGENTS.md" not in String.split(File.read!("CLAUDE.md"), "\n") do
-      Mix.raise("CLAUDE.md is missing the `@AGENTS.md` bridge line")
+  # CI's "Verify CLAUDE.md and GEMINI.md bridges" step: each file must contain
+  # a line that is exactly `@AGENTS.md` so agents loading it pull in AGENTS.md.
+  defp check_agents_md_bridges(_args) do
+    for file <- ["CLAUDE.md", "GEMINI.md"],
+        "@AGENTS.md" not in String.split(File.read!(file), "\n") do
+      Mix.raise("#{file} is missing the `@AGENTS.md` bridge line")
     end
   end
 
