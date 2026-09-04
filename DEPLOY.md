@@ -27,9 +27,8 @@ form of the app name (`app` and `PHX_HOST`); `mix mc_emcomm.rename` rewrites bot
 fly apps create <app> --org <org>
 
 # Database: use Managed Postgres (`fly mpg`) for anything real. It provides
-# backups, point-in-time restore, and HA plans. Note that MPG currently offers
-# Postgres 16/17 (the app runs 18 locally; nothing here depends on 18-only
-# features).
+# backups, point-in-time restore, and HA plans. MPG offers Postgres 16 and 17;
+# 17 is the version this app runs everywhere (CI, local podman, sprites).
 # PostGIS is required (asset locations and sighting points are geometry
 # columns); fall back to --pg-major-version 16 if PG17+PostGIS is not offered
 # in the target region.
