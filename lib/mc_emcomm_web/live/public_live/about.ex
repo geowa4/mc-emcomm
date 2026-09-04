@@ -56,17 +56,31 @@ defmodule McEmcommWeb.PublicLive.About do
 
       <h2 class="text-xl font-semibold mt-6">Meetings</h2>
       <p>
-        We hold monthly meetings except during July, August, and December. These meetings
-        provide opportunities for training and skill development, planning and coordination,
-        equipment testing and maintenance, and fellowship and networking.
+        We meet on the fourth Thursday of each month except during July, August, and
+        December. These meetings provide opportunities for training and skill development,
+        planning and coordination, equipment testing and maintenance, and fellowship and
+        networking.
       </p>
 
-      <h2 class="text-xl font-semibold mt-6">Weekly Net &amp; Repeater</h2>
-      <p class="text-base-content/70">
-        Repeater frequency, offset, tone, and the weekly net schedule are pending final
-        confirmation from leadership (a recent callsign transition on the primary repeater is
-        still being verified) and will be published here once confirmed.
-      </p>
+      <section id="weekly-net" aria-labelledby="weekly-net-heading">
+        <h2 id="weekly-net-heading" class="text-xl font-semibold mt-6">
+          Weekly Net &amp; Repeaters
+        </h2>
+        <p>
+          Our weekly net is held every Thursday at 7:00 PM local time on the primary repeater.
+          All licensed amateurs are welcome to check in.
+        </p>
+        <dl id="repeaters" class="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-[auto_1fr]">
+          <dt class="font-semibold">2 m primary — W2ARM</dt>
+          <dd>146.610 MHz, -0.6 MHz offset (146.010 input), PL 110.9 Hz, Cobbs Hill, FM and P-25</dd>
+          <dt class="font-semibold">70 cm — W2ARM</dt>
+          <dd>444.450 MHz, +5 MHz offset, PL 110.9 Hz</dd>
+        </dl>
+        <p class="text-sm text-base-content/70 mt-2">
+          The primary repeater's callsign changed from N2MPE to W2ARM; older listings may still
+          show N2MPE.
+        </p>
+      </section>
 
       <h2 class="text-xl font-semibold mt-6">Services We Provide</h2>
       <ul class="list-disc list-inside space-y-1">

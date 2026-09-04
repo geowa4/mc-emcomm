@@ -27,8 +27,8 @@ defmodule McEmcommWeb.PublicLive.Calendar do
       <.header>Calendar</.header>
 
       <p>
-        Meetings, nets, and operations. We meet monthly except during July, August, and
-        December.
+        Meetings, nets, and operations. We meet on the fourth Thursday of each month except
+        during July, August, and December.
       </p>
 
       <div class="flex flex-wrap gap-3 items-center">

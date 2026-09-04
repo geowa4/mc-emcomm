@@ -34,6 +34,15 @@ defmodule McEmcommWeb.PublicLive.AboutTest do
     assert html =~ "Secretary"
   end
 
+  test "publishes the weekly net and repeater details", %{conn: conn} do
+    {:ok, lv, _html} = live(conn, ~p"/about")
+
+    assert has_element?(lv, "#weekly-net", "Thursday")
+    assert has_element?(lv, "#repeaters", "W2ARM")
+    assert has_element?(lv, "#repeaters", "146.610")
+    assert has_element?(lv, "#repeaters", "444.450")
+  end
+
   test "shows the social and community links", %{conn: conn} do
     {:ok, lv, _html} = live(conn, ~p"/about")
 
