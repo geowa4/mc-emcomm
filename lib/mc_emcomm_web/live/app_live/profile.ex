@@ -120,113 +120,204 @@ defmodule McEmcommWeb.AppLive.Profile do
         />
       </section>
 
-      <h2 class="text-lg font-semibold mt-8">Capabilities</h2>
-      <ul class="list bg-base-100 rounded-box border border-base-300">
-        <li :for={cap <- @capabilities} class="list-row items-center">
-          <label for={"capability-#{cap.id}"} class="flex-1 cursor-pointer">{cap.name}</label>
-          <input
-            id={"capability-#{cap.id}"}
-            type="checkbox"
-            class="checkbox"
-            checked={Enum.any?(@member_capabilities, &(&1.capability_id == cap.id))}
-            phx-click="toggle_capability"
-            phx-value-id={cap.id}
-          />
-        </li>
-      </ul>
-
-      <h2 class="text-lg font-semibold mt-8">Courses</h2>
-      <ul class="list bg-base-100 rounded-box border border-base-300">
-        <li :for={course <- @courses} class="list-row items-center flex-wrap">
-          <div class="flex-1">
-            {course.name}
-            <span :if={mc = member_course(@member_courses, course.id)}>
-              <span :if={mc.completed_on} class="badge badge-sm badge-success ml-2">
-                Completed {mc.completed_on}
-              </span>
-              <span :if={mc.verified} class="badge badge-sm badge-info ml-1">Verified</span>
-            </span>
-          </div>
-          <form
-            id={"course-form-#{course.id}"}
-            phx-submit="save_course"
-            phx-value-course_id={course.id}
-            class="flex flex-wrap gap-2 items-end"
-            aria-label={"#{course.name} completion"}
+      <section id="capabilities-section" aria-labelledby="capabilities-heading">
+        <h2 id="capabilities-heading" class="text-lg font-semibold mt-8">Capabilities</h2>
+        <p id="capabilities-help" class="text-sm text-base-content/60 mb-2">
+          Switch on what you can bring to a deployment. Changes save immediately.
+        </p>
+        <ul
+          id="capabilities"
+          class="list bg-base-100 rounded-box border border-base-300"
+          aria-describedby="capabilities-help"
+        >
+          <li
+            :for={cap <- @capabilities}
+            class={["list-row", capability_claimed?(@member_capabilities, cap.id) && "bg-success/10"]}
           >
-            <.input
-              type="date"
-              id={"course-completed-on-#{course.id}"}
-              name="completed_on"
-              label="Completed on"
-              value={completed_on(@member_courses, course.id)}
-            />
-            <div class="fieldset mb-2">
-              <label for={@uploads[course_upload_name(course.id)].ref} class="label mb-1">
-                Evidence
-              </label>
-              <.live_file_input upload={@uploads[course_upload_name(course.id)]} />
-            </div>
-            <.button class="btn btn-sm btn-secondary">Save</.button>
-          </form>
-        </li>
-      </ul>
+            <label
+              for={"capability-#{cap.id}"}
+              class="list-col-grow flex items-center gap-4 cursor-pointer"
+            >
+              <span class="flex-1 min-w-0">
+                <span id={"capability-name-#{cap.id}"} class="block font-medium">{cap.name}</span>
+                <span
+                  :if={cap.description}
+                  id={"capability-description-#{cap.id}"}
+                  class="block text-sm text-base-content/60"
+                >
+                  {cap.description}
+                </span>
+              </span>
+              <input
+                id={"capability-#{cap.id}"}
+                type="checkbox"
+                role="switch"
+                class="toggle toggle-success"
+                checked={capability_claimed?(@member_capabilities, cap.id)}
+                aria-labelledby={"capability-name-#{cap.id}"}
+                aria-describedby={cap.description && "capability-description-#{cap.id}"}
+                phx-click="toggle_capability"
+                phx-value-id={cap.id}
+              />
+            </label>
+          </li>
+        </ul>
+      </section>
 
-      <h2 class="text-lg font-semibold mt-8">Certifications</h2>
-      <ul class="list bg-base-100 rounded-box border border-base-300">
-        <li :for={cert <- @certifications} class="list-row flex-col items-stretch">
-          <div class="flex justify-between items-center">
-            <div>
-              <strong>{cert.name}</strong>
-              <span :if={cert.prerequisite_course}>
-                &middot; prerequisite: {cert.prerequisite_course.name}
+      <section id="courses-section" aria-labelledby="courses-heading">
+        <h2 id="courses-heading" class="text-lg font-semibold mt-8">Courses</h2>
+        <ul class="list bg-base-100 rounded-box border border-base-300">
+          <li :for={course <- @courses} class="list-row">
+            <div class="list-col-grow flex flex-col gap-3">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-medium">{course.name}</span>
+                <span :if={mc = member_course(@member_courses, course.id)} class="contents">
+                  <span :if={mc.completed_on} class="badge badge-sm badge-success">
+                    Completed {mc.completed_on}
+                  </span>
+                  <span :if={mc.verified} class="badge badge-sm badge-info">Verified</span>
+                </span>
+              </div>
+              <form
+                id={"course-form-#{course.id}"}
+                phx-submit="save_course"
+                phx-value-course_id={course.id}
+                class="grid grid-cols-1 gap-x-4 gap-y-2 items-end sm:grid-cols-[12rem_1fr_auto]"
+                aria-label={"#{course.name} completion"}
+              >
+                <div class="fieldset">
+                  <label for={"course-completed-on-#{course.id}"} class="label">Completed on</label>
+                  <input
+                    type="date"
+                    id={"course-completed-on-#{course.id}"}
+                    name="completed_on"
+                    value={completed_on(@member_courses, course.id)}
+                    class="input w-full"
+                  />
+                </div>
+                <div class="fieldset">
+                  <.upload_field upload={@uploads[course_upload_name(course.id)]} label="Evidence" />
+                </div>
+                <.button class="btn btn-secondary mb-1">
+                  Save<span class="sr-only">{course.name}</span>
+                </.button>
+              </form>
+            </div>
+          </li>
+        </ul>
+      </section>
+
+      <section id="certifications-section" aria-labelledby="certifications-heading">
+        <h2 id="certifications-heading" class="text-lg font-semibold mt-8">Certifications</h2>
+        <ul class="list bg-base-100 rounded-box border border-base-300">
+          <li :for={cert <- @certifications} class="list-row">
+            <div class="list-col-grow flex flex-col gap-3">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-medium">{cert.name}</span>
+                <span :if={cert.prerequisite_course} class="contents">
+                  <span class="text-sm text-base-content/60">
+                    Prerequisite: {cert.prerequisite_course.name}
+                  </span>
+                  <span
+                    :if={prerequisite_met?(@member_courses, cert)}
+                    class="badge badge-sm badge-success"
+                  >met</span>
+                  <span
+                    :if={!prerequisite_met?(@member_courses, cert)}
+                    class="badge badge-sm badge-warning"
+                  >not yet</span>
+                </span>
                 <span
-                  :if={prerequisite_met?(@member_courses, cert)}
-                  class="badge badge-sm badge-success ml-1"
-                >met</span>
-                <span
-                  :if={!prerequisite_met?(@member_courses, cert)}
-                  class="badge badge-sm badge-warning ml-1"
-                >not yet</span>
-              </span>
-              <span :if={mc = member_certification(@member_certifications, cert.id)}>
-                <span :if={mc.verified} class="badge badge-sm badge-info ml-1">Verified</span>
-              </span>
+                  :if={mc = member_certification(@member_certifications, cert.id)}
+                  class="contents"
+                >
+                  <span :if={mc.verified} class="badge badge-sm badge-info">Verified</span>
+                </span>
+              </div>
+              <form
+                id={"certification-form-#{cert.id}"}
+                phx-submit="save_certification"
+                phx-value-certification_id={cert.id}
+                class="grid grid-cols-1 gap-x-4 gap-y-2 items-end sm:grid-cols-2 lg:grid-cols-[12rem_1fr_1fr_auto]"
+                aria-label={"#{cert.name} certification"}
+              >
+                <div class="fieldset">
+                  <label for={"certification-issued-on-#{cert.id}"} class="label">Issued on</label>
+                  <input
+                    type="date"
+                    id={"certification-issued-on-#{cert.id}"}
+                    name="issued_on"
+                    value={cert_field(@member_certifications, cert.id, :issued_on)}
+                    class="input w-full"
+                  />
+                </div>
+                <div class="fieldset">
+                  <.upload_field upload={@uploads[task_book_upload_name(cert.id)]} label="Task book" />
+                </div>
+                <div class="fieldset">
+                  <.upload_field
+                    upload={@uploads[certificate_upload_name(cert.id)]}
+                    label="Certificate"
+                  />
+                </div>
+                <.button class="btn btn-secondary mb-1">
+                  Save<span class="sr-only">{cert.name}</span>
+                </.button>
+              </form>
             </div>
-          </div>
-          <form
-            id={"certification-form-#{cert.id}"}
-            phx-submit="save_certification"
-            phx-value-certification_id={cert.id}
-            class="flex gap-2 items-end flex-wrap mt-2"
-            aria-label={"#{cert.name} certification"}
-          >
-            <.input
-              type="date"
-              id={"certification-issued-on-#{cert.id}"}
-              name="issued_on"
-              label="Issued on"
-              value={cert_field(@member_certifications, cert.id, :issued_on)}
-            />
-            <div class="fieldset mb-2">
-              <label for={@uploads[task_book_upload_name(cert.id)].ref} class="label mb-1">
-                Task book
-              </label>
-              <.live_file_input upload={@uploads[task_book_upload_name(cert.id)]} />
-            </div>
-            <div class="fieldset mb-2">
-              <label for={@uploads[certificate_upload_name(cert.id)].ref} class="label mb-1">
-                Certificate
-              </label>
-              <.live_file_input upload={@uploads[certificate_upload_name(cert.id)]} />
-            </div>
-            <.button class="btn btn-sm btn-secondary">Save</.button>
-          </form>
-        </li>
-      </ul>
+          </li>
+        </ul>
+      </section>
     </Layouts.app>
     """
   end
+
+  attr :upload, Phoenix.LiveView.UploadConfig, required: true
+  attr :label, :string, required: true
+
+  # A labelled file picker that surfaces config- and entry-level upload errors
+  # beneath it and points the input at them, so a rejected file is announced
+  # rather than failing silently.
+  defp upload_field(assigns) do
+    errors =
+      (upload_errors(assigns.upload) ++
+         Enum.flat_map(assigns.upload.entries, &upload_errors(assigns.upload, &1)))
+      |> Enum.uniq()
+      |> Enum.map(&upload_error_message/1)
+
+    assigns = assign(assigns, errors: errors, error_id: "#{assigns.upload.ref}-errors")
+
+    ~H"""
+    <label for={@upload.ref} class="label">{@label}</label>
+    <.live_file_input
+      upload={@upload}
+      class={["file-input w-full", @errors != [] && "file-input-error"]}
+      aria-invalid={@errors != [] && "true"}
+      aria-describedby={@errors != [] && @error_id}
+    />
+    <p :if={@errors != []} id={@error_id} class="text-sm text-error">
+      {Enum.join(@errors, " ")}
+    </p>
+    """
+  end
+
+  defp upload_error_message(:too_large), do: "That file is too large."
+  defp upload_error_message(:too_many_files), do: "Choose a single file."
+  defp upload_error_message(:not_accepted), do: "That file type is not accepted."
+  defp upload_error_message(:external_client_failure), do: "The upload failed. Try again."
+  defp upload_error_message(other), do: "Upload problem: #{inspect(other)}."
+
+  # "Completed on must be in the past. Evidence is required."
+  defp changeset_error_message(changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(&translate_error/1)
+    |> Enum.map_join(" ", fn {field, messages} ->
+      "#{Phoenix.Naming.humanize(field)} #{Enum.join(messages, " and ")}."
+    end)
+  end
+
+  defp capability_claimed?(member_capabilities, capability_id),
+    do: Enum.any?(member_capabilities, &(&1.capability_id == capability_id))
 
   defp member_course(member_courses, course_id),
     do: Enum.find(member_courses, &(&1.course_id == course_id))
@@ -315,16 +406,27 @@ defmodule McEmcommWeb.AppLive.Profile do
   defp toggle_capability(socket, capability_id) do
     member = socket.assigns.member
 
-    case Enum.find(socket.assigns.member_capabilities, &(&1.capability_id == capability_id)) do
-      nil ->
-        Capabilities.add_member_capability(%{member_id: member.id, capability_id: capability_id})
+    capability = Enum.find(socket.assigns.capabilities, &(&1.id == capability_id))
 
-      mc ->
-        Capabilities.remove_member_capability(mc)
-    end
+    message =
+      case Enum.find(socket.assigns.member_capabilities, &(&1.capability_id == capability_id)) do
+        nil ->
+          Capabilities.add_member_capability(%{
+            member_id: member.id,
+            capability_id: capability_id
+          })
+
+          "#{capability.name} added to your capabilities."
+
+        mc ->
+          Capabilities.remove_member_capability(mc)
+          "#{capability.name} removed from your capabilities."
+      end
 
     {:noreply,
-     assign(socket, member_capabilities: Capabilities.list_member_capabilities(member.id))}
+     socket
+     |> put_flash(:info, message)
+     |> assign(member_capabilities: Capabilities.list_member_capabilities(member.id))}
   end
 
   defp save_course(socket, course_id, params) do
@@ -357,10 +459,16 @@ defmodule McEmcommWeb.AppLive.Profile do
 
     case result do
       {:ok, _} ->
-        {:noreply, assign(socket, member_courses: Courses.list_member_courses(member.id))}
+        course = Enum.find(socket.assigns.courses, &(&1.id == course_id))
+
+        {:noreply,
+         socket
+         |> put_flash(:info, "#{course.name} saved.")
+         |> assign(member_courses: Courses.list_member_courses(member.id))}
 
       {:error, changeset} ->
-        {:noreply, put_flash(socket, :error, "Course error: #{inspect(changeset.errors)}")}
+        {:noreply,
+         put_flash(socket, :error, "Could not save course: #{changeset_error_message(changeset)}")}
     end
   end
 
@@ -406,13 +514,20 @@ defmodule McEmcommWeb.AppLive.Profile do
 
     case result do
       {:ok, _} ->
+        cert = Enum.find(socket.assigns.certifications, &(&1.id == cert_id))
+
         {:noreply,
-         assign(socket,
-           member_certifications: Certifications.list_member_certifications(member.id)
-         )}
+         socket
+         |> put_flash(:info, "#{cert.name} saved.")
+         |> assign(member_certifications: Certifications.list_member_certifications(member.id))}
 
       {:error, changeset} ->
-        {:noreply, put_flash(socket, :error, "Certification error: #{inspect(changeset.errors)}")}
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "Could not save certification: #{changeset_error_message(changeset)}"
+         )}
     end
   end
 

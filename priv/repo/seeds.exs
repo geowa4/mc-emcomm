@@ -213,11 +213,28 @@ members =
 
 # ## Capabilities catalog
 
-capabilities = ["2m/70cm HT (field-programmable)", "APRS", "HF voice"]
+capabilities = [
+  %{
+    name: "2m/70cm HT (field-programmable)",
+    description:
+      "A dual-band handheld you can reprogram in the field without a computer, for simplex and repeater nets at a deployment site."
+  },
+  %{
+    name: "APRS",
+    description:
+      "Automatic Packet Reporting System: you can send position beacons and short text messages over VHF packet."
+  },
+  %{
+    name: "HF voice",
+    description:
+      "An HF station and the license privileges to work voice on regional and statewide nets when repeaters are down."
+  }
+]
 
-Enum.each(capabilities, fn name ->
-  unless Repo.get_by(Capabilities.Capability, name: name) do
-    {:ok, _} = Capabilities.create_capability(%{name: name})
+Enum.each(capabilities, fn attrs ->
+  case Repo.get_by(Capabilities.Capability, name: attrs.name) do
+    nil -> {:ok, _} = Capabilities.create_capability(attrs)
+    capability -> {:ok, _} = Capabilities.update_capability(capability, attrs)
   end
 end)
 

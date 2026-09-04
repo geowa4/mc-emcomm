@@ -104,6 +104,44 @@ defmodule McEmcommWeb.AppLive.ProfileTest do
     assert has_element?(lv, "input#capability-#{capability.id}")
   end
 
+  test "capability toggles are switches with a short name and a description", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+
+    capability =
+      McEmcommFixtures.capability_fixture(%{name: "APRS", description: "Position beacons."})
+
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    assert has_element?(
+             lv,
+             "section#capabilities-section[aria-labelledby='capabilities-heading']"
+           )
+
+    assert has_element?(
+             lv,
+             "input#capability-#{capability.id}[role='switch']" <>
+               "[aria-labelledby='capability-name-#{capability.id}']" <>
+               "[aria-describedby='capability-description-#{capability.id}']"
+           )
+
+    assert has_element?(lv, "#capability-name-#{capability.id}", "APRS")
+    assert has_element?(lv, "#capability-description-#{capability.id}", "Position beacons.")
+  end
+
+  test "toggling a capability announces the change", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    capability = McEmcommFixtures.capability_fixture(%{name: "APRS"})
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    lv |> element("input[phx-value-id='#{capability.id}']") |> render_click()
+    assert has_element?(lv, "#flash-group", "APRS added to your capabilities.")
+
+    lv |> element("input[phx-value-id='#{capability.id}']") |> render_click()
+    assert has_element?(lv, "#flash-group", "APRS removed from your capabilities.")
+  end
+
   test "toggling a capability adds and removes it", %{conn: conn} do
     member = McEmcommFixtures.member_fixture()
     capability = McEmcommFixtures.capability_fixture(%{name: "APRS"})
@@ -143,8 +181,49 @@ defmodule McEmcommWeb.AppLive.ProfileTest do
       |> render_submit(%{"completed_on" => "2026-01-15"})
 
     assert html =~ "Completed 2026-01-15"
+    assert has_element?(lv, "#flash-group", "IS-100 saved.")
     assert [mc] = Courses.list_member_courses(member.id)
     assert mc.completed_on == ~D[2026-01-15]
+  end
+
+  test "course and certification rows are landmarks with distinctly named save buttons", %{
+    conn: conn
+  } do
+    member = McEmcommFixtures.member_fixture()
+    course = McEmcommFixtures.course_fixture(%{name: "IS-100"})
+    cert = McEmcommFixtures.certification_fixture(%{name: "COML"})
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    assert has_element?(lv, "section#courses-section[aria-labelledby='courses-heading']")
+
+    assert has_element?(
+             lv,
+             "section#certifications-section[aria-labelledby='certifications-heading']"
+           )
+
+    assert has_element?(lv, "#course-form-#{course.id} button .sr-only", "IS-100")
+    assert has_element?(lv, "#certification-form-#{cert.id} button .sr-only", "COML")
+    assert has_element?(lv, "label[for='course-completed-on-#{course.id}']", "Completed on")
+    assert has_element?(lv, "label[for='certification-issued-on-#{cert.id}']", "Issued on")
+  end
+
+  test "a rejected course upload is reported beneath the file picker", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    course = McEmcommFixtures.course_fixture(%{name: "IS-100"})
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    upload =
+      file_input(lv, "#course-form-#{course.id}", :"course_evidence_#{course.id}", [
+        %{name: "a.pdf", content: "a", type: "application/pdf"},
+        %{name: "b.pdf", content: "b", type: "application/pdf"}
+      ])
+
+    _ = render_upload(upload, "a.pdf")
+
+    assert has_element?(lv, "#course-form-#{course.id} input[type='file'][aria-invalid='true']")
+    assert has_element?(lv, "#course-form-#{course.id} .text-error", "Choose a single file.")
   end
 
   test "saving a certification records the issue date and shows the prerequisite status", %{
