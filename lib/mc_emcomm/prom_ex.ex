@@ -11,7 +11,8 @@ defmodule McEmcomm.PromEx do
       PromEx.Plugins.Application,
       PromEx.Plugins.Beam,
       {PromEx.Plugins.Phoenix, router: McEmcommWeb.Router, endpoint: McEmcommWeb.Endpoint},
-      PromEx.Plugins.Ecto
+      PromEx.Plugins.Ecto,
+      McEmcomm.PromEx.MCPPlugin
     ]
   end
 

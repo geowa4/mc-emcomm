@@ -34,7 +34,11 @@
     "DOS.BinToAtom",
     # POST /webhooks/resend deliberately carries no CSRF token: it is an
     # inbound server-to-server delivery authenticated by its Svix HMAC
-    # signature in McEmcommWeb.Plugs.VerifyResendSignature.
+    # signature in McEmcommWeb.Plugs.VerifyResendSignature. The MCP connector's
+    # POST routes (/mcp, /oauth/register, /oauth/token, /oauth/revoke) are
+    # likewise sessionless: /mcp is authenticated by bearer token
+    # (McEmcommWeb.Plugs.MCPAuth) and the OAuth endpoints by client
+    # credentials, per SPEC.md §28.
     "Config.CSRFRoute",
     # The raw/1 calls in the app render QR SVGs that EQRCode builds from
     # server-side strings, never from user input

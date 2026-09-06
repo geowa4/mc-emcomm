@@ -84,6 +84,17 @@ defmodule McEmcomm.Net do
     |> Repo.preload([:net_control_member, operation: :locations, checkins: :member])
   end
 
+  @doc "Like `get_session!/1` but `nil` for an unknown id (the MCP tools answer \"not found\" instead of crashing)."
+  def get_session(id) do
+    case Repo.get(NetSession, id) do
+      nil ->
+        nil
+
+      session ->
+        Repo.preload(session, [:net_control_member, operation: :locations, checkins: :member])
+    end
+  end
+
   def change_session(%NetSession{} = session, attrs \\ %{}) do
     NetSession.changeset(session, attrs)
   end
@@ -198,6 +209,10 @@ defmodule McEmcomm.Net do
   by `"location_ref"` (`"default:ID"` / `"op:ID"`, resolved server-side). An
   operator who left the net and comes back checks in again: each stint is its
   own row, so the log keeps every join/leave with its duration.
+
+  An optional `"idempotency_key"` makes the call safe to retry: a second
+  check-in with the same key on the same net returns the row the first one
+  created (`net_checkins_idempotency_key_index`) and broadcasts nothing.
   """
   def check_in(%NetSession{} = session, attrs) do
     call_sign = attrs["call_sign"] || attrs[:call_sign]
@@ -216,15 +231,28 @@ defmodule McEmcomm.Net do
     |> NetCheckin.changeset(attrs)
     |> Repo.insert()
     |> case do
-      {:ok, checkin} = result ->
+      {:ok, checkin} ->
         checkin = Repo.preload(checkin, :member)
         broadcast(session.id, {:checkin_added, checkin})
-        result
+        {:ok, checkin}
 
-      error ->
-        error
+      {:error, changeset} = error ->
+        replayed_checkin(session, attrs["idempotency_key"], changeset) || error
     end
   end
+
+  # The unique index tripped: this key was already recorded on this net, so
+  # answer with the existing row rather than an error.
+  defp replayed_checkin(session, key, changeset) when is_binary(key) and key != "" do
+    if Keyword.has_key?(changeset.errors, :idempotency_key) do
+      case Repo.get_by(NetCheckin, net_session_id: session.id, idempotency_key: key) do
+        nil -> nil
+        checkin -> {:ok, Repo.preload(checkin, :member)}
+      end
+    end
+  end
+
+  defp replayed_checkin(_session, _key, _changeset), do: nil
 
   @doc """
   Corrects a check-in. A present, non-blank `"location_ref"` re-resolves the

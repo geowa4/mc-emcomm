@@ -19,6 +19,9 @@ defmodule McEmcomm.Capabilities do
 
   def get_capability!(id), do: Repo.get!(Capability, id)
 
+  @doc "Like `get_capability!/1` but `nil` for an unknown id."
+  def get_capability(id), do: Repo.get(Capability, id)
+
   def change_capability(%Capability{} = capability, attrs \\ %{}) do
     Capability.changeset(capability, attrs)
   end

@@ -23,6 +23,14 @@ defmodule McEmcomm.Certifications do
     Certification |> Repo.get!(id) |> Repo.preload(:prerequisite_course)
   end
 
+  @doc "Like `get_certification!/1` but `nil` for an unknown id."
+  def get_certification(id) do
+    case Repo.get(Certification, id) do
+      nil -> nil
+      certification -> Repo.preload(certification, :prerequisite_course)
+    end
+  end
+
   def change_certification(%Certification{} = certification, attrs \\ %{}) do
     Certification.changeset(certification, attrs)
   end

@@ -16,7 +16,9 @@ defmodule McEmcomm.Application do
         McEmcomm.Repo,
         {DNSCluster, query: Application.get_env(:mc_emcomm, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: McEmcomm.PubSub},
-        {Task.Supervisor, name: McEmcomm.TaskSupervisor}
+        {Task.Supervisor, name: McEmcomm.TaskSupervisor},
+        # Owns the ETS table behind the MCP connector's request limiter.
+        McEmcomm.MCP.RateLimiter
       ] ++
         probe_child() ++
         retention_scrubber_child() ++

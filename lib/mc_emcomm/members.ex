@@ -40,6 +40,14 @@ defmodule McEmcomm.Members do
 
   def get_member!(id), do: Repo.get!(Member, id)
 
+  @doc "Like `get_member!/1` but `nil` for an unknown id, with positions preloaded."
+  def get_member(id) do
+    case Repo.get(Member, id) do
+      nil -> nil
+      member -> Repo.preload(member, positions: positions_query())
+    end
+  end
+
   @doc """
   True when the member currently holds at least one leadership position
   whose `grants_admin` flag is set. Position-derived admin access follows

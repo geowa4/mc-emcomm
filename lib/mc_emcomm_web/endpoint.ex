@@ -58,9 +58,11 @@ defmodule McEmcommWeb.Endpoint do
   plug McEmcommWeb.Plugs.TraceContext
 
   # The :body_reader keeps the raw request body for webhook signature
-  # verification (see McEmcommWeb.Plugs.CacheRawBody).
+  # verification (see McEmcommWeb.Plugs.CacheRawBody). MCPBodyParser takes
+  # `application/json` on /mcp only, so a malformed JSON-RPC body becomes a
+  # JSON-RPC parse error instead of the generic 400.
   plug Plug.Parsers,
-    parsers: [:urlencoded, :multipart, :json],
+    parsers: [:urlencoded, :multipart, McEmcommWeb.Plugs.MCPBodyParser, :json],
     pass: ["*/*"],
     body_reader: {McEmcommWeb.Plugs.CacheRawBody, :read_body, []},
     json_decoder: Phoenix.json_library()

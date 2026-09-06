@@ -23,6 +23,9 @@ defmodule McEmcomm.Assets do
 
   def get_asset!(id), do: Repo.get!(Asset, id)
 
+  @doc "Like `get_asset!/1` but `nil` for an unknown id."
+  def get_asset(id), do: Repo.get(Asset, id)
+
   def get_asset_by_public_id(public_id) do
     Repo.get_by(Asset, public_id: String.upcase(public_id))
   end

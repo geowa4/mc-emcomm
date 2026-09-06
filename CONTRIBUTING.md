@@ -86,7 +86,9 @@ live in AGENTS.md; this file holds the detail those rules point to.
 - Coverage report: `mix test --cover` (CI enforces the threshold set in `mix.exs`)
 - Stack: ExUnit, Ecto SQL Sandbox, Mox, StreamData, `Phoenix.LiveViewTest`,
   PhoenixTest. External HTTP dependencies are stubbed behind behaviours with
-  Mox mocks (defined in `test/support/mocks.ex`).
+  Mox mocks (defined in `test/support/mocks.ex`). MCP requests are built with
+  `McEmcommWeb.MCPHelpers` and OAuth fixtures with `McEmcomm.OAuthFixtures`
+  (both in `test/support`).
 
 ## Database & migrations
 
@@ -119,6 +121,109 @@ live in AGENTS.md; this file holds the detail those rules point to.
   future processing.
 - Endpoint: `POST /webhooks/resend`. Point the Resend webhook at
   `https://<host>/webhooks/resend` and set `RESEND_WEBHOOK_SECRET`.
+
+## MCP connector
+
+The app exposes its member portal to Claude as a Model Context Protocol
+server at `/mcp` (SPEC.md §28 is the specification; this section is the
+how-to). It speaks MCP revision 2026-07-28 only — stateless, no `initialize`,
+no sessions, no SSE — and is protected by the app's own OAuth 2.1
+authorization server. In dev and test it is on by default; in prod it is off
+until `MC_EMCOMM_MCP_ENABLED=true`.
+
+### Local testing with the MCP Inspector
+
+The [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
+needs Node 22.19.0 or newer and runs through `npx`. Its default *protocol
+era* is `legacy` (a plain `initialize`), which this server refuses with
+`-32022`, so give it a catalog entry pinned to the modern era. Save this as
+`mcp-catalog.json` anywhere outside the repo:
+
+    {
+      "mcpServers": {
+        "mc-emcomm": {
+          "type": "http",
+          "url": "http://localhost:4000/mcp",
+          "protocolEra": "modern"
+        }
+      }
+    }
+
+With `mix phx.server` running, open the web client:
+
+    npx @modelcontextprotocol/inspector --catalog mcp-catalog.json --server mc-emcomm
+
+The Inspector discovers `/.well-known/oauth-protected-resource`, registers
+itself (`POST /oauth/register`, a loopback redirect), and sends the browser to
+`/oauth/authorize`; log in as a seeded member (the seed output prints the
+admin login) and approve. It then holds an audience-bound token and can call
+`server/discover`, `tools/list`, and any tool. The useful smoke test is
+`start_net` → `add_checkin` → `list_net_checkins` → `end_net`.
+
+The CLI client shares the same catalog and OAuth state file. Run it once
+interactively (it prints the authorization URL to open in a browser), then
+`--stored-auth-only` reuses the token for scripting and CI:
+
+    npx @modelcontextprotocol/inspector --cli --catalog mcp-catalog.json --server mc-emcomm \
+      --method tools/list --format json
+    npx @modelcontextprotocol/inspector --cli --catalog mcp-catalog.json --server mc-emcomm \
+      --stored-auth-only --method tools/call --tool-name list_active_nets --format json
+    npx @modelcontextprotocol/inspector --cli --catalog mcp-catalog.json --server mc-emcomm \
+      --stored-auth-only --method tools/call --tool-name add_checkin \
+      --tool-args-json '{"net_id":1,"call_sign":"W2ABC","idempotency_key":"k1"}'
+
+`--method tools/list --strict` reports schema-portability problems; the
+tool schemas are kept free of the `type: [..., "null"]` array form it flags
+(nullable fields use `anyOf`, see `McEmcomm.MCP.Schemas.nullable/2`).
+
+Without the Inspector, mint a token from `iex -S mix` and use `curl`; every
+request needs `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method`, `Mcp-Name`
+(on `tools/call`), and the `_meta` block:
+
+    user = McEmcomm.Accounts.get_user_by_email("admin@monroecountyemcomm.org")
+    scopes = McEmcomm.OAuth.Scopes.permitted_for(McEmcomm.Accounts.Scope.for_user(user))
+    {:ok, t} = McEmcomm.OAuth.Tokens.issue(user, "cli", scopes, McEmcomm.OAuth.resource_url())
+    t.access_token
+
+    curl -s http://localhost:4000/mcp \
+      -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+      -H "MCP-Protocol-Version: 2026-07-28" -H "Mcp-Method: server/discover" \
+      -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}'
+
+### Registering the connector in Claude
+
+Claude.ai, Claude Desktop, and Claude mobile share one connector list:
+**Settings → Connectors → Add custom connector**, enter the production
+endpoint (`https://<host>/mcp`, exactly `MC_EMCOMM_MCP_RESOURCE_URL`), and
+**Connect**. Claude reads the two `.well-known` documents, registers a client
+dynamically, and opens the site's login and consent screen; the scopes
+granted are the ones the account's tier permits (approved members get
+`emcomm:member` and `emcomm:operations`; administrators also get
+`emcomm:membership`). **Advanced settings** in the same dialog accept a
+pre-registered OAuth client id and secret instead of dynamic registration;
+set those from `MC_EMCOMM_MCP_STATIC_CLIENT_ID` / `_SECRET`. Claude Code:
+
+    claude mcp add --transport http mc-emcomm https://<host>/mcp
+
+then `/mcp` inside Claude Code to authenticate; it uses a loopback redirect,
+which the authorization server accepts on any port.
+
+### Behaviour worth knowing
+
+- Access tokens live 15 minutes and refresh tokens 30 days
+  (`MC_EMCOMM_MCP_ACCESS_TOKEN_TTL`, `_REFRESH_TOKEN_TTL`); refresh tokens
+  rotate on every use, and reusing a rotated one revokes the whole family.
+  Authorization codes live 60 seconds (`_AUTH_CODE_TTL`) and are single-use.
+- Every connector route is rate limited per client IP and `/mcp` additionally
+  per token (`MC_EMCOMM_MCP_RATE_LIMIT`, per minute); 429 carries `Retry-After`.
+- Tools mirror the web UI: any approved member runs nets and reads
+  operations, equipment, and catalogs; writes to operations, membership, and
+  catalogs need an administrator. Denials are ordinary tool results with
+  `isError: true` so the model can explain them; a token missing a scope the
+  account could hold is a 403 `insufficient_scope` step-up instead.
+- Telemetry: `[:mc_emcomm, :mcp, :request | :tool | :oauth]` events, Prometheus
+  metrics from `McEmcomm.PromEx.MCPPlugin` on the private metrics port, and an
+  OpenTelemetry span per request. Tokens never appear in logs.
 
 ## Observability & health
 
@@ -180,6 +285,14 @@ unchanged from the template; see the same file.
 | `MC_EMCOMM_APRS_CALLSIGN` | Call sign the client logs in as (receive-only; never becomes a check-in) | `WB2EOC` |
 | `MC_EMCOMM_APRS_PASSCODE` | APRS-IS passcode; `-1` is receive-only | `-1` |
 | `MC_EMCOMM_APRS_RADIUS_KM` | Radius around every net location the APRS-IS filter covers | `25` |
+| `MC_EMCOMM_MCP_ENABLED` | Turns the MCP connector and its OAuth routes on | `true` in dev/test, `false` in prod |
+| `MC_EMCOMM_MCP_RESOURCE_URL` | Canonical `/mcp` URL: RFC 8707 resource and token audience; must equal the URL users enter in Claude | `https://PHX_HOST/mcp` in prod, `http://localhost:4000/mcp` otherwise |
+| `MC_EMCOMM_OAUTH_ISSUER` | OAuth authorization server issuer (the app's origin) | `https://PHX_HOST` in prod, `http://localhost:4000` otherwise |
+| `MC_EMCOMM_MCP_ACCESS_TOKEN_TTL` | Access token lifetime, seconds | `900` |
+| `MC_EMCOMM_MCP_REFRESH_TOKEN_TTL` | Refresh token lifetime, seconds | `2592000` |
+| `MC_EMCOMM_MCP_AUTH_CODE_TTL` | Authorization code lifetime, seconds | `60` |
+| `MC_EMCOMM_MCP_RATE_LIMIT` | Requests per minute per token on `/mcp` and per IP on the OAuth endpoints | `120` |
+| `MC_EMCOMM_MCP_STATIC_CLIENT_ID`, `MC_EMCOMM_MCP_STATIC_CLIENT_SECRET` | Optional pre-registered OAuth client for Claude's Advanced settings | unset |
 | `BUCKET_NAME`, `AWS_*` | Tigris/S3 bucket + credentials (`ReqS3`) | — |
 | `PGPORT` | Local/CI Postgres port | `5432` |
 
@@ -265,9 +378,11 @@ provision one as a complete copy of this development environment via the
 
 ## Add-ons (documented, not installed)
 
-- **Assent** (`~> 0.3`) — OAuth/OIDC. Add a `user_identities` table keyed on
-  `user_id + provider + uid` with a unique index on `{provider, uid}`; configure
-  providers from environment variables.
+- **Assent** (`~> 0.3`) — OAuth/OIDC *login* with third-party providers. Add a
+  `user_identities` table keyed on `user_id + provider + uid` with a unique
+  index on `{provider, uid}`; configure providers from environment variables.
+  (Unrelated to the app's own OAuth 2.1 *server* for the MCP connector, which
+  is hand-rolled by design.)
 - **Cachex** (`4.1.x`) — add when a real caching need appears.
 - **logger_json** — other formatters (`GoogleCloud`, `Datadog`, `Elastic`) for
   non-Fly log sinks.

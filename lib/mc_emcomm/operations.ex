@@ -35,6 +35,14 @@ defmodule McEmcomm.Operations do
     |> Repo.preload([:locations, :attachments, attendance: :member])
   end
 
+  @doc "Like `get_operation!/1` but `nil` for an unknown id."
+  def get_operation(id) do
+    case Repo.get(Operation, id) do
+      nil -> nil
+      operation -> Repo.preload(operation, [:locations, :attachments, attendance: :member])
+    end
+  end
+
   def change_operation(%Operation{} = operation, attrs \\ %{}) do
     Operation.changeset(operation, attrs)
   end

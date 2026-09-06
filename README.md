@@ -22,6 +22,11 @@ handful of spreadsheets with one Phoenix LiveView app.
 - **For admins** — membership approval and audit, the training and
   capability catalogs, operations and equipment management, and document
   uploads.
+- **For Claude** — an MCP connector (protocol revision 2026-07-28) that lets
+  Claude.ai, Claude Desktop, mobile, and Claude Code run nets, read
+  operations and equipment, and, for administrators, manage membership and
+  catalogs — as the signed-in member, with the member's own permissions,
+  behind the site's OAuth sign-in and consent.
 
 ### Equipment sightings by QR code
 

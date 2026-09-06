@@ -17,6 +17,9 @@ defmodule McEmcomm.Locations do
 
   def get_default_location!(id), do: Repo.get!(DefaultLocation, id)
 
+  @doc "Like `get_default_location!/1` but `nil` for an unknown id."
+  def get_default_location(id), do: Repo.get(DefaultLocation, id)
+
   def change_default_location(%DefaultLocation{} = location, attrs \\ %{}) do
     DefaultLocation.changeset(location, attrs)
   end

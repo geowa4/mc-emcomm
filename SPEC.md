@@ -2,7 +2,7 @@
 
 `mc_emcomm` is a single Phoenix LiveView application — OTP app `mc_emcomm` / module `McEmcomm` / Fly app `mc-emcomm` / env prefix `MC_EMCOMM_` — that replaced the Hugo website for Monroe County EmComm (Monroe County, NY ARES/RACES, a 501(c)(3) nonprofit, branded on the site as "Monroe County ARES/RACES") at monroecountyemcomm.org. This document is authoritative and uses RFC 2119 keywords (MUST, SHOULD, MAY, etc.). No personal names appear anywhere; seed data uses fictional analogues.
 
-This revision describes the application **as built** (repository state at 2026-09-04, 67 commits). The staged build plan of the original specification is complete; §21 records it and the changes that followed. Code comments and tests cite this document by section number (§3, §7.11, §8–§14, §16–§21), so §1–§22 keep their original numbers and new material is added in §23–§27 and the appendices. Supporting sources are listed in Appendix B; the DOM ids, client events, and PubSub messages the test suite treats as a contract are listed in Appendix C.
+This revision describes the application **as built** (repository state at 2026-09-05, 68 commits). The staged build plan of the original specification is complete; §21 records it and the changes that followed. Code comments and tests cite this document by section number (§3, §7.11, §8–§14, §16–§21), so §1–§22 keep their original numbers and new material is added in §23–§28 and the appendices. Supporting sources are listed in Appendix B; the DOM ids, client events, and PubSub messages the test suite treats as a contract are listed in Appendix C.
 
 Where this specification is silent, CONTRIBUTING.md (contributor reference), DEPLOY.md (operator reference), and AGENTS.md (conventions for humans and coding agents) govern; they are cited by section rather than duplicated.
 
@@ -19,14 +19,15 @@ Concretely, it is a server-rendered Phoenix LiveView app providing:
 6. a live net logger with location-aware check-ins, a net control role, and automatic check-ins from APRS position reports;
 7. training records (capabilities, courses, certifications) with evidence uploads;
 8. relational leadership positions that feed the public About page and may grant admin access or new-member notifications;
-9. magic-link and password login with optional TOTP two-factor authentication; and
-10. an interface that is usable with a keyboard and screen reader on desktop and mobile (§23).
+9. magic-link and password login with optional TOTP two-factor authentication;
+10. an interface that is usable with a keyboard and screen reader on desktop and mobile (§23); and
+11. an MCP connector through which Claude clients drive the member portal as the signed-in member, behind an in-app OAuth 2.1 authorization server (§28).
 
 ## 2. Goals / Non-goals
 
 **Goals.** The app MUST replace all former Hugo pages at content parity; MUST keep all member PII (call signs, addresses, QTH points, emergency contacts) out of public view; MUST run on Fly.io with a Managed Postgres + PostGIS cluster and a private Tigris bucket; MUST be operable without a pointer and with a screen reader (§23); MUST be usable on a phone (§25); SHOULD minimize third-party dependencies; and SHOULD be discoverable by search engines on its public pages while keeping the sighting page out of every index (§26).
 
-**Non-goals.** No paid membership/billing; no public exposure of member locations or contact data; no offline/downloaded map tiles (prohibited by the OSM tile policy); no background job framework (Oban) — periodic work MUST use a supervised OTP task/GenServer with a timer; no Node.js toolchain (esbuild and Tailwind run from Hex packages, Leaflet is vendored); no LiveView long-polling transport (§24); no OAuth/OIDC (documented as a possible add-on in CONTRIBUTING.md § Add-ons, not installed); no computed quadrants — member location is a point, and county rally points are an admin catalog (§7.21).
+**Non-goals.** No paid membership/billing; no public exposure of member locations or contact data; no offline/downloaded map tiles (prohibited by the OSM tile policy); no background job framework (Oban) — periodic work MUST use a supervised OTP task/GenServer with a timer; no Node.js toolchain (esbuild and Tailwind run from Hex packages, Leaflet is vendored); no LiveView long-polling transport (§24); no third-party OAuth/OIDC *login* (Assent is documented as a possible add-on in CONTRIBUTING.md § Add-ons, not installed) — the app does host its own minimal OAuth 2.1 authorization server, but solely to issue tokens for the MCP connector (§28); no MCP or OAuth framework dependency; no computed quadrants — member location is a point, and county rally points are an admin catalog (§7.21).
 
 ## 3. Tiers & permissions matrix
 
@@ -54,6 +55,9 @@ Three tiers exist on a single account: public (anonymous); member (authenticated
 | Leadership positions: catalog, holders, order | No | No | Yes |
 | Account settings, password, email change, two-factor enrollment | Own (any authenticated user, sudo mode) | Own | Own |
 | LiveDashboard `/dev/dashboard` | No | No | Yes (every environment) |
+| MCP connector `/mcp` (§28): member-tier tools | No | Yes (scope `emcomm:member`, `emcomm:operations`) | Yes |
+| MCP connector: administration tools | No | No | Yes (scope `emcomm:membership`) |
+| OAuth consent `/oauth/authorize` | No (log in first) | Own | Own |
 | Health endpoints, robots.txt, sitemap.xml | Yes | Yes | Yes |
 
 Route groups MUST be enforced with distinct `live_session` scopes, each with an `on_mount` hook (§8): `:public`, `:sighting`, `:member` (`MemberAuth :require_member` — approved member OR admin), `:admin` (`MemberAuth :require_admin`), `:require_authenticated_user`, and `:current_user`. The `/app` and `/admin` scopes additionally pipe through the `require_authenticated_user` plug so an anonymous HTTP request is rejected before the LiveView and the requested path is stored for return after login; the `on_mount` hooks repeat the check for socket navigation and add the membership test. Gate outcomes MUST be: anonymous → `/users/log-in`; authenticated without a profile, or pending/rejected/inactive → `/` with "You must be an approved member to access this page."; non-admin on `:admin` → `/` with "You must be an administrator to access this page."
@@ -98,15 +102,17 @@ Contexts (`lib/mc_emcomm/`):
 - **Content** — resources documents; public pages render fixed copy.
 - **Storage** (`Storage`, `Storage.Client` behaviour, `Storage.S3`) — presigned Tigris access.
 - **Inbound** — Resend webhook dedupe and a no-op extension point.
-- **Health.Probe**, **RetentionScrubber**, **Release**, **PromEx**.
+- **OAuth** (`OAuth`, `Scopes`, `PKCE`, `Clients`, `AuthorizationCodes`, `Tokens`, `AuthorizationRequest`) — the minimal OAuth 2.1 authorization server behind the MCP connector (§28).
+- **MCP** (`Protocol`, `Schema`, `Context`, `Cursor`, `Tool`, `Tools.Registry`, `Tools.*`, `RateLimiter`) — the MCP 2026-07-28 protocol layer and the tool catalog (§28).
+- **Health.Probe**, **RetentionScrubber**, **Release**, **PromEx** (with `PromEx.MCPPlugin`).
 
-Supervision tree (`McEmcomm.Application`, `:one_for_one`), in order: `PromEx`, `McEmcommWeb.Telemetry`, `Repo`, `DNSCluster`, `Phoenix.PubSub` (`McEmcomm.PubSub`), `Task.Supervisor` (`McEmcomm.TaskSupervisor`), then three conditionally started singletons — `Health.Probe` (`:start_health_probe`), `RetentionScrubber` (`:start_retention_scrubber`), `Aprs.Client` (`:start_aprs_client`), all `false` in test with documented reasons — then `McEmcommWeb.Endpoint` and a second private Bandit listener serving `McEmcommWeb.MetricsEndpoint` on `:metrics_port`. OpenTelemetry handlers for Phoenix (with LiveView), Bandit, and Ecto are attached before the tree starts.
+Supervision tree (`McEmcomm.Application`, `:one_for_one`), in order: `PromEx`, `McEmcommWeb.Telemetry`, `Repo`, `DNSCluster`, `Phoenix.PubSub` (`McEmcomm.PubSub`), `Task.Supervisor` (`McEmcomm.TaskSupervisor`), `MCP.RateLimiter` (owns the connector's `:ets` counters), then three conditionally started singletons — `Health.Probe` (`:start_health_probe`), `RetentionScrubber` (`:start_retention_scrubber`), `Aprs.Client` (`:start_aprs_client`), all `false` in test with documented reasons — then `McEmcommWeb.Endpoint` and a second private Bandit listener serving `McEmcommWeb.MetricsEndpoint` on `:metrics_port`. OpenTelemetry handlers for Phoenix (with LiveView), Bandit, and Ecto are attached before the tree starts.
 
-Web layer (`lib/mc_emcomm_web/`): router with the pipelines in §8; `UserAuth` (phx.gen.auth plus the pending-two-factor layer), `MemberAuth` (member/admin on_mount hooks and the `require_admin_user` plug), `ActiveNet` (keeps `@active_net` current in every live_session); plugs `ContentSecurityPolicy`, `RecordSighting`, `CacheRawBody`, `TraceContext`, `VerifyResendSignature`; controllers for the home page, health, SEO files, sessions, and the webhook; components `CoreComponents`, `Layouts`, `MapComponents`; helpers `MapHelpers`, `ParamHelpers`; and the LiveViews of §9. Client code is `assets/js/app.js` plus hooks `LeafletMap`, `LeafletPicker`, `Modal`, `SightingClient`, `ThemeToggle`, the `S3` uploader, and three colocated hooks declared inline in templates: `.CopyIcs` (calendar), `.ResetOnSave` (net check-in form), `.SortableRows` (position drag reordering).
+Web layer (`lib/mc_emcomm_web/`): router with the pipelines in §8; `UserAuth` (phx.gen.auth plus the pending-two-factor layer), `MemberAuth` (member/admin on_mount hooks and the `require_admin_user` plug), `ActiveNet` (keeps `@active_net` current in every live_session); plugs `ContentSecurityPolicy`, `RecordSighting`, `CacheRawBody`, `TraceContext`, `VerifyResendSignature`, and for the connector `MCPEnabled`, `MCPCors`, `MCPRateLimit`, `MCPAuth`, `MCPBodyParser`; `MCP.Transport` (the Streamable HTTP plug at `/mcp`); controllers for the home page, health, SEO files, sessions, the webhook, and OAuth (`OAuthController`); `OAuthLive.Consent`; components `CoreComponents`, `Layouts`, `MapComponents`; helpers `MapHelpers`, `ParamHelpers`; and the LiveViews of §9. Client code is `assets/js/app.js` plus hooks `LeafletMap`, `LeafletPicker`, `Modal`, `SightingClient`, `ThemeToggle`, the `S3` uploader, and three colocated hooks declared inline in templates: `.CopyIcs` (calendar), `.ResetOnSave` (net check-in form), `.SortableRows` (position drag reordering).
 
 ## 7. Data model
 
-All tables carry `id` (bigserial), `inserted_at`, `updated_at` (`utc_datetime`) unless noted. Enums are stored as `:string` with `Ecto.Enum` (Elixir-side only). The first migration MUST enable `citext` and `postgis`. Point columns are `geography(Point,4326)`; `members.qth_point`, `operation_locations.point`, and `sightings.point` MUST have a GiST index (`net_checkins.location_point` and `default_locations.point` do not — they are never searched spatially). Fields set programmatically MUST NOT appear in `cast/3`: `users.is_admin`, the TOTP columns, `net_sessions.net_control_member_id`, `net_checkins.aprs_call_sign` and its location snapshot on update, `sightings.verified`, `member_courses.verified`, `member_certifications.verified`, and every `*_id` a context resolves itself.
+All tables carry `id` (bigserial), `inserted_at`, `updated_at` (`utc_datetime`) unless noted. Enums are stored as `:string` with `Ecto.Enum` (Elixir-side only). The first migration MUST enable `citext` and `postgis`. Point columns are `geography(Point,4326)`; `members.qth_point`, `operation_locations.point`, and `sightings.point` MUST have a GiST index (`net_checkins.location_point` and `default_locations.point` do not — they are never searched spatially). Fields set programmatically MUST NOT appear in `cast/3`: `users.is_admin`, the TOTP columns, `net_sessions.net_control_member_id`, `net_checkins.aprs_call_sign` and its location snapshot on update, `sightings.verified`, `member_courses.verified`, `member_certifications.verified`, `oauth_clients.client_id` and `hashed_secret`, every column of `oauth_authorization_codes` and `oauth_tokens`, and every `*_id` a context resolves itself.
 
 ### 7.1 `users`, `users_tokens`, `users_recovery_codes`
 
@@ -241,8 +247,9 @@ Indexes: `started_at`; `operation_id`; unique partial `aprs_keyword` where `ende
 | `notes` | text | nullable |
 | `recorded_at` | utc_datetime_usec | not null |
 | `ended_at` | utc_datetime_usec | nullable; each stint on the net is its own row |
+| `idempotency_key` | string | nullable; 1–128 chars; a client-chosen retry key for MCP check-ins (§28) |
 
-Indexes: `net_session_id`; `member_id`; partial `(net_session_id, call_sign)` where `ended_at IS NULL` (the open-check-in lookup made for every APRS packet).
+Indexes: `net_session_id`; `member_id`; partial `(net_session_id, call_sign)` where `ended_at IS NULL` (the open-check-in lookup made for every APRS packet); unique partial `(net_session_id, idempotency_key)` where `idempotency_key IS NOT NULL` (`net_checkins_idempotency_key_index`). `Net.check_in/2` answers a repeated key with the row the first call created and broadcasts nothing.
 
 ### 7.18 `documents` (Resources)
 
@@ -266,15 +273,62 @@ Indexes: `net_session_id`; `member_id`; partial `(net_session_id, call_sign)` wh
 
 ### 7.23 Referential integrity summary
 
-`on_delete: :delete_all` — users_tokens, users_recovery_codes, members.user_id, member_positions (both), membership_audit.member_id, member_capabilities/member_courses/member_certifications (both sides), operation_locations, sightings.asset_id, operation_attachments.operation_id, operation_attendance (both), net_checkins.net_session_id. `nilify_all` — certifications.prerequisite_course_id, sightings.{member_id, operation_id, operation_location_id}, operation_attendance.sighting_id, net_sessions.{net_control_member_id, operation_id}, net_checkins.member_id. `nothing` — membership_audit.actor_user_id, operations.created_by_id, operation_attachments.uploaded_by_id, net_sessions.started_by_member_id.
+`on_delete: :delete_all` — users_tokens, users_recovery_codes, oauth_authorization_codes.user_id, oauth_tokens.user_id, members.user_id, member_positions (both), membership_audit.member_id, member_capabilities/member_courses/member_certifications (both sides), operation_locations, sightings.asset_id, operation_attachments.operation_id, operation_attendance (both), net_checkins.net_session_id. `nilify_all` — certifications.prerequisite_course_id, sightings.{member_id, operation_id, operation_location_id}, operation_attendance.sighting_id, net_sessions.{net_control_member_id, operation_id}, net_checkins.member_id. `nothing` — membership_audit.actor_user_id, operations.created_by_id, operation_attachments.uploaded_by_id, net_sessions.started_by_member_id.
 
 ### 7.24 Migration history
 
-Pre-launch history was squashed into one baseline (`20260831000000_create_initial_schema`) that creates the schema in its intended shape. Three expand-only migrations followed: `20260903111135_add_totp_to_users`, `20260903140316_add_notify_on_new_member_to_positions`, `20260904000133_add_emergency_contact_to_members`. From here on every change MUST follow the expand-contract rules in CONTRIBUTING.md § Database & migrations (blue-green runs old and new code against one database; concurrent indexes outside a transaction; `NOT VALID` then `VALIDATE` for check constraints; migrations run in production only via `McEmcomm.Release.migrate/0`).
+Pre-launch history was squashed into one baseline (`20260831000000_create_initial_schema`) that creates the schema in its intended shape. Five expand-only migrations followed: `20260903111135_add_totp_to_users`, `20260903140316_add_notify_on_new_member_to_positions`, `20260904000133_add_emergency_contact_to_members`, `20260905204308_create_oauth_tables` (§7.25–§7.27), and `20260905204309_add_idempotency_key_to_net_checkins` (the column plus a concurrently built partial unique index, run outside a transaction). From here on every change MUST follow the expand-contract rules in CONTRIBUTING.md § Database & migrations (blue-green runs old and new code against one database; concurrent indexes outside a transaction; `NOT VALID` then `VALIDATE` for check constraints; migrations run in production only via `McEmcomm.Release.migrate/0`).
+
+### 7.25 `oauth_clients`
+
+| Column | Type | Constraints |
+|---|---|---|
+| `client_id` | string | not null, unique; 32 random bytes, URL-safe base64; never cast |
+| `hashed_secret` | binary | nullable (public clients); SHA-256 of the secret; redacted; never cast |
+| `client_name` | string | nullable; ≤ 160 |
+| `redirect_uris` | {array, string} | not null; each MUST pass the registration allowlist (§28) |
+| `token_endpoint_auth_method` | string | not null; `none`, `client_secret_post`, or `client_secret_basic` |
+| `grant_types` | {array, string} | not null; ⊆ {`authorization_code`, `refresh_token`} |
+| `response_types` | {array, string} | not null; ⊆ {`code`} |
+| `application_type` | string | nullable; `web` or `native` |
+
+Rows are created only by `POST /oauth/register` (RFC 7591). The optional static client (`MC_EMCOMM_MCP_STATIC_CLIENT_ID`/`_SECRET`) is built from configuration and has no row, which is why codes and tokens reference clients by `client_id` string rather than by foreign key.
+
+### 7.26 `oauth_authorization_codes`
+
+| Column | Type | Constraints |
+|---|---|---|
+| `hashed_code` | binary | not null, unique; SHA-256 of the raw code; redacted |
+| `client_id` | string | not null |
+| `user_id` | FK → users (delete_all) | not null |
+| `redirect_uri` | string | not null; the exact URI the code may be redeemed with |
+| `code_challenge` | string | not null; PKCE S256 challenge |
+| `resource` | string | not null; the RFC 8707 resource (always `MC_EMCOMM_MCP_RESOURCE_URL`) |
+| `scopes` | {array, string} | not null; the scopes actually granted |
+| `expires_at` | utc_datetime | not null; issuance + `MC_EMCOMM_MCP_AUTH_CODE_TTL` (60 s) |
+| `used_at` | utc_datetime | nullable; non-null means spent |
+
+`inserted_at` only. Index `user_id`. Redemption runs `FOR UPDATE` so a code is spent exactly once.
+
+### 7.27 `oauth_tokens`
+
+| Column | Type | Constraints |
+|---|---|---|
+| `hashed_token` | binary | not null, unique; SHA-256 of the raw token; redacted |
+| `kind` | enum `access\|refresh` | not null |
+| `client_id` | string | not null |
+| `user_id` | FK → users (delete_all) | not null |
+| `scopes` | {array, string} | not null |
+| `audience` | string | not null; `/mcp` accepts a token only when this equals `MC_EMCOMM_MCP_RESOURCE_URL` byte for byte |
+| `family_id` | uuid | not null; shared by every token descended from one authorization |
+| `expires_at` | utc_datetime | not null; 900 s for access, 30 days for refresh (configurable) |
+| `revoked_at` | utc_datetime | nullable |
+
+`inserted_at` only. Indexes: `family_id`, `user_id`. Refreshing revokes the presented refresh token and issues a new pair in the same family; presenting a refresh token that is already revoked revokes the whole family (reuse detection). Raw tokens, codes, and secrets are returned to the client once and never stored or logged.
 
 ## 8. Routes & live_sessions
 
-Pipelines: `:browser` (accepts html, session, live flash, root layout, CSRF, secure browser headers, `ContentSecurityPolicy`, `cache-control: no-store`, `fetch_current_scope_for_user`); `:record_sighting` (`x-robots-tag: noindex, nofollow` then `RecordSighting`); `:resend_webhook` (json + `VerifyResendSignature`); `:dev_browser` (dev build only, no CSP, for the Swoosh mailbox). Every `live_session` ends with `McEmcommWeb.ActiveNet` so `@active_net` exists everywhere.
+Pipelines: `:browser` (accepts html, session, live flash, root layout, CSRF, secure browser headers, `ContentSecurityPolicy`, `cache-control: no-store`, `fetch_current_scope_for_user`); `:record_sighting` (`x-robots-tag: noindex, nofollow` then `RecordSighting`); `:resend_webhook` (json + `VerifyResendSignature`); `:mcp_api` (`MCPEnabled`, `MCPCors`, per-IP `MCPRateLimit`; no session, no CSRF, no `:accepts`); `:mcp_auth` (`MCPAuth` bearer authentication, then per-token `MCPRateLimit`); `:dev_browser` (dev build only, no CSP, for the Swoosh mailbox). Every `live_session` ends with `McEmcommWeb.ActiveNet` so `@active_net` exists everywhere.
 
 | Path | Kind | Pipeline(s) | live_session / on_mount | Module | Tier |
 |---|---|---|---|---|---|
@@ -303,6 +357,14 @@ Pipelines: `:browser` (accepts html, session, live flash, root layout, CSRF, sec
 | `/robots.txt`, `/sitemap.xml` | GET | none | — | `SeoController` | public, `cache-control: public, max-age=3600` |
 | `/healthz/live`, `/healthz/ready`, `/healthz/version` | GET | none | — | `HealthController` | public, `no-store` |
 | `/webhooks/resend` | POST | resend_webhook | — | `WebhookController :resend` | signature-gated |
+| `/mcp` | POST | mcp_api, mcp_auth | — (plug) | `MCP.Transport` | bearer token (§28) |
+| `/mcp` | GET, DELETE | mcp_api | — | `MCP.Transport` | always 405 |
+| `/mcp`, `/oauth/register`, `/oauth/token`, `/oauth/revoke`, both `.well-known` documents | OPTIONS | mcp_api | — | CORS preflight (204) | public |
+| `/.well-known/oauth-protected-resource`, `/.well-known/oauth-protected-resource/mcp` | GET | mcp_api | — | `OAuthController :protected_resource_metadata` | public, `public, max-age=300` |
+| `/.well-known/oauth-authorization-server` | GET | mcp_api | — | `OAuthController :authorization_server_metadata` | public, `public, max-age=300` |
+| `/oauth/register` | POST | mcp_api | — | `OAuthController :register` | public (RFC 7591) |
+| `/oauth/token`, `/oauth/revoke` | POST | mcp_api | — | `OAuthController :token`, `:revoke` | client-authenticated, `no-store` |
+| `/oauth/authorize` | live | browser, require_authenticated_user | `:oauth_consent` — `require_authenticated` | `OAuthLive.Consent` | authenticated (any tier; only approved members and admins can approve) |
 | `/dev/dashboard` | live_dashboard | browser, require_authenticated_user, require_admin_user | its own | `Phoenix.LiveDashboard` (nonce-aware) | admin, every environment |
 | `/dev/mailbox` | forward | dev_browser | — | `Plug.Swoosh.MailboxPreview` | dev build only |
 
@@ -450,6 +512,12 @@ Fly app `mc-emcomm`; env prefix `MC_EMCOMM_`. Full operator procedures are in DE
 | `MC_EMCOMM_MAP_TILE_URL` | no | OSM tile endpoint | Leaflet tiles and CSP `img-src` |
 | `MC_EMCOMM_NOMINATIM_USER_AGENT` | no | dev placeholder | §13 |
 | `MC_EMCOMM_APRS_SERVER`, `_PORT`, `_CALLSIGN`, `_PASSCODE`, `_RADIUS_KM` | no | `rotate.aprs2.net`, `14580`, `WB2EOC`, `-1`, `25` | §14 |
+| `MC_EMCOMM_MCP_ENABLED` | no | `true` in dev/test, `false` in prod | Turns the MCP connector and its OAuth routes on (§28) |
+| `MC_EMCOMM_MCP_RESOURCE_URL` | no | `https://PHX_HOST/mcp` (prod), `http://localhost:4000/mcp` | Canonical MCP endpoint, RFC 8707 resource, and token audience; MUST equal the URL users enter in Claude |
+| `MC_EMCOMM_OAUTH_ISSUER` | no | `https://PHX_HOST` (prod), `http://localhost:4000` | Authorization server issuer; the OAuth endpoints and `.well-known` documents hang off it |
+| `MC_EMCOMM_MCP_ACCESS_TOKEN_TTL`, `_REFRESH_TOKEN_TTL`, `_AUTH_CODE_TTL` | no | `900`, `2592000`, `60` | Token and code lifetimes in seconds |
+| `MC_EMCOMM_MCP_RATE_LIMIT` | no | `120` | Requests per minute per token on `/mcp` and per IP on the OAuth endpoints |
+| `MC_EMCOMM_MCP_STATIC_CLIENT_ID`, `_SECRET` | no | unset | Optional pre-registered OAuth client for Claude's Advanced settings |
 | `METRICS_PORT` | no | `9091` | Private Prometheus listener |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` (+ `_HEADERS`, `_PROTOCOL`) | no | unset | Presence enables the OTLP trace exporter |
 | `PORT`, `PHX_SERVER`, `POOL_SIZE`, `ECTO_IPV6`, `DNS_CLUSTER_QUERY`, `GIT_SHA` | no | template defaults | Runtime plumbing |
@@ -471,6 +539,7 @@ The stack is ExUnit, the Ecto SQL Sandbox, `Phoenix.LiveViewTest`, PhoenixTest, 
 - Permissions: one authorization test per `live_session` gate, plus LiveDashboard.
 - Accounts: magic link, password, sudo mode, token reissue, TOTP enrollment/verification/replay, recovery-code single use, pending-two-factor expiry and lockout, user-enumeration parity.
 - Net: location snapshots, net control, leave/return, editing, ending, keyword rules, APRS parsing, filter strings, the client against a fake APRS-IS server, and the packet decision table.
+- MCP connector (§28): `server/discover` shape with `serverInfo`; every header, `_meta`, envelope, method, and Origin rule of the transport with its status and JSON-RPC code; deterministic `tools/list`; two requests sharing nothing; PKCE (wrong verifier, `plain`), inexact redirect URIs, single-use and 60-second codes, refresh rotation and reuse detection, audience mismatch, hashed storage, revocation, DCR, the static client; scope ∩ role at issuance and refresh; every tool's role and scope denial; the net flow and check-in idempotency; pagination; the member sighting projection.
 - Accessibility assertions (§23) MUST be kept: skip link and main landmark, labelled nav, native disclosure menus, labelled theme toggle, new-tab notes, the on-air text alternative, input error wiring, modal labelling, hidden icons, switch semantics and labelled sections on the profile, named move buttons, `role="application"` maps with coordinate forms, real links in clickable rows, and the numeric-only challenge input toggling its pattern.
 - Tests MUST assert against key element IDs and semantic selectors, never raw HTML. A test MAY be `async: true` only when it shares no mutable global state (the APRS client, the readiness flag, the mailer adapter swap, the storage-URL env, and `mix sync` are synchronous). Fixtures reach `approved` through a real admin transition; APRS keywords are unique per test.
 - Coverage is enforced by CI at 90% with dev tooling, the release migrator, test scaffolding, and the real S3 client excluded.
@@ -522,12 +591,13 @@ Changes after the initial implementation, in order, with the specification they 
 | 2026-09-03 | Profile capabilities, courses, and certifications tidied and made accessible | §9.5, §23 |
 | 2026-09-04 | README trimmed to a pitch; contributor detail moved to CONTRIBUTING.md | §5 |
 | 2026-09-04 | Spec rewritten as SPEC.md; leadership confirmed and the About page published the net schedule, repeaters, and fourth-Thursday meetings; `GEMINI.md` bridge guarded like `CLAUDE.md`; stale `ResendMock` coverage entry and PostgreSQL 18 wording removed | §5, §15, §17, §22 |
+| 2026-09-05 | **MCP connector**: hand-rolled MCP 2026-07-28 Streamable HTTP endpoint at `/mcp` with 32 tools, an in-app OAuth 2.1 authorization server (PKCE, DCR, resource indicators, refresh rotation, revocation), a consent screen, per-token and per-IP rate limiting, telemetry, and idempotent net check-ins | §2, §3, §6, §7.17, §7.25–§7.27, §8, §16, §18, §24, §28 |
 
 Two themes run through the history and are now requirements rather than afterthoughts: **authorization is enforced in the query and the context, not only in the template** (every security fix moved a check down a layer), and **every pointer-driven interaction has a keyboard and screen-reader equivalent** (§23).
 
 ## 22. Open questions / future work
 
-Operational follow-ups: the positions catalog must be created by an admin on first deploy (§19); `.dialyzer_ignore.exs` is picked up by filename convention and is not referenced from `mix.exs`; the net page still calls `String.to_integer/1` directly on client-supplied ids in two handlers (`find_checkin/2` and `assign_operation`) instead of `ParamHelpers`; the client still configures `longPollFallbackMs: 2500` although the endpoint disables long polling. Future work: ICS-form generation from net logs; operation after-action report export; admin UI for marking sightings verified and for `source = admin` attendance; optional self-hosted Nominatim; FCC ULS call-sign lookup; per-user rate limiting of two-factor attempts (the counter is per cookie today); OAuth/OIDC via Assent if ever wanted (CONTRIBUTING.md § Add-ons).
+Operational follow-ups: the positions catalog must be created by an admin on first deploy (§19); `.dialyzer_ignore.exs` is picked up by filename convention and is not referenced from `mix.exs`; the net page still calls `String.to_integer/1` directly on client-supplied ids in two handlers (`find_checkin/2` and `assign_operation`) instead of `ParamHelpers`; the client still configures `longPollFallbackMs: 2500` although the endpoint disables long polling. Future work: ICS-form generation from net logs; operation after-action report export; admin UI for marking sightings verified and for `source = admin` attendance; optional self-hosted Nominatim; FCC ULS call-sign lookup; per-user rate limiting of two-factor attempts (the counter is per cookie today); OAuth/OIDC *login* via Assent if ever wanted (CONTRIBUTING.md § Add-ons); MCP connector follow-ups listed in §28 (pending tools, Client ID Metadata Documents, token housekeeping).
 
 ## 23. Accessibility
 
@@ -581,7 +651,8 @@ Accessibility is a first-class requirement, not a polish step. The rules below a
 - **Authorization depth**: `live_session` on_mount hooks plus HTTP plugs (§3); document downloads and net/position actions re-check on the server; LiveDashboard requires admin in every environment; public operation lookups do not leak existence.
 - **Authentication**: Argon2id with `no_user_verify` on misses; identical responses for known and unknown emails; magic links single-use, 15 minutes, bound to the address they were sent to; two-factor parking with expiry and lockout; sudo mode for account changes.
 - **Inbound webhook**: Svix-style verification implemented manually (HMAC-SHA256 over `id.timestamp.body`, `whsec_` key, ±300 s, constant-time compare, only `v1` signatures considered), raw body captured only for `/webhooks/*` and forwarded as `{:more, …}` so oversized bodies 413 instead of truncating; deliveries deduplicated on `svix-id`; processing asynchronous under `McEmcomm.TaskSupervisor`.
-- **Supply chain**: `mix audit` (hex.audit + mix_audit) and `sobelow --config` (`exit: "low"`) run in CI and `mix prepush`; the acknowledged advisories (hackney via ua_inspector's offline download; gun/cowlib via the dev-only Sprites SDK) and sobelow findings (`Config.CSP`, `DOS.BinToAtom`, `Config.CSRFRoute`, `XSS.Raw`) are recorded with rationale in `mix.exs` and `.sobelow-conf` and MUST be revisited when the app grows a new `raw/1`, an unprotected route, or another interpolated atom.
+- **MCP connector** (§28): `/mcp` is an OAuth 2.1 resource server — bearer tokens are hashed before lookup, checked for expiry and revocation, and accepted only when their audience equals `MC_EMCOMM_MCP_RESOURCE_URL` exactly; no token is ever forwarded anywhere. The authorization server accepts PKCE S256 only, requires the RFC 8707 `resource`, binds every code to its client, redirect URI, challenge, resource, and scopes, redeems codes once under `FOR UPDATE`, rotates refresh tokens and revokes a family on reuse, and never redirects to an unregistered URI. Every request and tool call re-derives the caller's live role; a token never carries a scope the role does not permit. The `Origin` header, when present, must be the app, Claude, or loopback; CORS never echoes a wildcard. Raw tokens, codes, and secrets appear in no log line and no error message; the consent screen is the only browser-session route and is CSRF-protected by LiveView.
+- **Supply chain**: `mix audit` (hex.audit + mix_audit) and `sobelow --config` (`exit: "low"`) run in CI and `mix prepush`; the acknowledged advisories (hackney via ua_inspector's offline download; gun/cowlib via the dev-only Sprites SDK) and sobelow findings (`Config.CSP`, `DOS.BinToAtom`, `Config.CSRFRoute`, `XSS.Raw`) are recorded with rationale in `mix.exs` and `.sobelow-conf` and MUST be revisited when the app grows a new `raw/1`, an unprotected route, or another interpolated atom. The `Config.CSRFRoute` acknowledgement now also covers the MCP and OAuth `POST` routes, which are authenticated by bearer token or client credentials rather than by session.
 - **Secrets**: never committed; all production secrets come from the environment in `config/runtime.exs`; MPG connection strings printed by `fly mpg` MUST be treated as tainted and rotated per DEPLOY.md.
 
 ## 25. Layout, navigation & theming
@@ -602,6 +673,75 @@ Every page MUST emit a meta description (its own, falling back to the organizati
 
 Outbound mail goes through Swoosh's Resend adapter from `{"Monroe County ARES/RACES", MAIL_FROM}` (local mailbox adapter in dev, test adapter in test). Account mail: confirmation/login instructions (magic link) and email-change instructions. Membership mail: when a new account confirms and has a pending profile, `Members.notify_new_member_confirmed/1` MUST email the users of approved holders of every `notify_on_new_member` position — deduplicated, one message per recipient so addresses are not shared — with subject "New member awaiting approval: <name>", the member's name, call sign (or "none given"), account email, a link to `/admin/members`, and a line explaining why the recipient received it. Delivery runs under `McEmcomm.TaskSupervisor` so a mail outage can never fail the login that confirmed the account; a later login of an already-confirmed user sends nothing. Inbound: `POST /webhooks/resend` (§24) records the delivery and hands the event to `Inbound.handle_event/1`, a no-op extension point.
 
+## 28. MCP connector
+
+The connector lets Claude clients (Claude.ai, Claude Desktop, Claude mobile, Claude Code) and the MCP Inspector drive the member portal through the Model Context Protocol, acting as a real signed-in member and limited to what that member may do on the website. It is hand-rolled on Plug and Phoenix — no MCP or OAuth framework dependency — and reuses the `phx.gen.auth` users, `Accounts.Scope`, and every context function and permission check the LiveViews use. It lives in the same codebase, deploy, and database, is switched on by `MC_EMCOMM_MCP_ENABLED`, and answers 404 on every route when off.
+
+**Protocol posture.** The server speaks MCP revision **2026-07-28 only** — the stateless revision. There is no `initialize` handshake, no `Mcp-Session-Id`, no `ping`, no SSE, and no legacy fallback. A request that omits `MCP-Protocol-Version` or names any other version receives HTTP 400 with JSON-RPC error `-32022` (`UnsupportedProtocolVersion`) whose `data` lists `supported` (and, redundantly, `supportedVersions`) as `["2026-07-28"]` and echoes `requested`. A missing header is deliberately answered as an unsupported version rather than a header mismatch so a pre-2026 client gets the one diagnostic it can act on. Consequently only clients that implement 2026-07-28 can use the connector; Claude's clients do, and this is an accepted constraint. Nothing about a request is remembered between requests: every request is fully described by its bearer token, its headers, and its body, which is what makes Fly's blue-green overlap and multiple machines safe by construction (the rate limiter's counters are node-local by design and are an abuse brake, not a quota).
+
+**Endpoint map.** All on the main Bandit listener, none on the private metrics port (§8 has the pipelines):
+
+| Method + path | Purpose | Auth |
+|---|---|---|
+| `POST /mcp` | MCP JSON-RPC endpoint | Bearer required |
+| `GET /mcp`, `DELETE /mcp` | Always 405 (`Allow: POST, OPTIONS`) | — |
+| `OPTIONS /mcp` and the OAuth endpoints | CORS preflight, 204 | — |
+| `GET /.well-known/oauth-protected-resource` (also `/mcp`-suffixed) | RFC 9728 protected resource metadata | Public |
+| `GET /.well-known/oauth-authorization-server` | RFC 8414 authorization server metadata | Public |
+| `POST /oauth/register` | RFC 7591 dynamic client registration | Public |
+| `GET /oauth/authorize` | Consent screen (authorization code + PKCE) | Browser session |
+| `POST /oauth/token` | Token endpoint | Client auth |
+| `POST /oauth/revoke` | RFC 7009 revocation | Client auth |
+
+**Transport rules (`McEmcommWeb.MCP.Transport`, `McEmcomm.MCP.Protocol`).** `POST /mcp` carries exactly one JSON-RPC 2.0 message; batches and JSON-RPC responses are `-32600`. A malformed body is `-32700` with a null id (the endpoint's `MCPBodyParser` decodes `/mcp` bodies itself so this is a JSON-RPC error, not the generic 400); a non-JSON content type is `-32600`. Notifications receive 202 with no body and are exempt from the header requirements. Every response is one JSON document with `Content-Type: application/json` and `cache-control: no-store`. `Mcp-Method` MUST be present on every request and equal `method`; `Mcp-Name` MUST be present on `tools/call` and equal `params.name` (the `=?base64?…?=` sentinel encoding is decoded first); a missing or disagreeing header is 400 `-32020` (`HeaderMismatch`). Both headers are mirrored on the response. `params._meta["io.modelcontextprotocol/protocolVersion"]` MUST be present (absent is 400 `-32602`) and equal the header (otherwise `-32020`); `clientInfo` is used for display and telemetry only, never as a security input; `clientCapabilities` is accepted but not required. `traceparent`, `tracestate`, and `baggage` in `_meta` are extracted into the OpenTelemetry context that parents the request span. Every result carries `resultType: "complete"` and `_meta["io.modelcontextprotocol/serverInfo"]` (`name` `mc_emcomm`, `title`, `version` = `GIT_SHA`). An `Origin` header, when present, MUST be the app's own origin, the issuer, `https://claude.ai`, `https://claude.com`, or a loopback origin; otherwise 403. An `Mcp-Session-Id` is ignored and never echoed.
+
+Exactly three methods exist. `server/discover` returns `supportedVersions`, `capabilities: {"tools": {}}`, `instructions`, `ttlMs: 3600000`, `cacheScope: "public"`. `tools/list` returns the registry in a fixed order with `ttlMs: 300000`, `cacheScope: "public"`, and cursor pagination (an unknown cursor is `-32602`); the list does not vary by caller. `tools/call` runs the pipeline in `McEmcomm.MCP.Tools.Registry`: unknown tool → `-32602`; the token lacks a scope the caller's role *could* hold → HTTP 403 with `WWW-Authenticate: Bearer error="insufficient_scope", scope="…", resource_metadata="…"` (the step-up case); the role can never hold it → an ordinary result with `isError: true`; then the live role check, `inputSchema` validation, the tool itself, and `outputSchema` validation of `structuredContent`. Any other method is 404 with `-32601`. Protocol failures are JSON-RPC errors; everything a model could act on — an account without an approved profile, invalid arguments, a business-rule refusal, a record that does not exist — is a `CallToolResult` with `isError: true` and one actionable sentence. A crashing tool is caught and reported without internal detail (the detail goes to the log); no response ever says merely "Internal Server Error". Permission failures happen before any lookup, so they never reveal whether a record exists.
+
+**OAuth 2.1 authorization server (`McEmcomm.OAuth.*`, `McEmcommWeb.OAuthController`, `McEmcommWeb.OAuthLive.Consent`).** `/mcp` is an OAuth 2.1 resource server and the app hosts its own minimal authorization server for it. Discovery: the RFC 9728 document (`resource` = `MC_EMCOMM_MCP_RESOURCE_URL`, `authorization_servers` = `[MC_EMCOMM_OAUTH_ISSUER]`, `scopes_supported`, `bearer_methods_supported: ["header"]`) at the root well-known path and at the `/mcp`-suffixed one, and the RFC 8414 document (`issuer`, the four endpoints, `scopes_supported`, `response_types_supported: ["code"]`, `grant_types_supported: ["authorization_code", "refresh_token"]`, `code_challenge_methods_supported: ["S256"]`, `token_endpoint_auth_methods_supported: ["none", "client_secret_post", "client_secret_basic"]`, `authorization_response_iss_parameter_supported: true`). Client registration: RFC 7591 (`redirect_uris`, `client_name`, `token_endpoint_auth_method`, `grant_types`, `response_types`, `application_type`; no `User-Agent` filtering) plus one optional static client from `MC_EMCOMM_MCP_STATIC_CLIENT_ID`/`_SECRET` for Claude's Advanced settings. A redirect URI may be registered only if it is `https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback`, or an `http` loopback URI (`127.0.0.1`, `localhost`, `::1`, any port, no fragment — Claude Code and the MCP Inspector). At authorization time the presented URI MUST equal a registered one exactly, except that a registered loopback URI matches on any port (RFC 8252 §7.3). Authorization endpoint: `response_type=code` only, PKCE `S256` only (`plain` and a missing challenge are `invalid_request`), a mandatory `resource` equal to `MC_EMCOMM_MCP_RESOURCE_URL` (`invalid_target` otherwise), known scopes only (`invalid_scope`). A bad `client_id` or unregistered `redirect_uri` renders an error page and never redirects; every other error and a Deny redirect to the verified URI with `error`, `error_description`, `state`, and `iss` (RFC 9207). The consent screen reuses the browser session — an anonymous visitor goes through the normal login and is returned with the full query string — shows the client name, the redirect host (with a warning for loopback), the scopes that will be granted, and the requested scopes the account cannot hold; only an approved member or admin can Approve. Approval mints a single-use code, valid `MC_EMCOMM_MCP_AUTH_CODE_TTL` seconds (60), bound to `{user, client, redirect_uri, code_challenge, resource, scopes}`. Token endpoint (form-encoded): `authorization_code` verifies the client (`none` + PKCE, or a secret by `client_secret_post`/HTTP Basic), the exact redirect URI, single use, expiry, PKCE, and `resource` when given, then issues an opaque access token (`MC_EMCOMM_MCP_ACCESS_TOKEN_TTL`, 900 s, `aud` = resource) and an opaque refresh token (`MC_EMCOMM_MCP_REFRESH_TOKEN_TTL`, 30 days); `refresh_token` rotates (the presented token is revoked, a new pair is issued in the same family, scopes re-intersected with the live role) and a rotated token presented again revokes its whole family; every failure is `invalid_grant`. An unknown client is 401 `invalid_client` so a Claude connection whose DCR record vanished re-registers. Revocation accepts either token kind; a refresh token takes its family. Codes, tokens, and client secrets are stored as SHA-256 digests only (§7.25–§7.27); raw values are never stored or logged.
+
+**Enforcement on `/mcp` (`McEmcommWeb.Plugs.MCPAuth`).** The bearer token is hashed and looked up; it MUST be an access token, unrevoked, unexpired, and its audience MUST equal `MC_EMCOMM_MCP_RESOURCE_URL` byte for byte. Missing or invalid: 401 with `WWW-Authenticate: Bearer resource_metadata="<issuer>/.well-known/oauth-protected-resource"` (plus `error="invalid_token"` when a token was presented). No `scope` hint is sent on the 401, so a client requests every scope in `scopes_supported` and the consent screen grants what the role permits in one round. The server never forwards a client's token anywhere.
+
+**Scopes and roles (`McEmcomm.OAuth.Scopes`).** Three scopes name areas of the API; the tier (§3) decides who may hold them:
+
+| Scope | Covers | Approved member | Admin |
+|---|---|---|---|
+| `emcomm:member` | Net logger, own profile, equipment and catalog reads | Yes | Yes |
+| `emcomm:operations` | Operations reads and own attendance; operation writes additionally require admin | Yes | Yes |
+| `emcomm:membership` | Administration: membership and catalog/equipment writes | No | Yes |
+
+A pending, rejected, or inactive member and a user without a profile can hold no scope. The effective set is the intersection of the requested scopes and the role's permitted set, computed at consent and again on every refresh; a token never carries a scope the role does not permit, and every `tools/call` re-checks the live role with `Scope.approved_member?/1` / `Scope.admin?/1` on top of the scope. Tools that need a member record (nets, attendance, profile) additionally require the caller's own approved profile, as the web UI does; an admin account without one is told so.
+
+**Rate limiting (`McEmcomm.MCP.RateLimiter`, `McEmcommWeb.Plugs.MCPRateLimit`).** A fixed-window `:ets` counter, `MC_EMCOMM_MCP_RATE_LIMIT` requests per minute, keyed by client IP (`Fly-Client-IP`, else the peer) on every connector route and additionally by token id on `/mcp` after authentication; over the limit is 429 with `Retry-After`.
+
+**Telemetry.** `[:mc_emcomm, :mcp, :request, :stop]` per request (`method`, `tool`, `outcome`, `user_id`, `duration`), `[:mc_emcomm, :mcp, :tool, :start|:stop|:exception]` per tool call, and `[:mc_emcomm, :mcp, :oauth]` per OAuth operation (`operation`, `outcome`), exposed to Prometheus by `McEmcomm.PromEx.MCPPlugin` and to LiveDashboard by `McEmcommWeb.Telemetry`. Each request runs in an OpenTelemetry span `mcp.<method>` with `mcp.method.name`, `mcp.tool.name`, `mcp.client.*`, and `enduser.id`. No event, span, or log line carries a token, code, or verifier.
+
+**Tool catalog (`McEmcomm.MCP.Tools.Registry`, 32 tools).** Names are `snake_case`, ≤ 30 characters; every tool has a `title`, `description`, `inputSchema`, `outputSchema`, and accurate `readOnlyHint`/`destructiveHint`/`idempotentHint`; reads and writes are separate tools; list tools paginate with an opaque cursor (50 per page); ids returned by list tools are the ids other tools take; enums constrain statuses, visibilities, license classes, catalog kinds, and attendance sources. JSON Schema validation is the hand-rolled subset in `McEmcomm.MCP.Schema` (`type`, `anyOf`, `enum`, `const`, `required`, `properties`, `additionalProperties: false`, `items`, `minimum`, `maximum`, `minLength`, `maxLength`, `minItems`, `maxItems`); nullable fields are expressed as `anyOf` single-type branches rather than `type: [..., "null"]`, which some MCP clients mis-read (the Inspector's `--strict` portability check passes clean); if full Draft 2020-12 validation is ever needed the single approved dependency is `jsv` (MIT), never `ex_json_schema`.
+
+| Tool | Scope · role | Backing context call |
+|---|---|---|
+| `list_active_nets` (read) | member | `Net.list_active_sessions/0` |
+| `start_net` | member · approved profile | `Net.start_session/2` |
+| `add_checkin` (idempotent with `idempotency_key`) | member · approved profile | `Net.check_in/2`; `location` is `qth`, `none`, a catalog location name, or an operation location name, resolved to the existing `location_ref` |
+| `end_net` (destructive) | member · approved profile | `Net.end_session/1` |
+| `list_net_checkins` (read) | member | `Net.get_session/1` |
+| `list_ops`, `get_op`, `list_op_attendance` (read) | operations | `Operations.list_operations/1`, `get_operation/1`, `list_attendance/1` |
+| `mark_op_attendance` (idempotent) | operations · approved profile | `Operations.record_attendance/4` (`:manual`) |
+| `create_op`, `update_op`, `add_op_location` | operations · admin | `Operations.create_operation_with_locations/2`, `update_operation/2`, `create_operation_location/1` |
+| `delete_op`, `remove_op_location` (destructive) | operations · admin | `Operations.delete_operation/1`, `delete_operation_location/1` |
+| `list_pending_members`, `list_members`, `get_member` (read) | membership · admin | `Members.list_pending_members/0`, `list_members/1`, `get_member/1` + `list_audit_for_member/1` |
+| `approve_member`, `transition_member` | membership · admin | `Members.transition_status/4` |
+| `get_my_profile` (read), `update_my_profile` | member · approved profile | `Members.get_member/1`, `update_profile/2`, plus the capability/course/certification lists |
+| `list_assets`, `get_asset` (read) | member | `Assets.list_assets/1`, `get_asset/1`, `get_asset_by_public_id/1`, `Sightings.list_for_asset_member_view/1` |
+| `create_asset`, `update_asset` | membership · admin | `Assets.create_asset/1`, `update_asset/2` |
+| `list_catalog` (read; `kind` ∈ capability, course, certification) | member | `Capabilities.list_capabilities/1`, `Courses.list_courses/1`, `Certifications.list_certifications/1` |
+| `create_catalog_item`, `update_catalog_item` | membership · admin | the matching `create_*`/`update_*` |
+| `list_locations` (read), `create_location`, `update_location` | member / membership · admin | `Locations.*` |
+| `list_documents` (read) | member | `Content.list_documents/1` |
+
+The prompt-level `close_op` has no domain equivalent (operations are deleted, never closed), so `delete_op` mirrors the admin UI instead. `list_assets` and `list_catalog` return active items to members and accept `include_inactive` from admins only. `get_asset` returns the member projection of sightings even for admins; raw sighting telemetry is never returned through the connector. Member PII beyond what the same tier sees on the website is never returned: member-tier views omit addresses, coordinates, and emergency contacts; the administrator's `get_member` includes them exactly as `/admin/members` does.
+
+**Pending (features the web UI has that the connector does not, or that need a design).** File uploads and downloads (operation attachments, course evidence, task books, certificates, documents, asset images) — presigned URLs would need a separate download tool and Tigris credentials in dev; net control assignment, check-in editing and check-out, renaming a net, and changing its keyword or operation; the admin sighting log and map; `source = admin` attendance; member deletion and leadership position management; document and asset image management; Client ID Metadata Documents (Claude Code registers through DCR today and works; CIMD would avoid the per-connection DCR row); housekeeping of expired codes and tokens (`AuthorizationCodes.purge_expired/0` and `Tokens.purge_expired/0` exist but nothing schedules them yet — the `RetentionScrubber` is the natural home).
+
 ## Appendix A — Template baseline
 
 The project was cloned from the `geowa4/base-phoenix` template, which provided: Elixir 1.20 / OTP 28; Bandit; Ecto + PostgreSQL 17; `phx.gen.auth` with magic-link and password authentication using Argon2id; Resend/Swoosh for outbound email plus a signature-verified inbound webhook (its `/inbox` demo LiveView has since been removed); health endpoints and a readiness probe; Prometheus metrics on a private port via PromEx; OpenTelemetry for Phoenix, LiveView, Bandit, and Ecto; JSON logs with trace correlation; the five-layer `mix precommit` gate; Dialyzer in CI; Fly.io blue-green deployment with a release migrator; `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` and `usage_rules` sync; Tidewave MCP in development; `mise.toml`; a self-deleting rename task; the Sprites cloud dev VM tasks; and a default branch of `trunk`.
@@ -612,6 +752,7 @@ Template-managed dependency pins, the `precommit` alias steps, `config/runtime.e
 
 **Certifications.** CISA "Communications Unit Training Resources" and "Communications Unit" pages (COML/COMT/AUXCOMM curriculum, courses + Position Task Books); CISA AUXCOMM PTB PDF; NYS DHSES COMU program.
 **Platform.** Fly request-headers doc (`Fly-Client-IP`, `X-Forwarded-For`, `Fly-Region`); `fly mpg create` (`--pg-major-version` 16 or 17, `--enable-postgis-support`); Fly MPG extensions page; ReqS3 hexdocs (`presign_form/1`, `presign_url/1`, `AWS_*` env vars, `allow_upload` external example); eqrcode hexdocs; ua_inspector (databases via `mix ua_inspector.download`, client-hint support, bot detection); nimble_totp; the `aprs` package (Mic-E and compressed decoding); Phoenix 1.8 / LiveView 1.2 (colocated hooks and CSS; `longpoll` option); Leaflet 1.9.4 (last stable 1.x, BSD-2-Clause); `postgis/postgis:17-3.5` and `17-3.6-alpine` Docker Hub tags; adobe/s3mock README (no signature validation, no POST policy conditions); GHSA-628h-q48j-jr6q / CVE-2026-32689 (LiveView long-poll).
+**MCP connector.** MCP specification revision 2026-07-28 (changelog; basic overview `_meta` and error-code policy; versioning; Streamable HTTP transport incl. request-metadata headers, `HeaderMismatch` `-32020`, `UnsupportedProtocolVersion` `-32022` with `data.supported`/`requested`, 405 for GET/DELETE; `server/discover`; tools with `ttlMs`/`cacheScope`; pagination; caching; authorization, authorization-server discovery, client registration incl. loopback redirect rules); the 2026-07-28 release post (SEP-2575 stateless core and `server/discover`, SEP-2567 session removal, SEP-2549 cacheable results, SEP-2243 request headers); Claude docs — building custom connectors, the authentication reference (hosted callback `https://claude.ai/api/mcp/auth_callback`, Claude Code loopback `http://localhost/callback` and `http://127.0.0.1/callback` with the port ignored, DCR/CIMD selection, PKCE S256 required, form-encoded token endpoint, refresh on 401 with rotation, `invalid_grant` on dead refresh tokens, `invalid_client` handling, 10 s OAuth endpoint budget) and the pre-submission checklist (separate read/write tools, `title` and hints on every tool, names ≤ 64 characters, actionable errors); MCP Inspector docs (Node ≥ 22.19.0, `--server-url … --transport http`, `--cli`). RFC 6749, 6750, 7009, 7591, 7636, 8252, 8414, 8707, 9207, 9728. All checked 2026-09-05.
 **Web platform.** MDN Geolocation API (secure context; coordinates fields); MDN User-Agent Client Hints (`Sec-CH-UA*` low-entropy hints; Safari/Firefox do not implement — keep the raw UA fallback); MDN `<dialog>`/`showModal()`, `<details>`, `popover`, `aria-pressed`, `role="switch"`, `prefers-reduced-motion`; WAI-ARIA Authoring Practices (dialog, disclosure, switch, live regions); OSMF Nominatim Usage Policy and Tile Usage Policy; APRS-IS server-side filter reference (`r/`, `b/` terms; login line format; line length limits of aprsc/javAPRSSrvr).
 **Organization.** MonroeCountyEmcomm groups.io (501(c)(3); repeater listings; fourth-Thursday meetings except Jul/Aug/Dec); RARA repeater listing rochesterham.org (146.610/146.010 PL 110.9 W2ARM Cobbs Hill, Monroe County RACES Primary); RepeaterBook ID 36-7183 (Thu 19:00 net); RadioReference Wiki Monroe County (NY) (146.610 N2MPE PL 110.9); monroecountyemcomm.org (former Hugo site, retained locally as content reference). Leadership confirmed on 2026-09-04: the primary repeater is W2ARM (formerly N2MPE) on 146.610 MHz, -0.6 MHz offset, PL 110.9 Hz; the 70 cm repeater is W2ARM on 444.450 MHz, +5 MHz offset, PL 110.9 Hz; the weekly net is Thursday 7:00 PM local; meetings are the fourth Thursday except July, August, and December.
 
@@ -625,8 +766,9 @@ The test suite asserts against these ids; renaming one is a contract change and 
 **Profile**: `#profile-form`, `#emergency-contact`, `#qth-location`, `#qth-map`, `#qth-map-coordinates`, `#capabilities-section`, `#capability-<id>`, `#capability-name-<id>`, `#capability-description-<id>`, `#courses-section`, `#course-form-<id>`, `#course-completed-on-<id>`, `#certifications-section`, `#certification-form-<id>`, `#certification-issued-on-<id>`.
 **Admin**: `#pending-members-section`, `#pending-members`, `#pending-members-<id>`, `#pending-members-empty`, `#members`, `#members-<id>`, `#positions-form-<id>`, `#positions-popover-<id>`, `#emergency-contact-<id>`, `#reason-modal`, `#reason-form`, `#audit-modal`, `#position-modal`, `#position-form`, `#position-row-<id>`, `#positions-rows`, `#positions-reorder-help`, `#move-up-<id>`, `#move-down-<id>`, `#change-holder-<id>`, `#holder-modal`, `#holder-search-form`, `#holder-results`, `#holder-results-region`, `#capability-form`, `#course-form`, `#certification-form`, `#asset-form`, `#document-form`, `#default-location-form`, `#default-location-map`, `#default-location-map-coordinates`, `#default-location-pending-point`, `#operation-form`, `#location-form`, `#location-map`, `#location-map-coordinates`, `#location-pending-point`, `#attachment-form`, `#attachment-description`, `#operations`, `#qr-code`, `#capabilities`, `#courses`, `#certifications`, `#default-locations`, `#documents`.
 **Inventory, operations, and sightings**: `#assets`, `#sightings`, `#asset-map`, `#map-filter`, `#map-filter-mode`, `#map-filter-since`, `#operation-map`, `#sighting-client`, `#sighting-form`, `#sighting-submitted`.
+**OAuth consent**: `#consent-granted`, `#consent-withheld`, `#consent-no-access`, `#consent-redirect-host`, `#consent-approve`, `#consent-deny`, `#consent-error`.
 **Nets**: `#start-net-form`, `#start-net-aprs-keyword`, `#start-net-operation`, `#checkin-form`, `#checkins`, `#checkin-row-<id>`, `#checkin-aprs-<id>`, `#checkout-checkin-<id>`, `#edit-checkin-<id>`, `#edit-checkin-form`, `#edit-checkin-modal`, `#edit-checkin-location`, `#checkin-location`, `#net-map`, `#net-control`, `#take-net-control`, `#vacate-net-control`, `#change-net-control`, `#ncs-modal`, `#ncs-search-form`, `#ncs-results`, `#ncs-results-region`, `#net-operation`, `#edit-net-operation`, `#net-operation-form`, `#net-operation-select`, `#net-name-form`, `#edit-net-name`, `#net-aprs-keyword`, `#edit-net-aprs-keyword`, `#net-aprs-keyword-form`, `#net-aprs-keyword-input`, `#edit-checkin-call-sign`, `#edit-checkin-notes`.
 
-**Client → server events**: `client_env`, `geolocation`, `geolocation_denied`, `submit` (sighting); `point_selected`, `set_point` / `set_qth_point` (map pickers); `reorder`, `move` (positions); `toggle_capability`, `save_course`, `save_certification` (profile); `check_in`, `check_out`, `update_checkin`, `take_net_control`, `vacate_net_control`, `assign_net_control`, `assign_operation`, `rename_session`, `end_session` (nets); `download` (resources), `download_attachment`, `mark_attendance` (operations). **Server → client events**: `checkin_saved`, `picker:set_point`. **Connect params**: `_csrf_token`, `tz_offset_minutes`.
+**Client → server events**: `client_env`, `geolocation`, `geolocation_denied`, `submit` (sighting); `point_selected`, `set_point` / `set_qth_point` (map pickers); `reorder`, `move` (positions); `toggle_capability`, `save_course`, `save_certification` (profile); `check_in`, `check_out`, `update_checkin`, `take_net_control`, `vacate_net_control`, `assign_net_control`, `assign_operation`, `rename_session`, `end_session` (nets); `download` (resources), `download_attachment`, `mark_attendance` (operations); `approve`, `deny` (OAuth consent). **Server → client events**: `checkin_saved`, `picker:set_point`. **Connect params**: `_csrf_token`, `tz_offset_minutes`.
 
 **PubSub**: see §14.

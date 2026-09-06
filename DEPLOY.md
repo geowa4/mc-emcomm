@@ -17,6 +17,8 @@ environment variables and the blue-green constraints the code must respect.
   tabulated in CONTRIBUTING.md § Configuration.
 - `min_machines_running = 1` is mandatory: `auto_stop_machines` would otherwise
   stop the background GenServers (health probe, PromEx, schedulers).
+- The MCP connector (SPEC.md §28) is off in production until
+  `MC_EMCOMM_MCP_ENABLED=true`; see "MCP connector" below before enabling it.
 
 ### First deploy
 
@@ -151,6 +153,55 @@ gh api -X POST repos/{owner}/{repo}/environments/production/deployment-branch-po
 The equivalent UI path is Settings → Environments → production → Deployment
 branches and tags → Selected branches and tags. No reviewer is required: the
 gate is "what can be deployed", not "who approves it".
+
+## MCP connector
+
+Enabling the connector adds public endpoints on the main listener — `/mcp`,
+`/oauth/register`, `/oauth/authorize`, `/oauth/token`, `/oauth/revoke`, and the
+two `.well-known` OAuth documents — and nothing on the private metrics port.
+The whole thing is stateless: a request is fully described by its bearer
+token, headers, and body, and every token, code, and client lives in Postgres
+(hashed), so blue-green overlap and several machines need no coordination.
+Only the per-minute rate limiter counts in local memory, per machine.
+
+```sh
+# Turn it on. The resource URL must be exactly what users paste into Claude,
+# and both values default from PHX_HOST, so with a custom domain they only
+# need setting if the connector should live somewhere other than the site.
+fly secrets set --app <app> \
+  MC_EMCOMM_MCP_ENABLED=true \
+  MC_EMCOMM_MCP_RESOURCE_URL=https://monroecountyemcomm.org/mcp \
+  MC_EMCOMM_OAUTH_ISSUER=https://monroecountyemcomm.org
+
+# Optional: a pre-registered client for Claude's "Advanced settings" path.
+fly secrets set --app <app> \
+  MC_EMCOMM_MCP_STATIC_CLIENT_ID="$(openssl rand -hex 16)" \
+  MC_EMCOMM_MCP_STATIC_CLIENT_SECRET="$(openssl rand -base64 32)"
+
+# Verify after the machines roll.
+curl -s https://monroecountyemcomm.org/.well-known/oauth-protected-resource | jq .resource
+#  => "https://monroecountyemcomm.org/mcp"  (must equal the /mcp URL exactly)
+curl -s https://monroecountyemcomm.org/.well-known/oauth-authorization-server | jq .issuer
+curl -si https://monroecountyemcomm.org/mcp -X POST -H 'Content-Type: application/json' -d '{}' | head -3
+#  => HTTP/2 401 with WWW-Authenticate: Bearer resource_metadata="…"
+```
+
+Optional tuning: `MC_EMCOMM_MCP_ACCESS_TOKEN_TTL` (900 s),
+`MC_EMCOMM_MCP_REFRESH_TOKEN_TTL` (30 days), `MC_EMCOMM_MCP_AUTH_CODE_TTL`
+(60 s), `MC_EMCOMM_MCP_RATE_LIMIT` (120 requests per minute per token and per
+IP). Rotating the static client secret is `fly secrets set` again; Claude
+connections that used the old secret must be reconnected. Revoking one
+member's access is done from the site by deactivating the membership (their
+tokens lose every scope on the next refresh and every tool call re-checks the
+live role) or, immediately, from the release:
+
+```sh
+fly ssh console --app <app> -C "/app/bin/mc_emcomm eval 'McEmcomm.Repo.update_all(McEmcomm.OAuth.Token, set: [revoked_at: DateTime.utc_now(:second)])'"
+```
+
+which revokes every connector token for every member (each reconnects through
+consent). Turning the connector off (`MC_EMCOMM_MCP_ENABLED=false`) makes every
+route 404 without touching stored tokens.
 
 ## Runbook
 

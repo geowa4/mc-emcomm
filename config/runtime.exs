@@ -47,6 +47,52 @@ config :mc_emcomm,
     radius_km: String.to_integer(System.get_env("MC_EMCOMM_APRS_RADIUS_KM", "25"))
   ]
 
+# ## MCP connector (SPEC.md §28)
+#
+# MC_EMCOMM_MCP_ENABLED turns the connector on (defaults on in dev and test,
+# off in prod until an operator opts in). MC_EMCOMM_MCP_RESOURCE_URL is the
+# canonical identifier of the MCP endpoint and the audience every access token
+# is bound to; MC_EMCOMM_OAUTH_ISSUER is the authorization server's issuer
+# URL. Both default to the public origin (PHX_HOST) in prod and to localhost
+# elsewhere. TTLs are seconds; the rate limit is requests per minute. The
+# optional static client is the "Advanced settings" path in Claude's
+# custom-connector dialog.
+if config_env() != :test do
+  # config/test.exs is authoritative for the suite; the environment is only
+  # consulted in dev and prod.
+  mcp_default_enabled = if config_env() == :prod, do: "false", else: "true"
+
+  mcp_origin =
+    if config_env() == :prod,
+      do: "https://" <> (System.get_env("PHX_HOST") || "example.com"),
+      else: "http://localhost:4000"
+
+  mcp_env_int = fn name, default ->
+    String.to_integer(System.get_env(name, Integer.to_string(default)))
+  end
+
+  mcp_static_client_id = System.get_env("MC_EMCOMM_MCP_STATIC_CLIENT_ID")
+  mcp_static_client_secret = System.get_env("MC_EMCOMM_MCP_STATIC_CLIENT_SECRET")
+
+  config :mc_emcomm, :mcp,
+    enabled: System.get_env("MC_EMCOMM_MCP_ENABLED", mcp_default_enabled) in ~w(true 1),
+    resource_url: System.get_env("MC_EMCOMM_MCP_RESOURCE_URL", mcp_origin <> "/mcp"),
+    issuer: System.get_env("MC_EMCOMM_OAUTH_ISSUER", mcp_origin),
+    access_token_ttl: mcp_env_int.("MC_EMCOMM_MCP_ACCESS_TOKEN_TTL", 900),
+    refresh_token_ttl: mcp_env_int.("MC_EMCOMM_MCP_REFRESH_TOKEN_TTL", 2_592_000),
+    auth_code_ttl: mcp_env_int.("MC_EMCOMM_MCP_AUTH_CODE_TTL", 60),
+    rate_limit: mcp_env_int.("MC_EMCOMM_MCP_RATE_LIMIT", 120)
+
+  # Config.config/3 deep-merges keyword lists, so only set the static client
+  # keys when they are present; the config.exs / test.exs defaults otherwise
+  # stay in force (test.exs configures a static client of its own).
+  if mcp_static_client_id do
+    config :mc_emcomm, :mcp,
+      static_client_id: mcp_static_client_id,
+      static_client_secret: mcp_static_client_secret
+  end
+end
+
 # ## Using releases
 #
 # If you use `mix release`, you need to explicitly enable the server

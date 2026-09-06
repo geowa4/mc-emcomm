@@ -65,6 +65,8 @@ defmodule McEmcomm.MixProject do
         McEmcomm.ResendHelpers,
         McEmcommWeb.FailingBodyAdapter,
         McEmcomm.McEmcommFixtures,
+        McEmcomm.OAuthFixtures,
+        McEmcommWeb.MCPHelpers,
         McEmcomm.StorageMock,
         # Real ReqS3/network calls — tests stub McEmcomm.Storage.Client via
         # McEmcomm.StorageMock instead (§18); this module is never exercised.

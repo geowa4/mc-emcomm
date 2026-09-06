@@ -19,6 +19,9 @@ defmodule McEmcomm.Courses do
 
   def get_course!(id), do: Repo.get!(Course, id)
 
+  @doc "Like `get_course!/1` but `nil` for an unknown id."
+  def get_course(id), do: Repo.get(Course, id)
+
   def change_course(%Course{} = course, attrs \\ %{}) do
     Course.changeset(course, attrs)
   end

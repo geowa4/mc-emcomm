@@ -51,6 +51,25 @@ section referenced below before working in that area.
   parked login in the session (`:pending_two_factor`) carries no secrets. Operator
   reset: `McEmcomm.Release.disable_totp/1` (DEPLOY.md § Runbook).
 
+## MCP connector
+
+- The Model Context Protocol server at `/mcp` and its OAuth 2.1 authorization
+  server are hand-rolled on Plug/Phoenix (SPEC.md §28). Do not add an MCP or
+  OAuth framework (`anubis_mcp`, `phantom_mcp`, `ash_ai`, `ex_mcp`, `emcp`,
+  Boruta, ExOauth2Provider, …); new dependencies must be MIT, Apache-2.0, or BSD.
+- The server speaks MCP revision 2026-07-28 only: stateless, no `initialize`,
+  no sessions, no SSE. Do not add a legacy fallback.
+- Tools (`lib/mc_emcomm/mcp/tools/`) call existing context functions and
+  re-check `McEmcomm.Accounts.Scope` on every call; never duplicate business
+  logic or authorization in a tool. Read and write operations are separate tools.
+- Never log or return a token, authorization code, client secret, or PKCE
+  verifier; they are stored SHA-256-hashed only.
+- `/mcp`, `/oauth/token`, `/oauth/register`, `/oauth/revoke`, and the
+  `.well-known` documents run in the `:mcp_api` pipeline: no browser session,
+  no CSRF. Only the consent screen (`/oauth/authorize`) uses `:browser`.
+- Local testing with the MCP Inspector and Claude registration:
+  CONTRIBUTING.md § MCP connector.
+
 ## Elixir / Phoenix rules
 
 - Language, OTP, Phoenix, Ecto, and package-specific rules are maintained in the

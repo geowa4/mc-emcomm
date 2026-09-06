@@ -75,6 +75,17 @@ defmodule McEmcommWeb.Telemetry do
           "The time the connection spent waiting before being checked out for the query"
       ),
 
+      # MCP connector (SPEC.md §28); the Prometheus side is McEmcomm.PromEx.MCPPlugin.
+      summary("mc_emcomm.mcp.request.stop.duration",
+        tags: [:method, :outcome],
+        unit: {:native, :millisecond}
+      ),
+      summary("mc_emcomm.mcp.tool.stop.duration",
+        tags: [:tool, :outcome],
+        unit: {:native, :millisecond}
+      ),
+      counter("mc_emcomm.mcp.oauth.count", tags: [:operation, :outcome]),
+
       # VM Metrics
       summary("vm.memory.total", unit: {:byte, :kilobyte}),
       summary("vm.total_run_queue_lengths.total"),

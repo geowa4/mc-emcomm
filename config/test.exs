@@ -73,3 +73,21 @@ config :phoenix_live_view,
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+# MCP connector: a generous per-minute limit so the suite never trips the
+# fixed-window limiter; McEmcommWeb.Plugs.MCPRateLimitTest lowers it itself.
+config :mc_emcomm, :mcp,
+  enabled: true,
+  resource_url: "http://localhost:4002/mcp",
+  issuer: "http://localhost:4002",
+  access_token_ttl: 900,
+  refresh_token_ttl: 2_592_000,
+  auth_code_ttl: 60,
+  rate_limit: 100_000,
+  static_client_id: "static-test-client",
+  static_client_secret: "static-test-secret",
+  redirect_uris: [
+    "https://claude.ai/api/mcp/auth_callback",
+    "https://claude.com/api/mcp/auth_callback"
+  ],
+  allowed_origins: ["https://claude.ai", "https://claude.com"]

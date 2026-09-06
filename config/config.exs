@@ -113,6 +113,29 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# MCP connector (SPEC.md §28). Every value here is overridden from the
+# environment in config/runtime.exs; these are the dev/test defaults.
+config :mc_emcomm, :mcp,
+  enabled: true,
+  resource_url: "http://localhost:4000/mcp",
+  issuer: "http://localhost:4000",
+  access_token_ttl: 900,
+  refresh_token_ttl: 2_592_000,
+  auth_code_ttl: 60,
+  rate_limit: 120,
+  static_client_id: nil,
+  static_client_secret: nil,
+  # Exact-match redirect URIs accepted at registration, alongside the built-in
+  # loopback rule (RFC 8252 §7.3) used by Claude Code and the MCP Inspector.
+  redirect_uris: [
+    "https://claude.ai/api/mcp/auth_callback",
+    "https://claude.com/api/mcp/auth_callback"
+  ],
+  # Browser origins allowed to call /mcp and the OAuth endpoints (CORS and the
+  # Streamable HTTP Origin check). The app's own origin and loopback origins
+  # are always allowed.
+  allowed_origins: ["https://claude.ai", "https://claude.com"]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

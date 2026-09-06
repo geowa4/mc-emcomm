@@ -13,6 +13,8 @@ defmodule McEmcomm.Net.NetCheckin do
     field :notes, :string
     field :recorded_at, :utc_datetime_usec
     field :ended_at, :utc_datetime_usec
+    # Client-supplied retry key for MCP check-ins; unique per net (§7.17).
+    field :idempotency_key, :string
 
     belongs_to :net_session, McEmcomm.Net.NetSession
     belongs_to :member, McEmcomm.Members.Member
@@ -29,12 +31,18 @@ defmodule McEmcomm.Net.NetCheckin do
       :location_name,
       :location_point,
       :notes,
-      :recorded_at
+      :recorded_at,
+      :idempotency_key
     ])
     |> validate_required([:net_session_id, :call_sign, :recorded_at])
     |> update_change(:call_sign, &String.upcase(String.trim(&1)))
+    |> validate_length(:idempotency_key, min: 1, max: 128)
     |> foreign_key_constraint(:net_session_id)
     |> foreign_key_constraint(:member_id)
+    |> unique_constraint(:idempotency_key,
+      name: :net_checkins_idempotency_key_index,
+      message: "was already used on this net"
+    )
   end
 
   @doc """

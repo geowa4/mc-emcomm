@@ -28,6 +28,23 @@ defmodule McEmcommWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # The MCP connector and its OAuth authorization server (SPEC.md §28): JSON
+  # in, JSON out, no browser session, no CSRF. Every route 404s while
+  # MC_EMCOMM_MCP_ENABLED is off. No `:accepts` here: MCP clients send
+  # `application/json, text/event-stream` and the response is always JSON.
+  pipeline :mcp_api do
+    plug McEmcommWeb.Plugs.MCPEnabled
+    plug McEmcommWeb.Plugs.MCPCors
+    plug McEmcommWeb.Plugs.MCPRateLimit, key: :ip
+  end
+
+  # Bearer authentication for the MCP endpoint itself, then a second, per-token
+  # limiter so one credential cannot consume another's budget.
+  pipeline :mcp_auth do
+    plug McEmcommWeb.Plugs.MCPAuth
+    plug McEmcommWeb.Plugs.MCPRateLimit, key: :token
+  end
+
   # Inbound webhooks are authenticated by signature, not by session.
   pipeline :resend_webhook do
     plug :accepts, ["json"]
@@ -150,10 +167,52 @@ defmodule McEmcommWeb.Router do
     post "/resend", WebhookController, :resend
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", McEmcommWeb do
-  #   pipe_through :api
-  # end
+  ## MCP connector (SPEC.md §28)
+
+  scope "/", McEmcommWeb do
+    pipe_through :mcp_api
+
+    # RFC 9728 at the root and at the endpoint's path (clients probe both),
+    # RFC 8414 for the authorization server.
+    get "/.well-known/oauth-protected-resource", OAuthController, :protected_resource_metadata
+    get "/.well-known/oauth-protected-resource/mcp", OAuthController, :protected_resource_metadata
+    get "/.well-known/oauth-authorization-server", OAuthController, :authorization_server_metadata
+
+    post "/oauth/register", OAuthController, :register
+    post "/oauth/token", OAuthController, :token
+    post "/oauth/revoke", OAuthController, :revoke
+
+    options "/oauth/register", OAuthController, :preflight
+    options "/oauth/token", OAuthController, :preflight
+    options "/oauth/revoke", OAuthController, :preflight
+    options "/.well-known/oauth-protected-resource", OAuthController, :preflight
+    options "/.well-known/oauth-protected-resource/mcp", OAuthController, :preflight
+    options "/.well-known/oauth-authorization-server", OAuthController, :preflight
+
+    # 405 for the GET stream and DELETE session of earlier MCP revisions;
+    # OPTIONS is the CORS preflight.
+    get "/mcp", MCP.Transport, []
+    delete "/mcp", MCP.Transport, []
+    options "/mcp", MCP.Transport, []
+  end
+
+  scope "/", McEmcommWeb do
+    pipe_through [:mcp_api, :mcp_auth]
+
+    post "/mcp", MCP.Transport, []
+  end
+
+  # The consent screen is the one browser-session, CSRF-protected piece of
+  # the authorization server. An anonymous visitor logs in first and is
+  # returned here with the full query string.
+  scope "/oauth", McEmcommWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :oauth_consent,
+      on_mount: [{McEmcommWeb.UserAuth, :require_authenticated}, McEmcommWeb.ActiveNet] do
+      live "/authorize", OAuthLive.Consent, :new
+    end
+  end
 
   ## LiveDashboard, behind admin authentication in every environment.
   #
