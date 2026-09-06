@@ -1,6 +1,8 @@
 defmodule McEmcommWeb.UserLive.Login do
   use McEmcommWeb, :live_view
 
+  require Logger
+
   alias McEmcomm.Accounts
 
   @impl true
@@ -113,10 +115,7 @@ defmodule McEmcommWeb.UserLive.Login do
 
   def handle_event("submit_magic", %{"user" => %{"email" => email}}, socket) do
     if user = Accounts.get_user_by_email(email) do
-      Accounts.deliver_login_instructions(
-        user,
-        &url(~p"/users/log-in/#{&1}")
-      )
+      deliver_login_instructions(user)
     end
 
     info =
@@ -126,6 +125,22 @@ defmodule McEmcommWeb.UserLive.Login do
      socket
      |> put_flash(:info, info)
      |> push_navigate(to: ~p"/users/log-in")}
+  end
+
+  # The flash stays neutral either way so a delivery failure cannot reveal
+  # whether the address is registered; the reason is only logged.
+  defp deliver_login_instructions(user) do
+    case Accounts.deliver_login_instructions(user, &url(~p"/users/log-in/#{&1}")) do
+      {:ok, _email} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.error(
+          "Could not deliver login instructions for user #{user.id}: #{inspect(reason)}"
+        )
+
+        :ok
+    end
   end
 
   defp local_mail_adapter? do

@@ -1,6 +1,8 @@
 defmodule McEmcommWeb.UserLive.Registration do
   use McEmcommWeb, :live_view
 
+  require Logger
+
   alias McEmcomm.Accounts
   alias McEmcomm.Accounts.User
   alias McEmcomm.Members.Member
@@ -78,18 +80,9 @@ defmodule McEmcommWeb.UserLive.Registration do
   def handle_event("save", %{"user" => user_params}, socket) do
     case register(user_params) do
       {:ok, user} ->
-        {:ok, _} =
-          Accounts.deliver_login_instructions(
-            user,
-            &url(~p"/users/log-in/#{&1}")
-          )
-
         {:noreply,
          socket
-         |> put_flash(
-           :info,
-           "An email was sent to #{user.email}, please access it to confirm your account."
-         )
+         |> flash_confirmation_delivery(user)
          |> push_navigate(to: ~p"/users/log-in")}
 
       {:error, changeset} ->
@@ -142,5 +135,30 @@ defmodule McEmcommWeb.UserLive.Registration do
   defp assign_form(socket, %Ecto.Changeset{} = changeset) do
     form = to_form(changeset, as: "user")
     assign(socket, form: form)
+  end
+
+  # The account exists once `register/1` returns, so a mail outage must not
+  # crash the LiveView: tell the member how to get a link later instead.
+  defp flash_confirmation_delivery(socket, user) do
+    case Accounts.deliver_login_instructions(user, &url(~p"/users/log-in/#{&1}")) do
+      {:ok, _email} ->
+        put_flash(
+          socket,
+          :info,
+          "An email was sent to #{user.email}, please access it to confirm your account."
+        )
+
+      {:error, reason} ->
+        Logger.error(
+          "Could not deliver confirmation instructions for user #{user.id}: #{inspect(reason)}"
+        )
+
+        put_flash(
+          socket,
+          :error,
+          "Your account was created, but the confirmation email could not be sent. " <>
+            "Request a login link from the login page to try again."
+        )
+    end
   end
 end

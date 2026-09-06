@@ -40,6 +40,16 @@ fly mpg attach <cluster-id> --app <app>      # sets DATABASE_URL
 # Both mpg commands print the full connection string, password included, to
 # the terminal. Treat scrollback, CI logs, and agent transcripts as tainted;
 # see "Rotating the database credential" below.
+#
+# --enable-postgis-support only makes the extension available on the cluster.
+# The app connects as the managed `schema_admin` role, which is not a
+# superuser, and PostGIS is not a trusted extension, so the first migration's
+# `CREATE EXTENSION postgis` fails with "permission denied" until it is
+# installed in the app's database by hand. flyctl has no command for this:
+# open the cluster in the dashboard (the URL `fly mpg create` printed), go to
+# Extensions, pick the `fly-db` database in the dropdown, and toggle PostGIS
+# on. Leave the postgis_* add-ons off; nothing uses them. `citext` is trusted
+# and needs no such step.
 
 # Uploads go in a private Tigris bucket. This sets BUCKET_NAME and the AWS_*
 # credentials as secrets on the app.

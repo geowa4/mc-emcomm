@@ -1,6 +1,8 @@
 defmodule McEmcommWeb.UserLive.Settings do
   use McEmcommWeb, :live_view
 
+  require Logger
+
   on_mount {McEmcommWeb.UserAuth, :require_sudo_mode}
 
   alias McEmcomm.Accounts
@@ -137,14 +139,7 @@ defmodule McEmcommWeb.UserLive.Settings do
 
     case Accounts.change_user_email(user, user_params) do
       %{valid?: true} = changeset ->
-        Accounts.deliver_user_update_email_instructions(
-          Ecto.Changeset.apply_action!(changeset, :insert),
-          user.email,
-          &url(~p"/users/settings/confirm-email/#{&1}")
-        )
-
-        info = "A link to confirm your email change has been sent to the new address."
-        {:noreply, socket |> put_flash(:info, info)}
+        {:noreply, flash_update_email_delivery(socket, changeset, user)}
 
       changeset ->
         {:noreply, assign(socket, :email_form, to_form(changeset, action: :insert))}
@@ -174,6 +169,34 @@ defmodule McEmcommWeb.UserLive.Settings do
 
       changeset ->
         {:noreply, assign(socket, password_form: to_form(changeset, action: :insert))}
+    end
+  end
+
+  defp flash_update_email_delivery(socket, changeset, user) do
+    changeset
+    |> Ecto.Changeset.apply_action!(:insert)
+    |> Accounts.deliver_user_update_email_instructions(
+      user.email,
+      &url(~p"/users/settings/confirm-email/#{&1}")
+    )
+    |> case do
+      {:ok, _email} ->
+        put_flash(
+          socket,
+          :info,
+          "A link to confirm your email change has been sent to the new address."
+        )
+
+      {:error, reason} ->
+        Logger.error(
+          "Could not deliver email change instructions for user #{user.id}: #{inspect(reason)}"
+        )
+
+        put_flash(
+          socket,
+          :error,
+          "The confirmation email could not be sent to the new address. Please try again later."
+        )
     end
   end
 end
