@@ -147,6 +147,90 @@ defmodule McEmcommWeb.AdminLive.OperationIndexTest do
     assert html =~ "plan.txt"
   end
 
+  test "copying an operation prefills the new form and carries over locations and attachments",
+       %{conn: conn} do
+    source =
+      McEmcommFixtures.operation_fixture(
+        %{"title" => "Field Day", "description" => "Annual", "visibility" => "public"},
+        %{"name" => "HQ"}
+      )
+
+    {:ok, _} =
+      Operations.create_operation_attachment(%{
+        operation_id: source.id,
+        key: "operation-attachments/original.txt",
+        filename: "plan.txt",
+        content_type: "text/plain",
+        description: "Operations plan",
+        uploaded_by_id: source.created_by_id
+      })
+
+    {:ok, index_lv, _html} = live(conn, ~p"/admin/operations")
+
+    {:ok, lv, _html} =
+      index_lv
+      |> element("#copy-operation-#{source.id}")
+      |> render_click()
+      |> follow_redirect(conn, ~p"/admin/operations/#{source.id}/copy")
+
+    assert has_element?(lv, "#copy-source-note", "Field Day")
+    assert has_element?(lv, "#operation-form input[name='operation[title]'][value='Field Day']")
+    assert has_element?(lv, "#operation-form input[name='operation[starts_at]']:not([value])")
+    assert has_element?(lv, "#operation-form input[name='operation[ends_at]']:not([value])")
+    assert has_element?(lv, "#copy-locations", "HQ")
+    assert has_element?(lv, "#copy-attachments", "plan.txt")
+
+    expect(StorageMock, :copy_object, fn "operation-attachments/original.txt", _new_key ->
+      :ok
+    end)
+
+    {:ok, edit_lv, html} =
+      lv
+      |> form("#operation-form",
+        operation: %{
+          title: "Field Day 2027",
+          starts_at: "2027-06-26T14:00",
+          ends_at: "2027-06-27T14:00"
+        }
+      )
+      |> render_submit()
+      |> follow_redirect(conn)
+
+    assert html =~ "Operation created"
+    assert has_element?(edit_lv, "#operation-form")
+
+    copy = Enum.find(Operations.list_operations(), &(&1.title == "Field Day 2027"))
+    copy = Operations.get_operation!(copy.id)
+    assert copy.visibility == :public
+    assert copy.description == "Annual"
+    assert [%{name: "HQ"}] = copy.locations
+
+    assert [%{filename: "plan.txt", description: "Operations plan"} = attachment] =
+             copy.attachments
+
+    assert attachment.key != "operation-attachments/original.txt"
+    assert Enum.count(Operations.get_operation!(source.id).attachments) == 1
+  end
+
+  test "the copy form requires a new window", %{conn: conn} do
+    source = McEmcommFixtures.operation_fixture(%{"title" => "Field Day"})
+    {:ok, lv, _html} = live(conn, ~p"/admin/operations/#{source.id}/copy")
+
+    html =
+      lv
+      |> form("#operation-form", operation: %{title: "Field Day again"})
+      |> render_submit()
+
+    assert html =~ "can&#39;t be blank"
+    assert Enum.count(Operations.list_operations()) == 1
+  end
+
+  test "the edit page links to the copy form", %{conn: conn} do
+    operation = McEmcommFixtures.operation_fixture()
+    {:ok, lv, _html} = live(conn, ~p"/admin/operations/#{operation.id}/edit")
+    assert has_element?(lv, "#copy-operation[href='/admin/operations/#{operation.id}/copy']")
+  end
+
   test "deleting an operation", %{conn: conn} do
     operation = McEmcommFixtures.operation_fixture(%{"title" => "To Delete"})
     {:ok, lv, _html} = live(conn, ~p"/admin/operations")

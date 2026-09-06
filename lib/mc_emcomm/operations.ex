@@ -14,12 +14,19 @@ defmodule McEmcomm.Operations do
   alias McEmcomm.Operations.OperationAttendance
   alias McEmcomm.Operations.OperationLocation
   alias McEmcomm.Repo
+  alias McEmcomm.Storage
 
   ## Operations
 
+  @doc """
+  Lists operations, newest first. Options: `:visibility` keeps one visibility;
+  `:active_at` keeps only operations whose `starts_at`..`ends_at` window
+  contains the given `DateTime` (the ones a net may be assigned to).
+  """
   def list_operations(opts \\ []) do
     Operation
     |> maybe_filter_visibility(opts[:visibility])
+    |> maybe_filter_active_at(opts[:active_at])
     |> order_by([e], desc: e.starts_at)
     |> Repo.all()
   end
@@ -28,6 +35,26 @@ defmodule McEmcomm.Operations do
 
   defp maybe_filter_visibility(query, visibility),
     do: where(query, [e], e.visibility == ^visibility)
+
+  defp maybe_filter_active_at(query, nil), do: query
+
+  defp maybe_filter_active_at(query, %DateTime{} = at),
+    do: where(query, [e], e.starts_at <= ^at and e.ends_at >= ^at)
+
+  @doc "Whether the operation's window contains `at` (defaults to now)."
+  @spec active?(Operation.t(), DateTime.t()) :: boolean()
+  def active?(%Operation{starts_at: starts_at, ends_at: ends_at}, at \\ DateTime.utc_now()) do
+    DateTime.compare(starts_at, at) != :gt and DateTime.compare(ends_at, at) != :lt
+  end
+
+  @doc "Whether the operation with this id exists and is active at `at` (defaults to now)."
+  @spec active_id?(term(), DateTime.t()) :: boolean()
+  def active_id?(id, at \\ DateTime.utc_now()) do
+    Operation
+    |> where([e], e.id == ^id)
+    |> maybe_filter_active_at(at)
+    |> Repo.exists?()
+  end
 
   def get_operation!(id) do
     Operation
@@ -103,6 +130,72 @@ defmodule McEmcomm.Operations do
 
       {:error, _step, changeset, _} ->
         {:error, changeset}
+    end
+  end
+
+  @doc """
+  Creates a new operation from `source`, carrying over its locations and
+  attachments in one transaction. `attrs` supplies the new title, description,
+  window, and visibility (the window is never copied). Each attachment's object
+  is copied to a fresh key so the two operations never share storage, and the
+  copies are recorded as uploaded by `uploaded_by_id`.
+  """
+  def copy_operation(%Operation{} = source, attrs, uploaded_by_id) do
+    source = Repo.preload(source, [:locations, :attachments])
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.insert(:operation, Operation.changeset(%Operation{}, attrs))
+    |> Ecto.Multi.run(:locations, fn repo, %{operation: operation} ->
+      insert_all_or_error(source.locations, fn location ->
+        %OperationLocation{}
+        |> OperationLocation.changeset(%{
+          operation_id: operation.id,
+          name: location.name,
+          point: location.point,
+          geofence_radius_m: location.geofence_radius_m,
+          notes: location.notes,
+          position: location.position
+        })
+        |> repo.insert()
+      end)
+    end)
+    |> Ecto.Multi.run(:attachments, fn repo, %{operation: operation} ->
+      insert_all_or_error(source.attachments, fn attachment ->
+        key = Storage.build_key("operation-attachments", attachment.filename)
+        :ok = Storage.copy_object(attachment.key, key)
+
+        %OperationAttachment{}
+        |> OperationAttachment.changeset(%{
+          operation_id: operation.id,
+          key: key,
+          filename: attachment.filename,
+          content_type: attachment.content_type,
+          description: attachment.description,
+          uploaded_by_id: uploaded_by_id
+        })
+        |> repo.insert()
+      end)
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{operation: operation, locations: locations, attachments: attachments}} ->
+        {:ok, %{operation | locations: locations, attachments: attachments}}
+
+      {:error, _step, changeset, _} ->
+        {:error, changeset}
+    end
+  end
+
+  defp insert_all_or_error(items, insert) do
+    Enum.reduce_while(items, {:ok, []}, fn item, {:ok, inserted} ->
+      case insert.(item) do
+        {:ok, record} -> {:cont, {:ok, [record | inserted]}}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, inserted} -> {:ok, Enum.reverse(inserted)}
+      error -> error
     end
   end
 

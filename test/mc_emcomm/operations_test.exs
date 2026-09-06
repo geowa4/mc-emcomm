@@ -1,9 +1,14 @@
 defmodule McEmcomm.OperationsTest do
   use McEmcomm.DataCase, async: true
 
+  import Mox
+
   alias McEmcomm.AccountsFixtures
   alias McEmcomm.McEmcommFixtures
   alias McEmcomm.Operations
+  alias McEmcomm.StorageMock
+
+  setup :verify_on_exit!
 
   # Downtown Rochester, NY — the operation fixture's default location.
   @in_radius %Geo.Point{coordinates: {-77.6090, 43.1568}, srid: 4326}
@@ -75,6 +80,103 @@ defmodule McEmcomm.OperationsTest do
       assert {location, matched} = Operations.match_location(@in_radius, now)
       assert matched.id == operation.id
       assert location.name == "Near"
+    end
+  end
+
+  describe "list_operations/1 with :active_at" do
+    test "keeps only operations whose window contains the instant" do
+      now = DateTime.utc_now()
+      current = McEmcommFixtures.operation_fixture(%{"title" => "Current"})
+
+      McEmcommFixtures.operation_fixture(%{
+        "title" => "Tomorrow",
+        "starts_at" => DateTime.add(now, 86_400, :second),
+        "ends_at" => DateTime.add(now, 90_000, :second)
+      })
+
+      McEmcommFixtures.operation_fixture(%{
+        "title" => "Yesterday",
+        "starts_at" => DateTime.add(now, -90_000, :second),
+        "ends_at" => DateTime.add(now, -86_400, :second)
+      })
+
+      assert Enum.map(Operations.list_operations(active_at: now), & &1.id) == [current.id]
+      assert Operations.active_id?(current.id)
+      assert Enum.count(Operations.list_operations()) == 3
+    end
+  end
+
+  describe "copy_operation/3" do
+    test "copies locations and attachments to a new operation with its own window" do
+      now = DateTime.utc_now()
+      copier = AccountsFixtures.user_fixture()
+
+      source =
+        McEmcommFixtures.operation_fixture(
+          %{"title" => "Field Day", "description" => "Annual", "visibility" => "public"},
+          %{"name" => "HQ", "geofence_radius_m" => 250, "notes" => "Gate B"}
+        )
+
+      {:ok, _} =
+        Operations.create_operation_attachment(%{
+          operation_id: source.id,
+          key: "operation-attachments/original.pdf",
+          filename: "plan.pdf",
+          content_type: "application/pdf",
+          description: "Operations plan",
+          uploaded_by_id: source.created_by_id
+        })
+
+      expect(StorageMock, :copy_object, fn "operation-attachments/original.pdf", new_key ->
+        assert new_key =~ ~r/^operation-attachments\/[0-9a-f-]{36}\.pdf$/
+        :ok
+      end)
+
+      attrs = %{
+        "title" => "Field Day 2027",
+        "description" => "Annual",
+        "visibility" => "public",
+        "starts_at" => DateTime.add(now, 86_400, :second),
+        "ends_at" => DateTime.add(now, 90_000, :second),
+        "created_by_id" => copier.id
+      }
+
+      assert {:ok, copy} = Operations.copy_operation(source, attrs, copier.id)
+      copy = Operations.get_operation!(copy.id)
+
+      assert copy.id != source.id
+      assert copy.title == "Field Day 2027"
+      assert copy.created_by_id == copier.id
+
+      assert [location] = copy.locations
+      assert location.name == "HQ"
+      assert location.geofence_radius_m == 250
+      assert location.notes == "Gate B"
+      assert location.point.coordinates == hd(source.locations).point.coordinates
+
+      assert [attachment] = copy.attachments
+      assert attachment.filename == "plan.pdf"
+      assert attachment.description == "Operations plan"
+      assert attachment.uploaded_by_id == copier.id
+      assert attachment.key != "operation-attachments/original.pdf"
+
+      # The source is untouched.
+      source = Operations.get_operation!(source.id)
+      assert [%{key: "operation-attachments/original.pdf"}] = source.attachments
+    end
+
+    test "returns the operation changeset when the new window is invalid" do
+      source = McEmcommFixtures.operation_fixture()
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Operations.copy_operation(
+                 source,
+                 %{"title" => "No dates", "created_by_id" => source.created_by_id},
+                 source.created_by_id
+               )
+
+      assert %{starts_at: ["can't be blank"]} = errors_on(changeset)
+      assert Enum.count(Operations.list_operations()) == 1
     end
   end
 end

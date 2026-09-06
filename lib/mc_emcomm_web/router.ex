@@ -134,6 +134,7 @@ defmodule McEmcommWeb.Router do
       live "/operations", AdminLive.OperationIndex, :index
       live "/operations/new", AdminLive.OperationIndex, :new
       live "/operations/:id/edit", AdminLive.OperationIndex, :edit
+      live "/operations/:id/copy", AdminLive.OperationIndex, :copy
       live "/inventory", AdminLive.InventoryIndex, :index
       live "/capabilities", AdminLive.CapabilityIndex, :index
       live "/locations", AdminLive.DefaultLocationIndex, :index

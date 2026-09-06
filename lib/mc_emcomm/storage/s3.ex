@@ -47,5 +47,20 @@ defmodule McEmcomm.Storage.S3 do
     :ok
   end
 
+  @impl true
+  def copy_object(source_key, destination_key) do
+    # S3 CopyObject: a signed PUT on the destination naming the source in
+    # `x-amz-copy-source`; metadata (content type) is copied with the bytes.
+    %{status: 200} =
+      Req.new()
+      |> ReqS3.attach()
+      |> Req.put!(
+        url: "s3://#{bucket()}/#{destination_key}",
+        headers: [{"x-amz-copy-source", "/#{bucket()}/#{source_key}"}]
+      )
+
+    :ok
+  end
+
   defp bucket, do: Application.fetch_env!(:mc_emcomm, :s3_bucket)
 end

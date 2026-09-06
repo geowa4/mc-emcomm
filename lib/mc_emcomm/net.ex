@@ -11,6 +11,7 @@ defmodule McEmcomm.Net do
   alias McEmcomm.Members.Member
   alias McEmcomm.Net.NetCheckin
   alias McEmcomm.Net.NetSession
+  alias McEmcomm.Operations
   alias McEmcomm.Operations.OperationLocation
   alias McEmcomm.Repo
 
@@ -101,7 +102,7 @@ defmodule McEmcomm.Net do
 
   @doc """
   Any approved member may start a net session, optionally assigning it to an
-  operation. A session without a name is named after its start date. The
+  operation that is in progress. A session without a name is named after its start date. The
   operator calling the net is on frequency from the start, so they are logged
   as its first check-in and become the initial net control operator.
   """
@@ -115,6 +116,7 @@ defmodule McEmcomm.Net do
 
     %NetSession{}
     |> NetSession.changeset(attrs)
+    |> validate_operation_in_progress()
     |> Ecto.Changeset.put_change(:net_control_member_id, member.id)
     |> Repo.insert()
     |> case do
@@ -476,13 +478,25 @@ defmodule McEmcomm.Net do
 
   defp maybe_vacate_net_control(_checkin), do: :ok
 
-  @doc "Assigns the session to an operation, or clears the assignment with `nil`."
+  @doc """
+  Assigns the session to an operation, or clears the assignment with `nil`.
+  Only an operation whose window contains the present may be assigned; the
+  existing assignment is left alone when it is unchanged.
+  """
   def assign_operation(%NetSession{} = session, operation_id_or_nil) do
     session
     |> NetSession.operation_changeset(operation_id_or_nil)
+    |> validate_operation_in_progress()
     |> Repo.update()
     |> broadcast_session_updated()
     |> notify_nets_changed(:operation)
+  end
+
+  # A net can only be assigned to an operation during its operational period.
+  defp validate_operation_in_progress(changeset) do
+    Ecto.Changeset.validate_change(changeset, :operation_id, fn :operation_id, id ->
+      if Operations.active_id?(id), do: [], else: [operation_id: "must be in progress"]
+    end)
   end
 
   defp broadcast_session_updated({:ok, session}) do

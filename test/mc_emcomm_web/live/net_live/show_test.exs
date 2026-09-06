@@ -209,6 +209,46 @@ defmodule McEmcommWeb.NetLive.ShowTest do
     assert is_nil(McEmcomm.Net.get_session!(session.id).operation_id)
   end
 
+  test "the operation select offers only operations in progress plus the current one",
+       %{conn: conn} do
+    member = McEmcommFixtures.member_fixture(%{call_sign: "W2NCO"})
+    now = DateTime.utc_now()
+    current = McEmcommFixtures.operation_fixture(%{"title" => "Current Op"})
+
+    tomorrow =
+      McEmcommFixtures.operation_fixture(%{
+        "title" => "Tomorrow Op",
+        "starts_at" => DateTime.add(now, 86_400, :second),
+        "ends_at" => DateTime.add(now, 90_000, :second)
+      })
+
+    # An operation the net was assigned to while it was running, since ended.
+    ended = McEmcommFixtures.operation_fixture(%{"title" => "Ended Op"})
+    session = McEmcommFixtures.net_session_fixture(member, %{"operation_id" => ended.id})
+
+    {:ok, _} =
+      McEmcomm.Operations.update_operation(ended, %{
+        "starts_at" => DateTime.add(now, -7200, :second),
+        "ends_at" => DateTime.add(now, -3600, :second)
+      })
+
+    {:ok, lv, _html} = conn |> log_in_user(member.user) |> live(~p"/app/net/#{session.id}")
+    lv |> element("#edit-net-operation") |> render_click()
+
+    assert has_element?(lv, "#net-operation-select option[value='#{current.id}']")
+    assert has_element?(lv, "#net-operation-select option[value='#{ended.id}']")
+    refute has_element?(lv, "#net-operation-select option[value='#{tomorrow.id}']")
+
+    # A stale choice (not among the offered options) is refused rather than
+    # crashing the view.
+    lv
+    |> element("#net-operation-form")
+    |> render_submit(%{"operation_id" => to_string(tomorrow.id)})
+
+    assert render(lv) =~ "not in progress"
+    assert McEmcomm.Net.get_session!(session.id).operation_id == ended.id
+  end
+
   test "editing a check-in can change its location snapshot", %{conn: conn} do
     member = McEmcommFixtures.member_fixture(%{call_sign: "W2NCO"})
     location = McEmcommFixtures.default_location_fixture(%{name: "SE"})

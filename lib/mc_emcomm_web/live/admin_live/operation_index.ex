@@ -22,13 +22,34 @@ defmodule McEmcommWeb.AdminLive.OperationIndex do
   end
 
   defp apply_action(socket, :index, _params) do
-    assign(socket, operation: nil, form: nil, location_form: nil)
+    assign(socket, operation: nil, copy_source: nil, form: nil, location_form: nil)
   end
 
   defp apply_action(socket, :new, _params) do
     assign(socket,
       operation: %Operation{locations: [], attachments: []},
+      copy_source: nil,
       form: to_form(Operations.change_operation(%Operation{})),
+      location_form: nil
+    )
+  end
+
+  # The new-operation form prefilled from an existing operation: everything
+  # but the window carries over, and its locations and attachments are shown
+  # so the admin can see what the copy will receive.
+  defp apply_action(socket, :copy, %{"id" => id}) do
+    source = Operations.get_operation!(id)
+
+    prefill = %{
+      "title" => source.title,
+      "description" => source.description,
+      "visibility" => source.visibility
+    }
+
+    assign(socket,
+      operation: %Operation{locations: source.locations, attachments: source.attachments},
+      copy_source: source,
+      form: to_form(Operations.change_operation(%Operation{}, prefill)),
       location_form: nil
     )
   end
@@ -38,6 +59,7 @@ defmodule McEmcommWeb.AdminLive.OperationIndex do
 
     assign(socket,
       operation: operation,
+      copy_source: nil,
       form: to_form(Operations.change_operation(operation)),
       location_form: to_form(Operations.change_operation_location(%OperationLocation{})),
       pending_point: nil,
@@ -60,6 +82,14 @@ defmodule McEmcommWeb.AdminLive.OperationIndex do
           >
             New operation
           </.link>
+          <.link
+            :if={@live_action == :edit}
+            id="copy-operation"
+            navigate={~p"/admin/operations/#{@operation.id}/copy"}
+            class="btn btn-secondary"
+          >
+            Copy operation
+          </.link>
         </:actions>
       </.header>
 
@@ -77,6 +107,16 @@ defmodule McEmcommWeb.AdminLive.OperationIndex do
         <:col :let={e} label="Starts">{Calendar.strftime(e.starts_at, "%Y-%m-%d %H:%M")}</:col>
         <:col :let={e} label="Visibility">{e.visibility}</:col>
         <:action :let={e}>
+          <.link
+            id={"copy-operation-#{e.id}"}
+            navigate={~p"/admin/operations/#{e.id}/copy"}
+            class="link link-hover"
+            aria-label={"Copy #{e.title}"}
+          >
+            Copy
+          </.link>
+        </:action>
+        <:action :let={e}>
           <button
             type="button"
             class="link link-hover"
@@ -90,7 +130,12 @@ defmodule McEmcommWeb.AdminLive.OperationIndex do
         </:action>
       </.table>
 
-      <div :if={@live_action in [:new, :edit]} class="max-w-lg">
+      <div :if={@live_action in [:new, :edit, :copy]} class="max-w-lg">
+        <p :if={@copy_source} id="copy-source-note" class="mb-4 text-base-content/70">
+          Copying <strong>{@copy_source.title}</strong>. The locations and attachments listed
+          below are copied to the new operation; set its start and end times.
+        </p>
+
         <.form for={@form} id="operation-form" phx-change="validate" phx-submit="save">
           <.input field={@form[:title]} label="Title" required />
           <.input field={@form[:description]} type="textarea" label="Description" />
@@ -104,6 +149,33 @@ defmodule McEmcommWeb.AdminLive.OperationIndex do
           />
           <.button phx-disable-with="Saving..." class="btn btn-primary mt-2">Save operation</.button>
         </.form>
+
+        <div :if={@live_action == :copy}>
+          <h2 class="text-lg font-semibold mt-8">Locations to copy</h2>
+          <ul id="copy-locations" class="list bg-base-100 rounded-box border border-base-300 mt-2">
+            <li :for={loc <- @operation.locations} class="list-row">
+              <div class="flex-1">
+                <strong>{loc.name}</strong> &middot; {loc.geofence_radius_m}m
+              </div>
+            </li>
+            <li :if={@operation.locations == []} class="list-row text-base-content/70">
+              No locations.
+            </li>
+          </ul>
+
+          <h2 class="text-lg font-semibold mt-8">Attachments to copy</h2>
+          <ul id="copy-attachments" class="list bg-base-100 rounded-box border border-base-300 mt-2">
+            <li :for={att <- @operation.attachments} class="list-row">
+              <div class="flex-1">
+                <div class="font-semibold">{att.filename}</div>
+                <div class="text-sm text-base-content/70">{att.description}</div>
+              </div>
+            </li>
+            <li :if={@operation.attachments == []} class="list-row text-base-content/70">
+              No attachments.
+            </li>
+          </ul>
+        </div>
 
         <div :if={@live_action == :edit}>
           <h2 class="text-lg font-semibold mt-8">Locations</h2>
@@ -327,6 +399,22 @@ defmodule McEmcommWeb.AdminLive.OperationIndex do
     params = Map.put(params, "created_by_id", socket.assigns.current_scope.user.id)
 
     case Operations.create_operation(params) do
+      {:ok, operation} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Operation created.")
+         |> push_navigate(to: ~p"/admin/operations/#{operation.id}/edit")}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, form: to_form(changeset))}
+    end
+  end
+
+  defp save_operation(socket, :copy, params) do
+    user_id = socket.assigns.current_scope.user.id
+    params = Map.put(params, "created_by_id", user_id)
+
+    case Operations.copy_operation(socket.assigns.copy_source, params, user_id) do
       {:ok, operation} ->
         {:noreply,
          socket

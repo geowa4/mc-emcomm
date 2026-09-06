@@ -189,5 +189,30 @@ defmodule McEmcomm.NetTest do
       {:ok, session} = Net.assign_operation(session, nil)
       assert is_nil(session.operation_id)
     end
+
+    test "only an operation in progress may be assigned or started with" do
+      starter = McEmcommFixtures.member_fixture()
+      now = DateTime.utc_now()
+
+      tomorrow =
+        McEmcommFixtures.operation_fixture(%{
+          "starts_at" => DateTime.add(now, 86_400, :second),
+          "ends_at" => DateTime.add(now, 90_000, :second)
+        })
+
+      session = McEmcommFixtures.net_session_fixture(starter)
+
+      assert {:error, changeset} = Net.assign_operation(session, tomorrow.id)
+      assert %{operation_id: ["must be in progress"]} = errors_on(changeset)
+
+      assert {:error, changeset} =
+               Net.start_session(starter, %{
+                 "name" => "Early",
+                 "aprs_keyword" => "EARLY",
+                 "operation_id" => tomorrow.id
+               })
+
+      assert %{operation_id: ["must be in progress"]} = errors_on(changeset)
+    end
   end
 end

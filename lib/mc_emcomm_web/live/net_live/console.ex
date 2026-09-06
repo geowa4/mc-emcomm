@@ -15,7 +15,7 @@ defmodule McEmcommWeb.NetLive.Console do
        page_title: "Net Console",
        sessions: Net.list_sessions() |> Enum.filter(&is_nil(&1.ended_at)),
        past_sessions: Net.list_past_sessions(),
-       operations: Operations.list_operations(),
+       operations: Operations.list_operations(active_at: DateTime.utc_now()),
        tz_offset: tz_offset,
        start_form:
          to_form(
@@ -50,8 +50,9 @@ defmodule McEmcommWeb.NetLive.Console do
           id="start-net-operation"
           type="select"
           label="Operation"
-          prompt="No operation"
+          prompt={if @operations == [], do: "No operation in progress", else: "No operation"}
           options={Enum.map(@operations, &{operation_option_label(&1), &1.id})}
+          disabled={@operations == []}
         />
         <.button class="btn btn-primary mb-3">Start new net</.button>
       </.form>

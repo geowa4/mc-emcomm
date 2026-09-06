@@ -76,6 +76,32 @@ defmodule McEmcommWeb.NetLive.ConsoleTest do
     assert Net.get_session!(session.id).operation_id == operation.id
   end
 
+  test "only operations in progress are offered when starting a net", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    now = DateTime.utc_now()
+    current = McEmcommFixtures.operation_fixture(%{"title" => "Current Op"})
+
+    tomorrow =
+      McEmcommFixtures.operation_fixture(%{
+        "title" => "Tomorrow Op",
+        "starts_at" => DateTime.add(now, 86_400, :second),
+        "ends_at" => DateTime.add(now, 90_000, :second)
+      })
+
+    {:ok, lv, _html} = conn |> log_in_user(member.user) |> live(~p"/app/net")
+
+    assert has_element?(lv, "#start-net-operation option[value='#{current.id}']")
+    refute has_element?(lv, "#start-net-operation option[value='#{tomorrow.id}']")
+    refute has_element?(lv, "#start-net-operation[disabled]")
+  end
+
+  test "the operation select is disabled when no operation is in progress", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    {:ok, lv, _html} = conn |> log_in_user(member.user) |> live(~p"/app/net")
+    assert has_element?(lv, "#start-net-operation[disabled]")
+    refute has_element?(lv, "#start-net-operation option[value]:not([value=''])")
+  end
+
   test "a starter without a call sign is not auto-checked-in" do
     member = McEmcommFixtures.member_fixture()
     session = McEmcommFixtures.net_session_fixture(member)

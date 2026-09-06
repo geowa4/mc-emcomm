@@ -22,5 +22,9 @@ defmodule McEmcomm.Storage do
   @doc "Permanently deletes an object (used when purging a member's uploads on deletion, §20)."
   def delete_object(key), do: client().delete_object(key)
 
+  @doc "Server-side copy of an object to a new key (used when copying an operation's attachments)."
+  def copy_object(source_key, destination_key),
+    do: client().copy_object(source_key, destination_key)
+
   defp client, do: Application.get_env(:mc_emcomm, :storage_client, McEmcomm.Storage.S3)
 end

@@ -28,7 +28,7 @@ defmodule McEmcommWeb.NetLive.Show do
        editing_checkin: nil,
        edit_checkin_form: nil,
        default_locations: Locations.list_default_locations(),
-       operations: Operations.list_operations(),
+       operations: assignable_operations(session),
        editing_operation?: false,
        ncs_modal?: false,
        ncs_query: "",
@@ -515,8 +515,17 @@ defmodule McEmcommWeb.NetLive.Show do
         id -> String.to_integer(id)
       end
 
-    {:ok, session} = Net.assign_operation(socket.assigns.session, operation_id)
-    {:noreply, socket |> assign(session: session, editing_operation?: false) |> assign_markers()}
+    case Net.assign_operation(socket.assigns.session, operation_id) do
+      {:ok, session} ->
+        {:noreply,
+         socket |> assign(session: session, editing_operation?: false) |> assign_markers()}
+
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply,
+         socket
+         |> assign(operations: assignable_operations(socket.assigns.session))
+         |> put_flash(:error, "That operation is not in progress.")}
+    end
   end
 
   def handle_event("check_out", %{"id" => id}, socket) do
@@ -650,6 +659,20 @@ defmodule McEmcommWeb.NetLive.Show do
   end
 
   defp operation_location_options(_session), do: []
+
+  # Only an operation that is in progress may be assigned (§14); the current
+  # assignment stays selectable so the form can be resubmitted unchanged.
+  defp assignable_operations(session) do
+    active = Operations.list_operations(active_at: DateTime.utc_now())
+
+    case session.operation do
+      %{id: id} = current ->
+        if Enum.any?(active, &(&1.id == id)), do: active, else: [current | active]
+
+      nil ->
+        active
+    end
+  end
 
   defp operation_option_label(operation) do
     "#{operation.title} — #{Calendar.strftime(operation.starts_at, "%Y-%m-%d")}"
