@@ -33,6 +33,17 @@ const liveSocket = new LiveSocket("/live", Socket, {
   params: {_csrf_token: csrfToken, tz_offset_minutes: -new Date().getTimezoneOffset()},
   hooks: {...colocatedHooks, ...Hooks},
   uploaders: Uploaders,
+  dom: {
+    // The Modal hook opens <dialog>s with showModal(), which sets an `open`
+    // attribute the server never renders. Without this, the first patch after
+    // opening (typing into a phx-change form, say) strips the attribute, the
+    // browser closes the dialog, and the hook reports it as cancelled.
+    onBeforeElUpdated(from, to) {
+      if (from.tagName === "DIALOG" && from.open && !to.hasAttribute("open")) {
+        to.setAttribute("open", "")
+      }
+    },
+  },
 })
 
 // Show progress bar on live navigation and form submits

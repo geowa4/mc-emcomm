@@ -2,6 +2,9 @@
 // closes it on Escape. Closing for any reason pushes the LiveView event named
 // in data-on-close, which is expected to stop rendering the dialog; when the
 // element then leaves the page, focus goes back to whatever opened it.
+// The `open` attribute showModal() sets is kept across patches by the
+// `dom.onBeforeElUpdated` callback in app.js; without it a re-render would
+// close the dialog.
 const Modal = {
   mounted() {
     this.opener = document.activeElement
