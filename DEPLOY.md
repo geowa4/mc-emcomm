@@ -151,14 +151,34 @@ the workflow file, so each repository created from the template sets it once
 rather than "protected branches only" because branch protection is not
 available on private repositories on the free plan.
 
+GitHub creates the environment the first time the deploy workflow references
+it; if the first command returns 404, trigger a deploy run and retry. Run
+both commands back to back: after the first one and before the second, the
+allowed-branch list is empty and the environment rejects every deploy,
+automatic ones included.
+
 ```sh
+# 1. Switch the environment to an explicit allow-list. Prints the environment
+#    JSON; the relevant part is
+#    "deployment_branch_policy":{"custom_branch_policies":true,"protected_branches":false}.
 gh api -X PUT repos/{owner}/{repo}/environments/production \
   --input - <<'JSON'
 {"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}
 JSON
+
+# 2. Allow the default branch. Prints {"id": ..., "name": "trunk", "type": "branch"}.
 gh api -X POST repos/{owner}/{repo}/environments/production/deployment-branch-policies \
   -f name=trunk -f type=branch
+
+# Verify: exactly one policy, the default branch.
+gh api repos/{owner}/{repo}/environments/production/deployment-branch-policies \
+  --jq '.branch_policies[] | "\(.name) (\(.type))"'
 ```
+
+To change the branch later, `POST` the new name first, then `DELETE
+.../deployment-branch-policies/<id>` for the old one (ids come from the
+verify command with `--jq '.branch_policies[] | {id, name}'`), so the list
+is never empty in between.
 
 The equivalent UI path is Settings → Environments → production → Deployment
 branches and tags → Selected branches and tags. No reviewer is required: the
