@@ -28,8 +28,12 @@ import Hooks from "./hooks"
 import Uploaders from "./uploaders"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+// No longPollFallbackMs: the endpoint disables the long-poll transport
+// (SPEC.md § Security, CVE-2026-32689). With a fallback configured, any
+// WebSocket that failed to open and answer a ping within the threshold made
+// phoenix.js switch the page to long polling permanently, which 404s here,
+// leaving LiveView stuck showing "Attempting to reconnect" until a reload.
 const liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken, tz_offset_minutes: -new Date().getTimezoneOffset()},
   hooks: {...colocatedHooks, ...Hooks},
   uploaders: Uploaders,
