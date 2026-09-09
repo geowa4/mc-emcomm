@@ -466,7 +466,7 @@ defmodule McEmcomm.MembersNotificationTest do
     end
   end
 
-  describe "notify_new_member_confirmed/1" do
+  describe "notify_new_member_registered/1" do
     test "emails every recipient about the new member" do
       holder = McEmcommFixtures.member_fixture()
       flagged = McEmcommFixtures.position_fixture(%{notify_on_new_member: true})
@@ -474,7 +474,7 @@ defmodule McEmcomm.MembersNotificationTest do
 
       new_member = McEmcommFixtures.pending_member_fixture(%{name: "Newcomer"})
 
-      assert :ok = Members.notify_new_member_confirmed(new_member.user)
+      assert :ok = Members.notify_new_member_registered(new_member.user)
 
       holder_email = holder.user.email
 
@@ -491,7 +491,7 @@ defmodule McEmcomm.MembersNotificationTest do
       {:ok, _} = Members.assign_position(holder, position)
       new_member = McEmcommFixtures.pending_member_fixture()
 
-      assert :ok = Members.notify_new_member_confirmed(new_member.user)
+      assert :ok = Members.notify_new_member_registered(new_member.user)
       refute_new_member_notice()
     end
 
@@ -500,7 +500,7 @@ defmodule McEmcomm.MembersNotificationTest do
       flagged = McEmcommFixtures.position_fixture(%{notify_on_new_member: true})
       {:ok, _} = Members.assign_position(holder, flagged)
 
-      assert :ok = Members.notify_new_member_confirmed(AccountsFixtures.user_fixture())
+      assert :ok = Members.notify_new_member_registered(AccountsFixtures.user_fixture())
       refute_new_member_notice()
     end
   end

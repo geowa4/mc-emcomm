@@ -4,6 +4,9 @@ defmodule McEmcommWeb.UserLive.RegistrationTest do
   import Phoenix.LiveViewTest
   import McEmcomm.AccountsFixtures
 
+  alias McEmcomm.McEmcommFixtures
+  alias McEmcomm.Members
+
   describe "Registration page" do
     test "renders registration page", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/users/register")
@@ -48,6 +51,38 @@ defmodule McEmcommWeb.UserLive.RegistrationTest do
 
       assert html =~
                ~r/An email was sent to .*, please access it to confirm your account/
+    end
+
+    test "emails the flagged position holders about the new member", %{conn: conn} do
+      holder = McEmcommFixtures.member_fixture()
+      flagged = McEmcommFixtures.position_fixture(%{notify_on_new_member: true})
+      {:ok, _} = Members.assign_position(holder, flagged)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      email = unique_user_email()
+
+      form =
+        form(lv, "#registration_form",
+          user: valid_user_attributes(email: email, name: "Newcomer", call_sign: "KD2XYZ")
+        )
+
+      {:ok, _lv, _html} =
+        render_submit(form)
+        |> follow_redirect(conn, ~p"/users/log-in")
+
+      holder_email = holder.user.email
+
+      assert_receive {:email,
+                      %Swoosh.Email{
+                        subject: "New member awaiting approval: Newcomer",
+                        to: [{_, ^holder_email}],
+                        text_body: body
+                      }}
+
+      assert body =~ "KD2XYZ"
+      assert body =~ email
+      assert body =~ "not\nconfirmed their email address yet"
     end
 
     test "renders errors for duplicated email", %{conn: conn} do

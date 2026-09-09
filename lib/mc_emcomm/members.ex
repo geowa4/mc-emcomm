@@ -64,7 +64,7 @@ defmodule McEmcomm.Members do
   end
 
   @doc """
-  Users who should hear about a newly confirmed member: the approved holders
+  Users who should hear about a newly registered member: the approved holders
   of every position whose `notify_on_new_member` flag is set, each listed once
   even when they hold several flagged positions.
   """
@@ -85,13 +85,14 @@ defmodule McEmcomm.Members do
 
   @doc """
   Emails the recipients above about the member profile belonging to `user`,
-  who has just confirmed their email address. Recipients are resolved here,
-  synchronously; delivery runs under `McEmcomm.TaskSupervisor` so a mail
-  outage can never fail the login that confirmed the account. A user with no
-  member profile, or an empty recipient list, is a no-op.
+  who has just registered. The address is not yet confirmed at this point;
+  leadership hears about every signup, including ones that never confirm.
+  Recipients are resolved here, synchronously; delivery runs under
+  `McEmcomm.TaskSupervisor` so a mail outage can never fail the registration.
+  A user with no member profile, or an empty recipient list, is a no-op.
   """
-  @spec notify_new_member_confirmed(User.t()) :: :ok
-  def notify_new_member_confirmed(%User{} = user) do
+  @spec notify_new_member_registered(User.t()) :: :ok
+  def notify_new_member_registered(%User{} = user) do
     with %Member{} = member <- get_member_by_user_id(user.id),
          [_ | _] = recipients <- list_new_member_notification_recipients() do
       {:ok, _pid} =

@@ -43,7 +43,8 @@ defmodule McEmcomm.Members.MemberNotifier do
 
     ==============================
 
-    A new member has confirmed their email address and is waiting for approval.
+    A new member has registered and is waiting for approval. They have not
+    confirmed their email address yet.
 
     Name:      #{member.name}
     Call sign: #{member.call_sign || "none given"}

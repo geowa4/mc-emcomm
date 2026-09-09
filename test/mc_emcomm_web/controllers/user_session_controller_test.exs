@@ -103,7 +103,7 @@ defmodule McEmcommWeb.UserSessionControllerTest do
       assert_logged_in_menu(conn, user)
     end
 
-    test "confirming a new member emails the flagged position holders", %{
+    test "confirming a new member does not email the flagged position holders", %{
       conn: conn,
       unconfirmed_user: user
     } do
@@ -121,13 +121,8 @@ defmodule McEmcommWeb.UserSessionControllerTest do
 
       assert get_session(conn, :user_token)
 
-      holder_email = holder.user.email
-
-      assert_receive {:email,
-                      %Swoosh.Email{
-                        subject: "New member awaiting approval: Newcomer",
-                        to: [{_, ^holder_email}]
-                      }}
+      # The notice went out at registration; confirmation is not a second "join".
+      refute_receive {:email, %Swoosh.Email{subject: "New member awaiting approval" <> _}}
     end
 
     test "redirects to login page when magic link is invalid", %{conn: conn} do

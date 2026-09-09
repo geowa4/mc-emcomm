@@ -5,6 +5,7 @@ defmodule McEmcommWeb.UserLive.Registration do
 
   alias McEmcomm.Accounts
   alias McEmcomm.Accounts.User
+  alias McEmcomm.Members
   alias McEmcomm.Members.Member
   alias McEmcomm.Repo
 
@@ -80,6 +81,8 @@ defmodule McEmcommWeb.UserLive.Registration do
   def handle_event("save", %{"user" => user_params}, socket) do
     case register(user_params) do
       {:ok, user} ->
+        :ok = Members.notify_new_member_registered(user)
+
         {:noreply,
          socket
          |> flash_confirmation_delivery(user)

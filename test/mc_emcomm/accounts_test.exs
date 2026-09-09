@@ -367,7 +367,9 @@ defmodule McEmcomm.AccountsTest do
       assert {:error, :not_found} = Accounts.login_user_by_magic_link(encoded_token)
     end
 
-    test "confirming a user with a pending member profile notifies flagged position holders" do
+    test "confirming a user with a pending member profile does not notify position holders" do
+      # Leadership hears about a member at registration (see the registration
+      # LiveView tests), so confirming later must not send a second notice.
       holder = McEmcommFixtures.member_fixture()
       flagged = McEmcommFixtures.position_fixture(%{notify_on_new_member: true})
       {:ok, _} = Members.assign_position(holder, flagged)
@@ -379,17 +381,6 @@ defmodule McEmcomm.AccountsTest do
       assert {:ok, {%{confirmed_at: %DateTime{}}, _}} =
                Accounts.login_user_by_magic_link(encoded_token)
 
-      holder_email = holder.user.email
-
-      assert_receive {:email,
-                      %Swoosh.Email{
-                        subject: "New member awaiting approval: Newcomer",
-                        to: [{_, ^holder_email}]
-                      }}
-
-      # A later magic-link login of the now-confirmed user is not a "join".
-      {encoded_token, _hashed_token} = generate_user_magic_link_token(user)
-      assert {:ok, _} = Accounts.login_user_by_magic_link(encoded_token)
       refute_receive {:email, %Swoosh.Email{subject: "New member awaiting approval" <> _}}
     end
 
