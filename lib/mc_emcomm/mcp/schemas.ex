@@ -189,6 +189,26 @@ defmodule McEmcomm.MCP.Schemas do
     )
   end
 
+  def rsvp do
+    object(
+      %{
+        "member_id" => id("Member id."),
+        "member_name" => string("Member name."),
+        "call_sign" => nullable_string("Member call sign."),
+        "response" => rsvp_response(),
+        "note" => nullable_string("The member's note, if any."),
+        "responded_at" => datetime("When the RSVP was last changed (UTC).")
+      },
+      ~w(member_id member_name call_sign response note responded_at)
+    )
+  end
+
+  def rsvp_response,
+    do:
+      string("Whether the member plans to attend: yes (going), maybe, or no (not going).",
+        enum: ~w(yes maybe no)
+      )
+
   def operation_summary do
     object(
       %{
@@ -212,9 +232,10 @@ defmodule McEmcomm.MCP.Schemas do
           Map.merge(summary["properties"], %{
             "locations" => array(operation_location()),
             "attachments" => array(operation_attachment()),
+            "rsvps" => array(rsvp()),
             "attendance" => array(attendance())
           }),
-        "required" => summary["required"] ++ ~w(locations attachments attendance)
+        "required" => summary["required"] ++ ~w(locations attachments rsvps attendance)
     }
   end
 

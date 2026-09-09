@@ -19,6 +19,7 @@ defmodule McEmcomm.Operations.Operation do
     has_many :locations, McEmcomm.Operations.OperationLocation, preload_order: [asc: :position]
     has_many :attachments, McEmcomm.Operations.OperationAttachment
     has_many :attendance, McEmcomm.Operations.OperationAttendance
+    has_many :rsvps, McEmcomm.Operations.OperationRsvp
 
     timestamps(type: :utc_datetime)
   end

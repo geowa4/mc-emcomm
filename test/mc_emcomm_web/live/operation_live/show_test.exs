@@ -22,6 +22,72 @@ defmodule McEmcommWeb.OperationLive.ShowTest do
     assert html =~ "No attachments"
     assert html =~ "No recorded attendance yet"
     assert has_element?(lv, "button", "Mark my attendance")
+    assert has_element?(lv, "#rsvps-empty")
+    assert has_element?(lv, "#rsvp-form")
+  end
+
+  test "an approved member can RSVP and then change their answer", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture(%{call_sign: "W2RSV"})
+    operation = McEmcommFixtures.operation_fixture()
+
+    {:ok, lv, _html} =
+      conn |> log_in_user(member.user) |> live(~p"/app/operations/#{operation.id}")
+
+    html =
+      lv
+      |> form("#rsvp-form", operation_rsvp: %{response: "yes", note: "arriving 1400"})
+      |> render_submit()
+
+    assert html =~ "RSVP saved"
+    assert has_element?(lv, "#rsvp-count-yes", "1")
+    assert has_element?(lv, "#rsvp-status", "Going")
+    assert has_element?(lv, "#rsvps li", "W2RSV")
+    assert has_element?(lv, "#rsvps li", "arriving 1400")
+    refute has_element?(lv, "#rsvps-empty")
+    assert Operations.get_rsvp(operation.id, member.id).response == :yes
+
+    lv
+    |> form("#rsvp-form", operation_rsvp: %{response: "no", note: ""})
+    |> render_submit()
+
+    assert has_element?(lv, "#rsvp-count-yes", "0")
+    assert has_element?(lv, "#rsvp-count-no", "1")
+    assert has_element?(lv, "#rsvp-status", "Not going")
+    assert [rsvp] = Operations.list_rsvps(operation.id)
+    assert rsvp.response == :no
+    assert rsvp.note == nil
+  end
+
+  test "a blank response is shown as a form error", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    operation = McEmcommFixtures.operation_fixture()
+
+    {:ok, lv, _html} =
+      conn |> log_in_user(member.user) |> live(~p"/app/operations/#{operation.id}")
+
+    html = lv |> form("#rsvp-form", operation_rsvp: %{response: ""}) |> render_submit()
+
+    refute html =~ "RSVP saved"
+    assert html =~ "can&#39;t be blank"
+    assert Operations.list_rsvps(operation.id) == []
+  end
+
+  test "RSVPs close once the operation has ended", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    now = DateTime.utc_now()
+
+    operation =
+      McEmcommFixtures.operation_fixture(%{
+        "starts_at" => DateTime.add(now, -7200, :second),
+        "ends_at" => DateTime.add(now, -3600, :second)
+      })
+
+    {:ok, lv, _html} =
+      conn |> log_in_user(member.user) |> live(~p"/app/operations/#{operation.id}")
+
+    refute has_element?(lv, "#rsvp-form")
+    assert has_element?(lv, "#rsvp-closed")
+    assert has_element?(lv, "button", "Mark my attendance")
   end
 
   test "an approved member can mark their own attendance", %{conn: conn} do

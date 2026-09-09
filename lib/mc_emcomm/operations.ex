@@ -1,6 +1,8 @@
 defmodule McEmcomm.Operations do
   @moduledoc """
-  Operations, their named geofenced locations, attachments, and attendance.
+  Operations, their named geofenced locations, attachments, RSVPs, and
+  attendance. An RSVP is a member's intent to attend, recorded before the
+  operation ends; attendance is who actually showed up, RSVP or not.
 
   Geofence matching (§10 of the spec) queries `operation_locations` joined to
   operations whose `starts_at`/`ends_at` window contains the given time, using
@@ -13,6 +15,7 @@ defmodule McEmcomm.Operations do
   alias McEmcomm.Operations.OperationAttachment
   alias McEmcomm.Operations.OperationAttendance
   alias McEmcomm.Operations.OperationLocation
+  alias McEmcomm.Operations.OperationRsvp
   alias McEmcomm.Repo
   alias McEmcomm.Storage
 
@@ -56,17 +59,19 @@ defmodule McEmcomm.Operations do
     |> Repo.exists?()
   end
 
+  @preloads [:locations, :attachments, attendance: :member, rsvps: :member]
+
   def get_operation!(id) do
     Operation
     |> Repo.get!(id)
-    |> Repo.preload([:locations, :attachments, attendance: :member])
+    |> Repo.preload(@preloads)
   end
 
   @doc "Like `get_operation!/1` but `nil` for an unknown id."
   def get_operation(id) do
     case Repo.get(Operation, id) do
       nil -> nil
-      operation -> Repo.preload(operation, [:locations, :attachments, attendance: :member])
+      operation -> Repo.preload(operation, @preloads)
     end
   end
 
@@ -251,6 +256,69 @@ defmodule McEmcomm.Operations do
       on_conflict: :nothing,
       conflict_target: [:operation_id, :member_id]
     )
+  end
+
+  ## RSVPs
+
+  @doc "RSVPs for an operation with their members: going, maybe, then no, each by name."
+  def list_rsvps(operation_id) do
+    OperationRsvp
+    |> where([r], r.operation_id == ^operation_id)
+    |> preload(:member)
+    |> Repo.all()
+    |> sort_rsvps()
+  end
+
+  @doc "Orders member-preloaded RSVPs as `list_rsvps/1` does."
+  def sort_rsvps(rsvps) do
+    ranks = OperationRsvp.responses() |> Enum.with_index() |> Map.new()
+    Enum.sort_by(rsvps, &{Map.fetch!(ranks, &1.response), &1.member.name})
+  end
+
+  @doc "The member's RSVP for the operation, or `nil`."
+  def get_rsvp(operation_id, member_id) do
+    Repo.get_by(OperationRsvp, operation_id: operation_id, member_id: member_id)
+  end
+
+  @doc "Counts RSVPs by response, with every response present (zero when none)."
+  @spec rsvp_counts([OperationRsvp.t()]) :: %{OperationRsvp.response() => non_neg_integer()}
+  def rsvp_counts(rsvps) do
+    counts = Enum.frequencies_by(rsvps, & &1.response)
+    Map.new(OperationRsvp.responses(), &{&1, Map.get(counts, &1, 0)})
+  end
+
+  def change_rsvp(%OperationRsvp{} = rsvp, attrs \\ %{}) do
+    OperationRsvp.changeset(rsvp, attrs)
+  end
+
+  @doc """
+  Records or replaces the member's RSVP for the operation. `attrs` carries the
+  `response` (`yes`, `maybe`, `no`) and an optional `note`. Refuses with
+  `{:error, :operation_ended}` once the operation's window has closed, since a
+  reply to a finished operation means nothing; attendance covers that case.
+  """
+  @spec rsvp(Operation.t(), pos_integer(), map()) ::
+          {:ok, OperationRsvp.t()} | {:error, Ecto.Changeset.t() | :operation_ended}
+  def rsvp(%Operation{} = operation, member_id, attrs) do
+    if ended?(operation) do
+      {:error, :operation_ended}
+    else
+      now = DateTime.utc_now()
+
+      %OperationRsvp{operation_id: operation.id, member_id: member_id, responded_at: now}
+      |> OperationRsvp.changeset(attrs)
+      |> Repo.insert(
+        on_conflict: {:replace, [:response, :note, :responded_at, :updated_at]},
+        conflict_target: [:operation_id, :member_id],
+        returning: true
+      )
+    end
+  end
+
+  @doc "Whether the operation's window has closed (defaults to now)."
+  @spec ended?(Operation.t(), DateTime.t()) :: boolean()
+  def ended?(%Operation{ends_at: ends_at}, at \\ DateTime.utc_now()) do
+    DateTime.compare(ends_at, at) == :lt
   end
 
   ## Geofence matching (§10)

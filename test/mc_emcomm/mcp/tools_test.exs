@@ -291,6 +291,56 @@ defmodule McEmcomm.MCP.ToolsTest do
              }) =~ "at least one location"
     end
 
+    test "rsvp_op records, replaces, and lists the caller's RSVP", %{
+      member_ctx: ctx,
+      member: member
+    } do
+      operation = McEmcommFixtures.operation_fixture()
+
+      rsvp =
+        call!(ctx, "rsvp_op", %{
+          "operation_id" => operation.id,
+          "response" => "yes",
+          "note" => "arriving 1400"
+        })
+
+      assert rsvp["member_id"] == member.id
+      assert rsvp["response"] == "yes"
+      assert rsvp["note"] == "arriving 1400"
+
+      assert call!(ctx, "rsvp_op", %{"operation_id" => operation.id, "response" => "maybe"})[
+               "response"
+             ] == "maybe"
+
+      assert [%{"member_id" => id, "response" => "maybe", "note" => nil}] =
+               call!(ctx, "list_op_rsvps", %{"operation_id" => operation.id})["rsvps"]
+
+      assert id == member.id
+
+      assert [%{"response" => "maybe"}] =
+               call!(ctx, "get_op", %{"operation_id" => operation.id})["rsvps"]
+
+      assert error!(ctx, "rsvp_op", %{"operation_id" => operation.id, "response" => "later"}) =~
+               "Invalid arguments"
+
+      assert Operations.list_attendance(operation.id) == []
+    end
+
+    test "rsvp_op refuses once the operation has ended", %{member_ctx: ctx} do
+      now = DateTime.utc_now()
+
+      ended =
+        McEmcommFixtures.operation_fixture(%{
+          "starts_at" => DateTime.add(now, -7200, :second),
+          "ends_at" => DateTime.add(now, -3600, :second)
+        })
+
+      assert error!(ctx, "rsvp_op", %{"operation_id" => ended.id, "response" => "yes"}) =~
+               "closed"
+
+      assert call!(ctx, "list_op_rsvps", %{"operation_id" => ended.id})["rsvps"] == []
+    end
+
     test "attendance is marked for the caller only, once", %{member_ctx: ctx, member: member} do
       operation = McEmcommFixtures.operation_fixture()
       marked = call!(ctx, "mark_op_attendance", %{"operation_id" => operation.id})

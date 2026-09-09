@@ -33,6 +33,8 @@ defmodule McEmcomm.MCP.Tools.Registry do
     Tools.DeleteOp,
     Tools.AddOpLocation,
     Tools.RemoveOpLocation,
+    Tools.ListOpRsvps,
+    Tools.RsvpOp,
     Tools.ListOpAttendance,
     Tools.MarkOpAttendance,
     # Membership (emcomm:membership)

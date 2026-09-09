@@ -74,6 +74,9 @@ defmodule McEmcomm.MCP.Tools.Support do
 
   def format_error(:not_approved), do: "Only approved members may do that."
 
+  def format_error(:operation_ended),
+    do: "RSVPs closed when the operation ended; mark attendance instead if you were there."
+
   def format_error(:has_started_net_sessions),
     do: "The member has started net sessions and cannot be deleted."
 

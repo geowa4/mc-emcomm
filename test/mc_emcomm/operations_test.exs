@@ -179,4 +179,85 @@ defmodule McEmcomm.OperationsTest do
       assert Enum.count(Operations.list_operations()) == 1
     end
   end
+
+  describe "rsvp/3" do
+    test "records a response, replaces it on repeat, and orders the list going-first" do
+      operation = McEmcommFixtures.operation_fixture()
+      going = McEmcommFixtures.member_fixture(%{name: "Zed Going"})
+      maybe = McEmcommFixtures.member_fixture(%{name: "Amy Maybe"})
+
+      assert {:ok, rsvp} = Operations.rsvp(operation, going.id, %{"response" => "no"})
+      assert rsvp.response == :no
+      assert rsvp.note == nil
+
+      assert {:ok, replaced} =
+               Operations.rsvp(operation, going.id, %{"response" => "yes", "note" => "  1400  "})
+
+      assert replaced.id == rsvp.id
+      assert replaced.response == :yes
+      assert replaced.note == "1400"
+
+      assert {:ok, _} = Operations.rsvp(operation, maybe.id, %{"response" => "maybe"})
+
+      assert [%{member_id: first}, %{member_id: second}] = Operations.list_rsvps(operation.id)
+      assert {first, second} == {going.id, maybe.id}
+
+      assert Operations.rsvp_counts(Operations.list_rsvps(operation.id)) == %{
+               yes: 1,
+               maybe: 1,
+               no: 0
+             }
+
+      assert Operations.get_rsvp(operation.id, going.id).response == :yes
+    end
+
+    test "rejects an unknown response and an over-long note" do
+      operation = McEmcommFixtures.operation_fixture()
+      member = McEmcommFixtures.member_fixture()
+
+      assert {:error, changeset} = Operations.rsvp(operation, member.id, %{"response" => "later"})
+      assert %{response: [_]} = errors_on(changeset)
+
+      note = String.duplicate("x", 501)
+
+      assert {:error, changeset} =
+               Operations.rsvp(operation, member.id, %{"response" => "yes", "note" => note})
+
+      assert %{note: [_]} = errors_on(changeset)
+      assert Operations.get_rsvp(operation.id, member.id) == nil
+    end
+
+    test "refuses once the operation has ended" do
+      now = DateTime.utc_now()
+
+      ended =
+        McEmcommFixtures.operation_fixture(%{
+          "starts_at" => DateTime.add(now, -7200, :second),
+          "ends_at" => DateTime.add(now, -3600, :second)
+        })
+
+      member = McEmcommFixtures.member_fixture()
+
+      assert Operations.ended?(ended)
+
+      assert {:error, :operation_ended} =
+               Operations.rsvp(ended, member.id, %{"response" => "yes"})
+
+      assert Operations.list_rsvps(ended.id) == []
+    end
+
+    test "RSVPs go with the operation and with the member" do
+      operation = McEmcommFixtures.operation_fixture()
+      member = McEmcommFixtures.member_fixture()
+      {:ok, _} = Operations.rsvp(operation, member.id, %{"response" => "yes"})
+
+      {:ok, _} = Operations.delete_operation(operation)
+      assert Operations.get_rsvp(operation.id, member.id) == nil
+
+      other = McEmcommFixtures.operation_fixture()
+      {:ok, _} = Operations.rsvp(other, member.id, %{"response" => "maybe"})
+      {:ok, _} = McEmcomm.Members.delete_member(member)
+      assert Operations.list_rsvps(other.id) == []
+    end
+  end
 end

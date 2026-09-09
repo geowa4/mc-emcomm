@@ -13,10 +13,12 @@ defmodule McEmcomm.MCP.Tools.Present do
   alias McEmcomm.Members.Member
   alias McEmcomm.Net.NetCheckin
   alias McEmcomm.Net.NetSession
+  alias McEmcomm.Operations
   alias McEmcomm.Operations.Operation
   alias McEmcomm.Operations.OperationAttachment
   alias McEmcomm.Operations.OperationAttendance
   alias McEmcomm.Operations.OperationLocation
+  alias McEmcomm.Operations.OperationRsvp
 
   def datetime(nil), do: nil
   def datetime(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
@@ -77,6 +79,7 @@ defmodule McEmcomm.MCP.Tools.Present do
     |> Map.merge(%{
       "locations" => Enum.map(op.locations, &operation_location/1),
       "attachments" => Enum.map(op.attachments, &operation_attachment/1),
+      "rsvps" => op.rsvps |> Operations.sort_rsvps() |> Enum.map(&rsvp/1),
       "attendance" => Enum.map(op.attendance, &attendance/1)
     })
   end
@@ -98,6 +101,17 @@ defmodule McEmcomm.MCP.Tools.Present do
       "filename" => attachment.filename,
       "content_type" => attachment.content_type,
       "description" => attachment.description
+    }
+  end
+
+  def rsvp(%OperationRsvp{member: %Member{} = member} = rsvp) do
+    %{
+      "member_id" => member.id,
+      "member_name" => member.name,
+      "call_sign" => member.call_sign,
+      "response" => Atom.to_string(rsvp.response),
+      "note" => rsvp.note,
+      "responded_at" => datetime(rsvp.responded_at)
     }
   end
 
