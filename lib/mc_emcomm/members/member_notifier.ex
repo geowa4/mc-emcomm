@@ -1,7 +1,7 @@
 defmodule McEmcomm.Members.MemberNotifier do
   @moduledoc """
   Delivers membership emails (new-member notices to designated position
-  holders) through `McEmcomm.Mailer`.
+  holders, approval notices to the member) through `McEmcomm.Mailer`.
 
   This module is called from inside the `McEmcomm.Accounts` context, where no
   web caller can hand in a URL builder, so it resolves the admin link itself
@@ -36,6 +36,31 @@ defmodule McEmcomm.Members.MemberNotifier do
       {:ok, sent} -> {:ok, Enum.reverse(sent)}
       error -> error
     end
+  end
+
+  @doc """
+  Tells `user` that the membership profile `member` has been approved and
+  where to log in.
+  """
+  @spec deliver_membership_approved(Member.t(), User.t()) ::
+          {:ok, Swoosh.Email.t()} | {:error, term()}
+  def deliver_membership_approved(%Member{} = member, %User{} = user) do
+    deliver(user.email, "Your Monroe County ARES/RACES membership is approved", """
+
+    ==============================
+
+    Hi #{member.name},
+
+    Your membership in Monroe County ARES/RACES has been approved. Welcome
+    aboard.
+
+    Log in to the member portal to complete your profile, see upcoming
+    operations, and check into nets:
+
+    #{url(~p"/users/log-in")}
+
+    ==============================
+    """)
   end
 
   defp new_member_body(member, user) do

@@ -83,6 +83,47 @@ defmodule McEmcomm.MembersTest do
                Members.list_audit_for_member(member.id)
     end
 
+    test "pending -> approved emails the member" do
+      member = McEmcommFixtures.pending_member_fixture(%{name: "Newcomer"})
+      actor = AccountsFixtures.user_fixture()
+      member_email = member.user.email
+
+      assert {:ok, _} = Members.transition_status(member, :approved, actor)
+
+      assert_receive {:email,
+                      %Swoosh.Email{
+                        subject: "Your Monroe County ARES/RACES membership is approved",
+                        to: [{_, ^member_email}],
+                        text_body: body
+                      }}
+
+      assert body =~ "Hi Newcomer"
+      assert body =~ "/users/log-in"
+    end
+
+    test "inactive -> approved emails the member again" do
+      member = McEmcommFixtures.member_fixture()
+      actor = AccountsFixtures.user_fixture()
+      member_email = member.user.email
+      {:ok, member} = Members.transition_status(member, :inactive, actor, "moved away")
+
+      assert {:ok, _} = Members.transition_status(member, :approved, actor)
+
+      assert_receive {:email,
+                      %Swoosh.Email{
+                        subject: "Your Monroe County ARES/RACES membership is approved",
+                        to: [{_, ^member_email}]
+                      }}
+    end
+
+    test "pending -> rejected does not email the member" do
+      member = McEmcommFixtures.pending_member_fixture()
+      actor = AccountsFixtures.user_fixture()
+
+      assert {:ok, _} = Members.transition_status(member, :rejected, actor, "Not licensed")
+      refute_receive {:email, %Swoosh.Email{subject: "Your Monroe County" <> _}}
+    end
+
     test "pending -> rejected requires a reason" do
       member = McEmcommFixtures.pending_member_fixture()
       actor = AccountsFixtures.user_fixture()

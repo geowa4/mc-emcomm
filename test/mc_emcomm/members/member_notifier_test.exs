@@ -10,6 +10,16 @@ defmodule McEmcomm.Members.MemberNotifierTest do
   @member %Member{name: "Pat Example", call_sign: "N0CALL"}
   @user %User{email: "pat@example.com"}
 
+  test "membership approved notice goes to the member with a login link" do
+    assert {:ok, email} = MemberNotifier.deliver_membership_approved(@member, @user)
+
+    assert email.to == [{"", "pat@example.com"}]
+    assert email.subject == "Your Monroe County ARES/RACES membership is approved"
+    assert email.text_body =~ "Hi Pat Example"
+    assert email.text_body =~ "/users/log-in"
+    assert_email_sent(email)
+  end
+
   test "sends one email per recipient from the configured mail_from address" do
     recipients = [%User{email: "secretary@example.com"}, %User{email: "ec@example.com"}]
 

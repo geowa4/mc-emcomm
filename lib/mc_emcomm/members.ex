@@ -353,9 +353,33 @@ defmodule McEmcomm.Members do
     |> vacate_positions_unless_approved(member, to_status)
     |> Repo.transaction()
     |> case do
-      {:ok, %{member: member}} -> {:ok, member}
-      {:error, :member, changeset, _} -> {:error, changeset}
-      {:error, :audit, changeset, _} -> {:error, changeset}
+      {:ok, %{member: member}} ->
+        if to_status == "approved", do: notify_membership_approved(member)
+        {:ok, member}
+
+      {:error, :member, changeset, _} ->
+        {:error, changeset}
+
+      {:error, :audit, changeset, _} ->
+        {:error, changeset}
+    end
+  end
+
+  # Tells the member their membership is approved (first approval and
+  # reactivation alike). Delivery runs under `McEmcomm.TaskSupervisor` so a
+  # mail outage can never fail the transition that was already committed.
+  defp notify_membership_approved(%Member{} = member) do
+    case Repo.get(User, member.user_id) do
+      %User{} = user ->
+        {:ok, _pid} =
+          Task.Supervisor.start_child(McEmcomm.TaskSupervisor, fn ->
+            {:ok, _email} = MemberNotifier.deliver_membership_approved(member, user)
+          end)
+
+        :ok
+
+      nil ->
+        :ok
     end
   end
 
