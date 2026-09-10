@@ -291,7 +291,50 @@ defmodule McEmcommWeb.CoreComponents do
     """
   end
 
-  # All other inputs text, datetime-local, url, password, etc. are handled here...
+  # Password inputs get a show/hide toggle. The toggle is a pure client-side
+  # JS command, so it survives LiveView patches (phx-change re-renders) and
+  # never sends the password anywhere it would not already go.
+  def input(%{type: "password"} = assigns) do
+    ~H"""
+    <div class="fieldset mb-2">
+      <label :if={@label} for={@id} class="label mb-1">{@label}</label>
+      <div class="join w-full">
+        <input
+          type="password"
+          name={@name}
+          id={@id}
+          value={Phoenix.HTML.Form.normalize_value(@type, @value)}
+          class={[
+            @class || "w-full input join-item",
+            @errors != [] && (@error_class || "input-error")
+          ]}
+          aria-invalid={@errors != [] && "true"}
+          aria-describedby={error_ids(@id, @errors)}
+          {@rest}
+        />
+        <button
+          type="button"
+          id={"#{@id}-toggle"}
+          class="btn btn-soft join-item"
+          aria-label="Show password"
+          aria-pressed="false"
+          aria-controls={@id}
+          phx-click={toggle_password_visibility(@id)}
+        >
+          <span id={"#{@id}-toggle-show"}><.icon name="hero-eye" class="size-5" /></span>
+          <span id={"#{@id}-toggle-hide"} class="hidden">
+            <.icon name="hero-eye-slash" class="size-5" />
+          </span>
+        </button>
+      </div>
+      <.error :for={{msg, index} <- Enum.with_index(@errors)} id={error_id(@id, index)}>
+        {msg}
+      </.error>
+    </div>
+    """
+  end
+
+  # All other inputs text, datetime-local, url, etc. are handled here...
   def input(assigns) do
     ~H"""
     <div class="fieldset mb-2">
@@ -316,6 +359,14 @@ defmodule McEmcommWeb.CoreComponents do
       </.error>
     </div>
     """
+  end
+
+  defp toggle_password_visibility(id) do
+    JS.toggle_attribute({"type", "text", "password"}, to: "##{id}")
+    |> JS.toggle_attribute({"aria-label", "Hide password", "Show password"})
+    |> JS.toggle_attribute({"aria-pressed", "true", "false"})
+    |> JS.toggle_class("hidden", to: "##{id}-toggle-show")
+    |> JS.toggle_class("hidden", to: "##{id}-toggle-hide")
   end
 
   # Helper used by inputs to generate form errors

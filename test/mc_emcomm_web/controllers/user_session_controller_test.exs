@@ -285,6 +285,7 @@ defmodule McEmcommWeb.UserSessionControllerTest do
         |> post(~p"/users/update-password", %{
           "user" => %{
             "email" => user.email,
+            "current_password" => valid_user_password(),
             "password" => new_password,
             "password_confirmation" => new_password
           }
@@ -294,6 +295,31 @@ defmodule McEmcommWeb.UserSessionControllerTest do
       assert get_session(conn, :user_token)
       refute get_session(conn, :pending_two_factor)
       assert Accounts.get_user_by_email_and_password(user.email, new_password)
+    end
+
+    test "rejects a wrong current password without changing anything", %{
+      conn: conn,
+      user: user
+    } do
+      user = set_password(user)
+      new_password = "another valid password"
+
+      conn =
+        conn
+        |> log_in_user(user)
+        |> post(~p"/users/update-password", %{
+          "user" => %{
+            "email" => user.email,
+            "current_password" => "not my password",
+            "password" => new_password,
+            "password_confirmation" => new_password
+          }
+        })
+
+      assert redirected_to(conn) == ~p"/users/settings"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "could not be changed"
+      refute Accounts.get_user_by_email_and_password(user.email, new_password)
+      assert Accounts.get_user_by_email_and_password(user.email, valid_user_password())
     end
   end
 

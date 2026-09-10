@@ -7,6 +7,7 @@ defmodule McEmcomm.Accounts.User do
   schema "users" do
     field :email, :string
     field :password, :string, virtual: true, redact: true
+    field :current_password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
     field :confirmed_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
@@ -68,6 +69,10 @@ defmodule McEmcomm.Accounts.User do
   It is important to validate the length of the password, as long passwords may
   be very expensive to hash for certain algorithms.
 
+  When the account already has a password, `current_password` is required and
+  must match it. Accounts that only ever used magic links have nothing to
+  check, so they can set a first password without one.
+
   ## Options
 
     * `:hash_password` - Hashes the password so it can be stored securely
@@ -76,12 +81,34 @@ defmodule McEmcomm.Accounts.User do
       password field is not desired (like when using this changeset for
       validations on a LiveView form), this option can be set to `false`.
       Defaults to `true`.
+
+    * `:verify_current_password` - Checks `current_password` against the
+      stored hash. Set to `false` for live form validation so every
+      keystroke does not cost an Argon2 verification; the field is still
+      required. Defaults to `true`.
   """
   def password_changeset(user, attrs, opts \\ []) do
     user
-    |> cast(attrs, [:password])
+    |> cast(attrs, [:password, :current_password])
     |> validate_confirmation(:password, message: "does not match password")
+    |> validate_current_password(opts)
     |> validate_password(opts)
+  end
+
+  defp validate_current_password(%{data: %{hashed_password: nil}} = changeset, _opts) do
+    changeset
+  end
+
+  defp validate_current_password(changeset, opts) do
+    changeset = validate_required(changeset, [:current_password])
+    verify? = Keyword.get(opts, :verify_current_password, true)
+
+    cond do
+      Keyword.has_key?(changeset.errors, :current_password) -> changeset
+      not verify? -> changeset
+      valid_password?(changeset.data, get_change(changeset, :current_password)) -> changeset
+      true -> add_error(changeset, :current_password, "is not valid")
+    end
   end
 
   defp validate_password(changeset, opts) do
@@ -105,6 +132,7 @@ defmodule McEmcomm.Accounts.User do
       # would keep the database transaction open longer and hurt performance.
       |> put_change(:hashed_password, Argon2.hash_pwd_salt(password))
       |> delete_change(:password)
+      |> delete_change(:current_password)
     else
       changeset
     end

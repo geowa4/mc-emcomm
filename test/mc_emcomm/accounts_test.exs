@@ -257,6 +257,37 @@ defmodule McEmcomm.AccountsTest do
       assert Accounts.get_user_by_email_and_password(user.email, "new valid password")
     end
 
+    test "requires the current password once one is set", %{user: user} do
+      user = set_password(user)
+
+      {:error, changeset} =
+        Accounts.update_user_password(user, %{password: "new valid password"})
+
+      assert %{current_password: ["can't be blank"]} = errors_on(changeset)
+
+      {:error, changeset} =
+        Accounts.update_user_password(user, %{
+          current_password: "wrong password",
+          password: "new valid password"
+        })
+
+      assert %{current_password: ["is not valid"]} = errors_on(changeset)
+      refute Accounts.get_user_by_email_and_password(user.email, "new valid password")
+    end
+
+    test "changes the password when the current one matches", %{user: user} do
+      user = set_password(user)
+
+      {:ok, {user, _expired_tokens}} =
+        Accounts.update_user_password(user, %{
+          current_password: valid_user_password(),
+          password: "new valid password"
+        })
+
+      assert is_nil(user.current_password)
+      assert Accounts.get_user_by_email_and_password(user.email, "new valid password")
+    end
+
     test "deletes all tokens for the given user", %{user: user} do
       _ = Accounts.generate_user_session_token(user)
 

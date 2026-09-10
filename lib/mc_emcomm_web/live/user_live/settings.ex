@@ -49,6 +49,15 @@ defmodule McEmcommWeb.UserLive.Settings do
           value={@current_email}
         />
         <.input
+          :if={@has_password?}
+          field={@password_form[:current_password]}
+          type="password"
+          label="Current password"
+          autocomplete="current-password"
+          spellcheck="false"
+          required
+        />
+        <.input
           field={@password_form[:password]}
           type="password"
           label="New password"
@@ -64,7 +73,7 @@ defmodule McEmcommWeb.UserLive.Settings do
           spellcheck="false"
         />
         <.button variant="primary" phx-disable-with="Saving...">
-          Save Password
+          {if @has_password?, do: "Change Password", else: "Set Password"}
         </.button>
       </.form>
 
@@ -111,6 +120,7 @@ defmodule McEmcommWeb.UserLive.Settings do
       socket
       |> assign(:page_title, "Account")
       |> assign(:current_email, user.email)
+      |> assign(:has_password?, is_binary(user.hashed_password))
       |> assign(:email_form, to_form(email_changeset))
       |> assign(:password_form, to_form(password_changeset))
       |> assign(:totp_enabled?, Accounts.totp_enabled?(user))
@@ -149,9 +159,14 @@ defmodule McEmcommWeb.UserLive.Settings do
   def handle_event("validate_password", params, socket) do
     %{"user" => user_params} = params
 
+    # Argon2 verification of the current password waits for submit; every
+    # keystroke only checks shape and presence.
     password_form =
       socket.assigns.current_scope.user
-      |> Accounts.change_user_password(user_params, hash_password: false)
+      |> Accounts.change_user_password(user_params,
+        hash_password: false,
+        verify_current_password: false
+      )
       |> Map.put(:action, :validate)
       |> to_form()
 

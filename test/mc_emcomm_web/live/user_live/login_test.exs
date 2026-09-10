@@ -45,6 +45,17 @@ defmodule McEmcommWeb.UserLive.LoginTest do
   end
 
   describe "user login - password" do
+    test "offers to show the password", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+
+      assert has_element?(lv, "#user_password[type='password']")
+
+      assert has_element?(
+               lv,
+               "#user_password-toggle[aria-controls='user_password'][aria-pressed='false']"
+             )
+    end
+
     test "redirects if user logs in with valid credentials", %{conn: conn} do
       user = user_fixture() |> set_password()
 

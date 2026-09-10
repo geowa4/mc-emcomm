@@ -13,7 +13,7 @@ defmodule McEmcommWeb.UserLive.SettingsTest do
         |> live(~p"/users/settings")
 
       assert html =~ "Change Email"
-      assert html =~ "Save Password"
+      assert html =~ "Set Password"
     end
 
     test "links to two-factor settings with the current status", %{conn: conn} do
@@ -103,13 +103,27 @@ defmodule McEmcommWeb.UserLive.SettingsTest do
     end
   end
 
-  describe "update password form" do
+  describe "set password form (magic-link-only account)" do
     setup %{conn: conn} do
       user = user_fixture()
       %{conn: log_in_user(conn, user), user: user}
     end
 
-    test "updates the user password", %{conn: conn, user: user} do
+    test "does not ask for a current password", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      refute has_element?(lv, "#user_current_password")
+      assert has_element?(lv, "#user_password")
+    end
+
+    test "offers to show the new password", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      assert has_element?(lv, "#user_password-toggle[aria-controls='user_password']")
+      assert has_element?(lv, "#user_password_confirmation-toggle")
+    end
+
+    test "sets the user password", %{conn: conn, user: user} do
       new_password = valid_user_password()
 
       {:ok, lv, _html} = live(conn, ~p"/users/settings")
@@ -150,7 +164,7 @@ defmodule McEmcommWeb.UserLive.SettingsTest do
           }
         })
 
-      assert result =~ "Save Password"
+      assert result =~ "Set Password"
       assert result =~ "should be at least 12 character(s)"
       assert result =~ "does not match password"
     end
@@ -168,9 +182,89 @@ defmodule McEmcommWeb.UserLive.SettingsTest do
         })
         |> render_submit()
 
-      assert result =~ "Save Password"
+      assert result =~ "Set Password"
       assert result =~ "should be at least 12 character(s)"
       assert result =~ "does not match password"
+    end
+  end
+
+  describe "change password form (account with a password)" do
+    setup %{conn: conn} do
+      user = user_fixture() |> set_password()
+      %{conn: log_in_user(conn, user), user: user}
+    end
+
+    test "asks for the current password", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      assert has_element?(lv, "#user_current_password[autocomplete='current-password']")
+      assert has_element?(lv, "#user_current_password-toggle")
+      assert has_element?(lv, "#password_form button", "Change Password")
+    end
+
+    test "changes the password when the current one matches", %{conn: conn, user: user} do
+      new_password = "a brand new passphrase"
+
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      form =
+        form(lv, "#password_form", %{
+          "user" => %{
+            "email" => user.email,
+            "current_password" => valid_user_password(),
+            "password" => new_password,
+            "password_confirmation" => new_password
+          }
+        })
+
+      render_submit(form)
+
+      new_password_conn = follow_trigger_action(form, conn)
+
+      assert redirected_to(new_password_conn) == ~p"/users/settings"
+
+      assert Phoenix.Flash.get(new_password_conn.assigns.flash, :info) =~
+               "Password updated successfully"
+
+      assert Accounts.get_user_by_email_and_password(user.email, new_password)
+      refute Accounts.get_user_by_email_and_password(user.email, valid_user_password())
+    end
+
+    test "requires the current password (phx-change)", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      result =
+        lv
+        |> element("#password_form")
+        |> render_change(%{
+          "user" => %{
+            "current_password" => "",
+            "password" => "a brand new passphrase",
+            "password_confirmation" => "a brand new passphrase"
+          }
+        })
+
+      assert result =~ "can&#39;t be blank"
+    end
+
+    test "rejects a wrong current password (phx-submit)", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      result =
+        lv
+        |> form("#password_form", %{
+          "user" => %{
+            "email" => user.email,
+            "current_password" => "not my password",
+            "password" => "a brand new passphrase",
+            "password_confirmation" => "a brand new passphrase"
+          }
+        })
+        |> render_submit()
+
+      assert result =~ "is not valid"
+      refute Accounts.get_user_by_email_and_password(user.email, "a brand new passphrase")
+      assert Accounts.get_user_by_email_and_password(user.email, valid_user_password())
     end
   end
 

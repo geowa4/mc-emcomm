@@ -183,14 +183,17 @@ defmodule McEmcomm.Accounts do
   @doc """
   Updates the user password.
 
+  When the account already has a password, `attrs` must carry a matching
+  `current_password`; accounts without one set their first password freely.
+
   Returns a tuple with the updated user, as well as a list of expired tokens.
 
   ## Examples
 
-      iex> update_user_password(user, %{password: ...})
+      iex> update_user_password(user, %{current_password: ..., password: ...})
       {:ok, {%User{}, [...]}}
 
-      iex> update_user_password(user, %{password: "too short"})
+      iex> update_user_password(user, %{current_password: ..., password: "too short"})
       {:error, %Ecto.Changeset{}}
 
   """
