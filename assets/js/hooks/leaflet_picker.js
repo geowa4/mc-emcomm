@@ -1,4 +1,4 @@
-import L from "../../vendor/leaflet/leaflet.js"
+import L from "./leaflet"
 
 // Map-click pin drop used for QTH and operation-location placement (spec §12).
 // Renders a single draggable marker; every placement/drag pushes

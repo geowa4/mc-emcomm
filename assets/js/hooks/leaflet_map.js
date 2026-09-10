@@ -1,4 +1,4 @@
-import L from "../../vendor/leaflet/leaflet.js"
+import L from "./leaflet"
 
 // Read-only map: renders every marker in data-markers (JSON array of
 // {lat, lng, title, radius_m}) plus a geofence-radius circle when
