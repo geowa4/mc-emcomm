@@ -412,6 +412,8 @@ Links to My Profile, Operations, Inventory, and Net Console. Every `/app` page M
 - `#courses-section`: one row per active course with a "Completed on" date (real `<label for>`), an evidence file picker (one file, any type, `external:` presigned upload), the verified state, and a Save button whose accessible name includes the course name. Saving flashes "<name> saved."; failed saves show translated changeset errors; a rejected upload marks the picker `aria-invalid` with the reason beneath it.
 - `#certifications-section`: one row per active certification with "Issued on", prerequisite status ("on record" / "not yet" for `prerequisite_course_id`, from `Certifications.prerequisite_met?/2`), two upload slots (Position Task Book, certificate), verified state, and a named Save button. `verified` is admin-set. Position holdings and admin status are not member-editable.
 - Per-record upload names are atoms interpolated from ids; the ids MUST be narrowed with `ParamHelpers.known_id/2` to records the page rendered so an event payload cannot mint atoms or crash the process.
+- Course and certification rows MUST bind `phx-change` (`validate_course`, `validate_certification`): the LiveView client only tracks a chosen file through a change event, so without it Save records the date and silently drops the file. The typed date is kept in a per-row draft (`course_drafts`, `certification_drafts`) across the re-render each change triggers and cleared on a successful save.
+- When a catalog is empty the section shows an empty state instead of a bare box (`#capabilities-empty`, `#courses-empty`, `#certifications-empty`): members are told nothing has been set up yet and that this is where they will record theirs once an administrator adds some; admins get a link to the admin page that fills it.
 
 ### 9.6 Admin dashboard and membership approval
 
@@ -600,6 +602,7 @@ Changes after the initial implementation, in order, with the specification they 
 | 2026-09-06 | Nets may only be assigned to an operation in progress; operations can be copied (locations and attachments carried over, attachment objects copied to new keys) | §9.12, §9.13, §11, §14 |
 | 2026-09-08 | New-member notice moved from first confirmation to registration, so leadership hears about signups that never confirm | §4, §9.2, §27 |
 | 2026-09-08 | Members are emailed when their membership is approved or reactivated | §4, §27 |
+| 2026-09-10 | Profile course and certification rows bind `phx-change` so chosen files upload; empty catalogs show an empty state (admins linked to the catalog pages) | §9.5 |
 
 Two themes run through the history and are now requirements rather than afterthoughts: **authorization is enforced in the query and the context, not only in the template** (every security fix moved a check down a layer), and **every pointer-driven interaction has a keyboard and screen-reader equivalent** (§23).
 

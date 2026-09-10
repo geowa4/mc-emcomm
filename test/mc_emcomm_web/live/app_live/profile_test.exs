@@ -156,6 +156,92 @@ defmodule McEmcommWeb.AppLive.ProfileTest do
     assert Capabilities.list_member_capabilities(member.id) == []
   end
 
+  test "empty catalogs tell a member nothing has been published yet", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    assert has_element?(lv, "#capabilities-empty", "this is where you'll record yours")
+    assert has_element?(lv, "#courses-empty", "this is where you'll record yours")
+    assert has_element?(lv, "#certifications-empty", "this is where you'll record yours")
+    refute has_element?(lv, "#capabilities-empty a")
+  end
+
+  test "empty catalogs point an admin at the pages that fill them", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+
+    admin_user =
+      member.user |> Ecto.Changeset.change(is_admin: true) |> McEmcomm.Repo.update!()
+
+    conn = log_in_user(conn, admin_user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    assert has_element?(lv, "#capabilities-empty a[href='/admin/capabilities']")
+    assert has_element?(lv, "#courses-empty a[href='/admin/courses']")
+    assert has_element?(lv, "#certifications-empty a[href='/admin/certifications']")
+  end
+
+  test "a populated catalog shows no empty state", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    McEmcommFixtures.capability_fixture()
+    McEmcommFixtures.course_fixture()
+    McEmcommFixtures.certification_fixture()
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    refute has_element?(lv, "#capabilities-empty")
+    refute has_element?(lv, "#courses-empty")
+    refute has_element?(lv, "#certifications-empty")
+  end
+
+  # The LiveView client only tracks a chosen file when the form (or input)
+  # binds phx-change; without it the file is never uploaded and Save silently
+  # records the date alone.
+  test "course and certification rows bind phx-change so file picks are tracked", %{
+    conn: conn
+  } do
+    member = McEmcommFixtures.member_fixture()
+    course = McEmcommFixtures.course_fixture()
+    cert = McEmcommFixtures.certification_fixture()
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    assert has_element?(lv, "#course-form-#{course.id}[phx-change]")
+    assert has_element?(lv, "#certification-form-#{cert.id}[phx-change]")
+  end
+
+  test "a typed date survives the re-render a change triggers", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    course = McEmcommFixtures.course_fixture()
+    cert = McEmcommFixtures.certification_fixture()
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    lv
+    |> element("#course-form-#{course.id}")
+    |> render_change(%{"completed_on" => "2026-01-15"})
+
+    lv
+    |> element("#certification-form-#{cert.id}")
+    |> render_change(%{"issued_on" => "2026-02-01"})
+
+    assert has_element?(lv, "#course-completed-on-#{course.id}[value='2026-01-15']")
+    assert has_element?(lv, "#certification-issued-on-#{cert.id}[value='2026-02-01']")
+    assert Courses.list_member_courses(member.id) == []
+  end
+
+  test "a change naming a course the page never rendered is ignored", %{conn: conn} do
+    member = McEmcommFixtures.member_fixture()
+    conn = log_in_user(conn, member.user)
+    {:ok, lv, _html} = live(conn, ~p"/app/profile")
+
+    render_change(lv, "validate_course", %{"course_id" => "987654321", "completed_on" => "x"})
+
+    render_change(lv, "validate_certification", %{"certification_id" => "../", "issued_on" => "x"})
+
+    assert has_element?(lv, "#courses-empty")
+  end
+
   test "an event naming a course the page never rendered is ignored", %{conn: conn} do
     member = McEmcommFixtures.member_fixture()
     conn = log_in_user(conn, member.user)

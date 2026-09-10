@@ -1,6 +1,7 @@
 defmodule McEmcommWeb.AppLive.Profile do
   use McEmcommWeb, :live_view
 
+  alias McEmcomm.Accounts.Scope
   alias McEmcomm.Capabilities
   alias McEmcomm.Certifications
   alias McEmcomm.Courses
@@ -69,6 +70,13 @@ defmodule McEmcommWeb.AppLive.Profile do
       member_courses: Courses.list_member_courses(member.id),
       certifications: Certifications.list_certifications(active_only: true),
       member_certifications: Certifications.list_member_certifications(member.id),
+      # Dates typed into a course or certification row but not yet saved, keyed
+      # by record id. The rows bind `phx-change` so the client tracks chosen
+      # files, and every change re-renders the row: an unfocused input takes
+      # the server's value on patch, so the typed date has to live here or it
+      # would be wiped the moment the member picks a file.
+      course_drafts: %{},
+      certification_drafts: %{},
       tile_url: MapHelpers.tile_url()
     )
   end
@@ -130,6 +138,13 @@ defmodule McEmcommWeb.AppLive.Profile do
           class="list bg-base-100 rounded-box border border-base-300"
           aria-describedby="capabilities-help"
         >
+          <.catalog_empty
+            id="capabilities-empty"
+            records={@capabilities}
+            noun="capabilities"
+            admin_path={~p"/admin/capabilities"}
+            current_scope={@current_scope}
+          />
           <li
             :for={cap <- @capabilities}
             class={["list-row", capability_claimed?(@member_capabilities, cap.id) && "bg-success/10"]}
@@ -166,7 +181,14 @@ defmodule McEmcommWeb.AppLive.Profile do
 
       <section id="courses-section" aria-labelledby="courses-heading">
         <h2 id="courses-heading" class="text-lg font-semibold mt-8">Courses</h2>
-        <ul class="list bg-base-100 rounded-box border border-base-300">
+        <ul id="courses" class="list bg-base-100 rounded-box border border-base-300">
+          <.catalog_empty
+            id="courses-empty"
+            records={@courses}
+            noun="courses"
+            admin_path={~p"/admin/courses"}
+            current_scope={@current_scope}
+          />
           <li :for={course <- @courses} class="list-row">
             <div class="list-col-grow flex flex-col gap-3">
               <div class="flex flex-wrap items-center gap-2">
@@ -180,6 +202,7 @@ defmodule McEmcommWeb.AppLive.Profile do
               </div>
               <form
                 id={"course-form-#{course.id}"}
+                phx-change="validate_course"
                 phx-submit="save_course"
                 phx-value-course_id={course.id}
                 class="grid grid-cols-1 gap-x-4 gap-y-2 items-end sm:grid-cols-[12rem_1fr_auto]"
@@ -191,7 +214,9 @@ defmodule McEmcommWeb.AppLive.Profile do
                     type="date"
                     id={"course-completed-on-#{course.id}"}
                     name="completed_on"
-                    value={completed_on(@member_courses, course.id)}
+                    value={
+                      Map.get(@course_drafts, course.id, completed_on(@member_courses, course.id))
+                    }
                     class="input w-full"
                   />
                 </div>
@@ -209,7 +234,14 @@ defmodule McEmcommWeb.AppLive.Profile do
 
       <section id="certifications-section" aria-labelledby="certifications-heading">
         <h2 id="certifications-heading" class="text-lg font-semibold mt-8">Certifications</h2>
-        <ul class="list bg-base-100 rounded-box border border-base-300">
+        <ul id="certifications" class="list bg-base-100 rounded-box border border-base-300">
+          <.catalog_empty
+            id="certifications-empty"
+            records={@certifications}
+            noun="certifications"
+            admin_path={~p"/admin/certifications"}
+            current_scope={@current_scope}
+          />
           <li :for={cert <- @certifications} class="list-row">
             <div class="list-col-grow flex flex-col gap-3">
               <div class="flex flex-wrap items-center gap-2">
@@ -236,6 +268,7 @@ defmodule McEmcommWeb.AppLive.Profile do
               </div>
               <form
                 id={"certification-form-#{cert.id}"}
+                phx-change="validate_certification"
                 phx-submit="save_certification"
                 phx-value-certification_id={cert.id}
                 class="grid grid-cols-1 gap-x-4 gap-y-2 items-end sm:grid-cols-2 lg:grid-cols-[12rem_1fr_1fr_auto]"
@@ -247,7 +280,13 @@ defmodule McEmcommWeb.AppLive.Profile do
                     type="date"
                     id={"certification-issued-on-#{cert.id}"}
                     name="issued_on"
-                    value={cert_field(@member_certifications, cert.id, :issued_on)}
+                    value={
+                      Map.get(
+                        @certification_drafts,
+                        cert.id,
+                        cert_field(@member_certifications, cert.id, :issued_on)
+                      )
+                    }
                     class="input w-full"
                   />
                 </div>
@@ -269,6 +308,32 @@ defmodule McEmcommWeb.AppLive.Profile do
         </ul>
       </section>
     </Layouts.app>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :records, :list, required: true
+  attr :noun, :string, required: true
+  attr :admin_path, :string, required: true
+  attr :current_scope, Scope, required: true
+
+  # What a member sees in a section whose catalog is empty. Until leadership
+  # publishes something there is nothing to claim, and a bare box reads as
+  # broken; an admin is pointed at the page that fills it.
+  defp catalog_empty(assigns) do
+    ~H"""
+    <li :if={@records == []} id={@id} class="list-row text-sm text-base-content/60">
+      <span class="list-col-grow">
+        <%= if Scope.admin?(@current_scope) do %>
+          No {@noun} are in the catalog yet.
+          <.link navigate={@admin_path} class="link">Add {@noun}</.link>
+          so members can record them here.
+        <% else %>
+          No {@noun} have been set up yet. Once an administrator adds some, this is where
+          you'll record yours.
+        <% end %>
+      </span>
+    </li>
     """
   end
 
@@ -386,6 +451,30 @@ defmodule McEmcommWeb.AppLive.Profile do
     end
   end
 
+  # Fires on every change in a course row, file picks included; the typed date
+  # is kept so the re-render doesn't erase it (see `course_drafts` in mount).
+  def handle_event("validate_course", %{"course_id" => course_id} = params, socket) do
+    case ParamHelpers.known_id(socket.assigns.courses, course_id) do
+      nil ->
+        {:noreply, socket}
+
+      course_id ->
+        drafts = Map.put(socket.assigns.course_drafts, course_id, params["completed_on"])
+        {:noreply, assign(socket, course_drafts: drafts)}
+    end
+  end
+
+  def handle_event("validate_certification", %{"certification_id" => cert_id} = params, socket) do
+    case ParamHelpers.known_id(socket.assigns.certifications, cert_id) do
+      nil ->
+        {:noreply, socket}
+
+      cert_id ->
+        drafts = Map.put(socket.assigns.certification_drafts, cert_id, params["issued_on"])
+        {:noreply, assign(socket, certification_drafts: drafts)}
+    end
+  end
+
   # The id is checked against the courses this socket rendered before it is
   # used: `course_upload_name/1` interpolates it into an atom, so an arbitrary
   # id would both create atoms without bound and raise on an unknown upload.
@@ -464,7 +553,10 @@ defmodule McEmcommWeb.AppLive.Profile do
         {:noreply,
          socket
          |> put_flash(:info, "#{course.name} saved.")
-         |> assign(member_courses: Courses.list_member_courses(member.id))}
+         |> assign(
+           member_courses: Courses.list_member_courses(member.id),
+           course_drafts: Map.delete(socket.assigns.course_drafts, course_id)
+         )}
 
       {:error, changeset} ->
         {:noreply,
@@ -519,7 +611,10 @@ defmodule McEmcommWeb.AppLive.Profile do
         {:noreply,
          socket
          |> put_flash(:info, "#{cert.name} saved.")
-         |> assign(member_certifications: Certifications.list_member_certifications(member.id))}
+         |> assign(
+           member_certifications: Certifications.list_member_certifications(member.id),
+           certification_drafts: Map.delete(socket.assigns.certification_drafts, cert_id)
+         )}
 
       {:error, changeset} ->
         {:noreply,
