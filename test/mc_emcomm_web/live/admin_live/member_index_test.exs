@@ -20,6 +20,65 @@ defmodule McEmcommWeb.AdminLive.MemberIndexTest do
     assert Members.get_member!(member.id).status == :approved
   end
 
+  test "inviting a member by email approves them", %{conn: conn} do
+    {:ok, lv, _html} = live(conn, ~p"/admin/members")
+
+    refute has_element?(lv, "#invite-modal")
+    lv |> element("#invite-member") |> render_click()
+    assert has_element?(lv, "#invite-form")
+
+    lv
+    |> form("#invite-form",
+      invitation: %{email: "invitee@example.com", name: "Ivy Invitee", call_sign: "w2inv"}
+    )
+    |> render_submit()
+
+    refute has_element?(lv, "#invite-modal")
+
+    user = McEmcomm.Accounts.get_user_by_email("invitee@example.com")
+    member = Members.get_member_by_user_id(user.id)
+    assert member.status == :approved
+    assert has_element?(lv, "#members-#{member.id}")
+    refute has_element?(lv, "#pending-members-#{member.id}")
+  end
+
+  test "inviting a pending member's address approves them", %{conn: conn} do
+    pending = McEmcommFixtures.pending_member_fixture()
+    {:ok, lv, _html} = live(conn, ~p"/admin/members")
+
+    lv |> element("#invite-member") |> render_click()
+
+    lv
+    |> form("#invite-form", invitation: %{email: pending.user.email, name: "Someone Else"})
+    |> render_submit()
+
+    refute has_element?(lv, "#invite-modal")
+    assert Members.get_member!(pending.id).status == :approved
+    assert has_element?(lv, "#members-#{pending.id}")
+  end
+
+  test "inviting an approved member's address keeps the form open", %{conn: conn} do
+    existing = McEmcommFixtures.member_fixture()
+    {:ok, lv, _html} = live(conn, ~p"/admin/members")
+
+    lv |> element("#invite-member") |> render_click()
+
+    lv
+    |> form("#invite-form", invitation: %{email: existing.user.email, name: "Someone Else"})
+    |> render_submit()
+
+    assert has_element?(lv, "#invite-form")
+  end
+
+  test "cancelling the invitation closes the modal", %{conn: conn} do
+    {:ok, lv, _html} = live(conn, ~p"/admin/members")
+
+    lv |> element("#invite-member") |> render_click()
+    lv |> element("#invite-modal button", "Cancel") |> render_click()
+
+    refute has_element?(lv, "#invite-modal")
+  end
+
   test "rejecting a pending member requires a reason", %{conn: conn} do
     member = McEmcommFixtures.pending_member_fixture()
     {:ok, lv, _html} = live(conn, ~p"/admin/members")

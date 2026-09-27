@@ -14,7 +14,8 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
        page_title: "Members",
        positions: Members.list_positions(),
        reason_for: nil,
-       audit_for: nil
+       audit_for: nil,
+       invite_form: nil
      )
      |> load_members()}
   end
@@ -23,7 +24,43 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope} active_net={@active_net}>
-      <.header>Members</.header>
+      <.header>
+        Members
+        <:actions>
+          <.button id="invite-member" phx-click="new_invite" class="btn btn-primary">
+            Invite member
+          </.button>
+        </:actions>
+      </.header>
+
+      <.modal :if={@invite_form} id="invite-modal" title="Invite member" on_close="cancel_invite">
+        <.form for={@invite_form} id="invite-form" phx-change="validate_invite" phx-submit="invite">
+          <.input
+            field={@invite_form[:email]}
+            type="email"
+            label="Email"
+            autocomplete="off"
+            spellcheck="false"
+            required
+          />
+          <.input field={@invite_form[:name]} type="text" label="Full name" required />
+          <.input
+            field={@invite_form[:call_sign]}
+            type="text"
+            label="Call sign (optional)"
+            autocomplete="off"
+          />
+          <p class="text-sm text-base-content/70">
+            The member is <strong>approved</strong>
+            right away and is emailed instructions for logging in. Someone who already
+            registered and is pending is approved as they registered.
+          </p>
+          <div class="modal-action">
+            <button type="button" phx-click="cancel_invite" class="btn btn-ghost">Cancel</button>
+            <.button phx-disable-with="Inviting..." class="btn btn-primary">Send invitation</.button>
+          </div>
+        </.form>
+      </.modal>
 
       <section id="pending-members-section" class="mb-10">
         <h2 class="flex items-center gap-2 text-lg font-semibold">
@@ -199,6 +236,32 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
   end
 
   @impl true
+  def handle_event("new_invite", _params, socket) do
+    {:noreply, assign_invite_form(socket, Members.change_invitation())}
+  end
+
+  def handle_event("cancel_invite", _params, socket),
+    do: {:noreply, assign(socket, invite_form: nil)}
+
+  def handle_event("validate_invite", %{"invitation" => params}, socket) do
+    changeset = params |> Members.change_invitation() |> Map.put(:action, :validate)
+    {:noreply, assign_invite_form(socket, changeset)}
+  end
+
+  def handle_event("invite", %{"invitation" => params}, socket) do
+    case Members.invite_member(params, socket.assigns.current_scope.user) do
+      {:ok, member} ->
+        {:noreply,
+         socket
+         |> assign(invite_form: nil)
+         |> put_flash(:info, "#{member.name} is approved and has been emailed.")
+         |> load_members()}
+
+      {:error, changeset} ->
+        {:noreply, assign_invite_form(socket, changeset)}
+    end
+  end
+
   def handle_event("approve", %{"id" => id}, socket) do
     member = Members.get_member!(id)
     to_status = if member.status == :inactive, do: :approved, else: :approved
@@ -253,6 +316,10 @@ defmodule McEmcommWeb.AdminLive.MemberIndex do
          |> put_flash(:error, "Only approved members can hold positions.")
          |> load_members()}
     end
+  end
+
+  defp assign_invite_form(socket, changeset) do
+    assign(socket, invite_form: to_form(changeset, as: "invitation"))
   end
 
   defp load_members(socket) do

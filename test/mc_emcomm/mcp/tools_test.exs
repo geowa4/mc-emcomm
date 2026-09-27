@@ -404,6 +404,32 @@ defmodule McEmcomm.MCP.ToolsTest do
       assert Enum.map(listed["members"], & &1["id"]) == [pending.id]
     end
 
+    test "admins invite a member by email, who is approved at once", ctx do
+      args = %{"email" => "invitee@example.com", "name" => "Ivy Invitee", "call_sign" => "w2inv"}
+
+      assert error!(ctx.member_ctx, "invite_member", args) =~ "administrator"
+      assert is_nil(McEmcomm.Accounts.get_user_by_email("invitee@example.com"))
+
+      invited = call!(ctx.admin_ctx, "invite_member", args)
+      assert invited["status"] == "approved"
+      assert invited["call_sign"] == "W2INV"
+
+      detail = call!(ctx.admin_ctx, "get_member", %{"member_id" => invited["id"]})
+
+      assert [%{"from_status" => "pending", "to_status" => "approved"}] = detail["audit"]
+
+      assert error!(ctx.admin_ctx, "invite_member", args) =~ "email has already been taken"
+
+      pending = McEmcommFixtures.pending_member_fixture(%{call_sign: "W2PEND"})
+
+      approved =
+        call!(ctx.admin_ctx, "invite_member", %{"email" => pending.user.email, "name" => "X"})
+
+      assert approved["id"] == pending.id
+      assert approved["status"] == "approved"
+      assert approved["call_sign"] == "W2PEND"
+    end
+
     test "the admin view carries the emergency contact and home location", ctx do
       {:ok, member} =
         Members.update_profile(ctx.member, %{

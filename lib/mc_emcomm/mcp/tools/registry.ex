@@ -39,6 +39,7 @@ defmodule McEmcomm.MCP.Tools.Registry do
     Tools.MarkOpAttendance,
     # Membership (emcomm:membership)
     Tools.ListPendingMembers,
+    Tools.InviteMember,
     Tools.ApproveMember,
     Tools.TransitionMember,
     Tools.ListMembers,

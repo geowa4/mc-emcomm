@@ -7,6 +7,9 @@ defmodule McEmcomm.Members do
   `rejected -> pending`. Every transition is admin-only and writes a
   `membership_audit` row; `reason` is required transitioning `-> rejected`
   or `-> inactive`.
+
+  An administrator can also invite a member by email (`invite_member/2`),
+  which creates the account and an already-approved profile.
   """
 
   import Ecto.Query, warn: false
@@ -30,6 +33,9 @@ defmodule McEmcomm.Members do
   }
 
   @reason_required_statuses ["rejected", "inactive"]
+
+  @invitation_types %{email: :string, name: :string, call_sign: :string}
+  @invitation_reason "Invited by an administrator"
 
   def legal_transitions, do: @legal_transitions
 
@@ -111,6 +117,112 @@ defmodule McEmcomm.Members do
     %Member{}
     |> Member.registration_changeset(attrs)
     |> Repo.insert()
+  end
+
+  @doc "A schemaless changeset over the invitation form: email, name, optional call sign."
+  def change_invitation(attrs \\ %{}) do
+    {%{}, @invitation_types}
+    |> Ecto.Changeset.cast(attrs, Map.keys(@invitation_types))
+    |> Ecto.Changeset.validate_required([:email, :name])
+  end
+
+  @doc """
+  Invites a member by email, admin-only: creates the `users` row (no
+  password, unconfirmed), an `approved` member profile, and a
+  `membership_audit` row (`pending -> approved`, written by `actor`) in one
+  transaction, then emails the invitation. The invitee still proves they own
+  the address by confirming through a login link before any session exists.
+
+  Leadership is not sent the new-member notice, and the invitation replaces
+  the approval email.
+
+  An address whose account has a `pending` profile is approved instead,
+  through `transition_status/4`: the member keeps the name and call sign they
+  registered with and gets the usual approval email. Any other address that
+  already has an account is refused with "has already been taken".
+
+  Errors come back on the `change_invitation/1` changeset so a form can show
+  them against the field the admin typed.
+  """
+  @spec invite_member(map(), User.t()) :: {:ok, Member.t()} | {:error, Ecto.Changeset.t()}
+  def invite_member(attrs, %User{} = actor) do
+    invitation = change_invitation(attrs)
+
+    if invitation.valid? do
+      data = Ecto.Changeset.apply_changes(invitation)
+
+      case pending_member_by_email(data.email) do
+        %Member{} = pending -> approve_invited(pending, invitation, actor)
+        nil -> create_invited(data, invitation, actor)
+      end
+    else
+      {:error, %{invitation | action: :insert}}
+    end
+  end
+
+  defp pending_member_by_email(email) do
+    Repo.one(
+      from m in Member,
+        join: u in User,
+        on: u.id == m.user_id,
+        where: u.email == ^email and m.status == :pending
+    )
+  end
+
+  defp approve_invited(pending, invitation, actor) do
+    case transition_status(pending, :approved, actor, @invitation_reason) do
+      {:ok, member} -> {:ok, member}
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, copy_errors(invitation, changeset)}
+    end
+  end
+
+  defp create_invited(data, invitation, actor) do
+    case insert_invited_member(data, actor) do
+      {:ok, %{user: user, member: member}} ->
+        notify_member_invited(member, user)
+        {:ok, member}
+
+      {:error, _step, changeset, _changes} ->
+        {:error, copy_errors(invitation, changeset)}
+    end
+  end
+
+  defp insert_invited_member(invitation, actor) do
+    Ecto.Multi.new()
+    |> Ecto.Multi.insert(:user, User.email_changeset(%User{}, %{email: invitation.email}))
+    |> Ecto.Multi.insert(:member, fn %{user: user} ->
+      Member.invitation_changeset(
+        %Member{user_id: user.id, status: :approved},
+        Map.take(invitation, [:name, :call_sign])
+      )
+    end)
+    |> Ecto.Multi.insert(:audit, fn %{member: member} ->
+      MembershipAudit.changeset(%MembershipAudit{}, %{
+        member_id: member.id,
+        actor_user_id: actor.id,
+        from_status: "pending",
+        to_status: "approved",
+        reason: @invitation_reason
+      })
+    end)
+    |> Repo.transaction()
+  end
+
+  defp copy_errors(invitation, %Ecto.Changeset{errors: errors}) do
+    Enum.reduce(errors, %{invitation | action: :insert}, fn {field, {message, opts}}, acc ->
+      Ecto.Changeset.add_error(acc, field, message, opts)
+    end)
+  end
+
+  # Delivery runs under `McEmcomm.TaskSupervisor` so a mail outage can never
+  # fail the invitation that was already committed.
+  defp notify_member_invited(%Member{} = member, %User{} = user) do
+    {:ok, _pid} =
+      Task.Supervisor.start_child(McEmcomm.TaskSupervisor, fn ->
+        {:ok, _email} = MemberNotifier.deliver_invitation(member, user)
+      end)
+
+    :ok
   end
 
   def change_profile(%Member{} = member, attrs \\ %{}) do

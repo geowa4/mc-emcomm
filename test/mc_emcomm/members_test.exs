@@ -72,6 +72,128 @@ defmodule McEmcomm.MembersTest do
     end
   end
 
+  describe "invite_member/2" do
+    test "creates an unconfirmed account and an approved profile, with an audit row" do
+      actor = AccountsFixtures.user_fixture()
+
+      assert {:ok, member} =
+               Members.invite_member(
+                 %{email: "invitee@example.com", name: "Ivy Invitee", call_sign: " w2inv "},
+                 actor
+               )
+
+      assert member.status == :approved
+      assert member.name == "Ivy Invitee"
+      assert member.call_sign == "W2INV"
+
+      user = McEmcomm.Accounts.get_user_by_email("invitee@example.com")
+      assert user.id == member.user_id
+      assert is_nil(user.confirmed_at)
+      assert is_nil(user.hashed_password)
+
+      actor_id = actor.id
+
+      assert [
+               %{
+                 from_status: "pending",
+                 to_status: "approved",
+                 actor_user_id: ^actor_id,
+                 reason: "Invited by an administrator"
+               }
+             ] = Members.list_audit_for_member(member.id)
+    end
+
+    test "emails the invitation, and neither the approval nor the new-member notice" do
+      actor = AccountsFixtures.user_fixture()
+
+      assert {:ok, _member} =
+               Members.invite_member(%{email: "invitee@example.com", name: "Ivy Invitee"}, actor)
+
+      assert_receive {:email,
+                      %Swoosh.Email{
+                        subject: "You're invited to Monroe County ARES/RACES",
+                        to: [{_, "invitee@example.com"}],
+                        text_body: body
+                      }}
+
+      assert body =~ "Hi Ivy Invitee"
+      assert body =~ "already approved"
+      assert body =~ "/users/log-in"
+      # No login token travels in the invitation.
+      refute body =~ "/users/log-in/"
+
+      refute_receive {:email, %Swoosh.Email{subject: "Your Monroe County" <> _}}
+      refute_receive {:email, %Swoosh.Email{subject: "New member awaiting approval" <> _}}
+    end
+
+    test "approves a pending member who registered with that address" do
+      pending = McEmcommFixtures.pending_member_fixture(%{name: "Pat Pending"})
+      actor = AccountsFixtures.user_fixture()
+      email = pending.user.email
+
+      assert {:ok, member} = Members.invite_member(%{email: email, name: "Someone Else"}, actor)
+
+      assert member.id == pending.id
+      assert member.status == :approved
+      assert member.name == "Pat Pending"
+
+      assert [%{from_status: "pending", to_status: "approved", reason: "Invited by" <> _}] =
+               Members.list_audit_for_member(pending.id)
+
+      assert_receive {:email,
+                      %Swoosh.Email{
+                        subject: "Your Monroe County ARES/RACES membership is approved",
+                        to: [{_, ^email}]
+                      }}
+
+      refute_receive {:email, %Swoosh.Email{subject: "You're invited" <> _}}
+    end
+
+    test "refuses any other address that already has an account and writes nothing" do
+      actor = AccountsFixtures.user_fixture()
+
+      inactive = McEmcommFixtures.member_fixture()
+      {:ok, inactive} = Members.transition_status(inactive, :inactive, actor, "Moved away")
+      audit = Members.list_audit_for_member(inactive.id)
+
+      for email <- [
+            McEmcommFixtures.member_fixture().user.email,
+            inactive.user.email,
+            actor.email
+          ] do
+        assert {:error, changeset} =
+                 Members.invite_member(%{email: email, name: "Someone Else"}, actor)
+
+        assert "has already been taken" in errors_on(changeset).email
+      end
+
+      assert Members.get_member!(inactive.id).status == :inactive
+      assert Members.list_audit_for_member(inactive.id) == audit
+      refute_receive {:email, %Swoosh.Email{subject: "You're invited" <> _}}
+    end
+
+    test "requires an email and a name" do
+      actor = AccountsFixtures.user_fixture()
+
+      assert {:error, changeset} = Members.invite_member(%{email: "", name: ""}, actor)
+      assert %{email: ["can't be blank"], name: ["can't be blank"]} = errors_on(changeset)
+    end
+
+    test "rolls the account back when the call sign is taken" do
+      McEmcommFixtures.member_fixture(%{call_sign: "W2DUP"})
+      actor = AccountsFixtures.user_fixture()
+
+      assert {:error, changeset} =
+               Members.invite_member(
+                 %{email: "invitee@example.com", name: "Ivy Invitee", call_sign: "W2DUP"},
+                 actor
+               )
+
+      assert "has already been taken" in errors_on(changeset).call_sign
+      assert is_nil(McEmcomm.Accounts.get_user_by_email("invitee@example.com"))
+    end
+  end
+
   describe "transition_status/4 — legal transitions" do
     test "pending -> approved (no reason required), writes an audit row" do
       member = McEmcommFixtures.pending_member_fixture()

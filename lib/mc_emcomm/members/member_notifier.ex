@@ -1,7 +1,8 @@
 defmodule McEmcomm.Members.MemberNotifier do
   @moduledoc """
   Delivers membership emails (new-member notices to designated position
-  holders, approval notices to the member) through `McEmcomm.Mailer`.
+  holders, approval notices and invitations to the member) through
+  `McEmcomm.Mailer`.
 
   This module is called from inside the `McEmcomm.Accounts` context, where no
   web caller can hand in a URL builder, so it resolves the admin link itself
@@ -58,6 +59,38 @@ defmodule McEmcomm.Members.MemberNotifier do
     operations, and check into nets:
 
     #{url(~p"/users/log-in")}
+
+    ==============================
+    """)
+  end
+
+  @doc """
+  Tells `user` that an administrator has invited them and that the profile
+  `member` is already approved. The message carries no login token: login
+  links expire within minutes, so the invitee requests a fresh one from the
+  login page whenever they get to it.
+  """
+  @spec deliver_invitation(Member.t(), User.t()) :: {:ok, Swoosh.Email.t()} | {:error, term()}
+  def deliver_invitation(%Member{} = member, %User{} = user) do
+    deliver(user.email, "You're invited to Monroe County ARES/RACES", """
+
+    ==============================
+
+    Hi #{member.name},
+
+    You have been invited to join the Monroe County ARES/RACES member
+    portal. Your membership is already approved.
+
+    To get started, open the page below and enter this email address
+    (#{user.email}). We will send you a link to confirm your account and
+    log in:
+
+    #{url(~p"/users/log-in")}
+
+    Once you are in, complete your profile, see upcoming operations, and
+    check into nets.
+
+    If you were not expecting this invitation, please ignore this email.
 
     ==============================
     """)

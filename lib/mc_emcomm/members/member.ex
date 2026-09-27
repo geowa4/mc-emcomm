@@ -59,6 +59,19 @@ defmodule McEmcomm.Members.Member do
     |> unique_constraint(:user_id)
   end
 
+  @doc """
+  Changeset used when an administrator invites a member. `user_id` and
+  `status` are set on the struct by the caller, never cast.
+  """
+  def invitation_changeset(member, attrs) do
+    member
+    |> cast(attrs, [:name, :call_sign])
+    |> validate_required([:user_id, :name])
+    |> validate_call_sign()
+    |> foreign_key_constraint(:user_id)
+    |> unique_constraint(:user_id)
+  end
+
   @doc false
   def status_changeset(member, to_status) do
     change(member, status: to_status)
