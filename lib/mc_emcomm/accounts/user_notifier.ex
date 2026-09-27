@@ -1,7 +1,7 @@
 defmodule McEmcomm.Accounts.UserNotifier do
   @moduledoc """
-  Delivers account emails (magic links, confirmation, email change) through
-  `McEmcomm.Mailer`.
+  Delivers account emails (magic links, confirmation, email change,
+  additional addresses, account merges) through `McEmcomm.Mailer`.
   """
   import Swoosh.Email
 
@@ -43,21 +43,79 @@ defmodule McEmcomm.Accounts.UserNotifier do
   end
 
   @doc """
-  Deliver instructions to log in with a magic link.
+  Deliver instructions to confirm an additional email address, sent to that
+  address.
   """
-  def deliver_login_instructions(user, url) do
-    case user do
-      %User{confirmed_at: nil} -> deliver_confirmation_instructions(user, url)
-      _ -> deliver_magic_link_instructions(user, url)
-    end
-  end
-
-  defp deliver_magic_link_instructions(user, url) do
-    deliver(user.email, "Log in instructions", """
+  def deliver_additional_email_instructions(user, address, url) do
+    deliver(address, "Confirm your additional email address", """
 
     ==============================
 
-    Hi #{user.email},
+    Hi #{address},
+
+    The Monroe County ARES/RACES account #{user.email} asked to add this
+    email address. You can confirm it by visiting the URL below while
+    logged in to that account:
+
+    #{url}
+
+    If you didn't request this, please ignore this.
+
+    ==============================
+    """)
+  end
+
+  @doc """
+  Tells the holder of an address that another account is claiming it, and
+  that following the link merges the two accounts. Sent to that address.
+  """
+  def deliver_merge_instructions(user, address, url) do
+    deliver(address, "Another account is trying to claim this email address", """
+
+    ==============================
+
+    Hi #{address},
+
+    Another user, #{user.email}, is trying to claim this email address for
+    their Monroe County ARES/RACES account. This address already belongs to
+    an account.
+
+    If both accounts are yours, you can merge them by visiting the URL below
+    while logged in as #{user.email}:
+
+    #{url}
+
+    You will review which profile details to bring over from the account
+    that uses this address. Once the merge is done that account is
+    deactivated: its email addresses, training records, and history move to
+    #{user.email}, and it can no longer be used to log in.
+
+    If you didn't request this, please ignore this. Nothing changes unless
+    the link is followed from the other account.
+
+    ==============================
+    """)
+  end
+
+  @doc """
+  Deliver instructions to log in with a magic link, to `address` (one of
+  the user's addresses; the primary one by default).
+  """
+  def deliver_login_instructions(user, url, address \\ nil) do
+    address = address || user.email
+
+    case user do
+      %User{confirmed_at: nil} -> deliver_confirmation_instructions(user, url)
+      _ -> deliver_magic_link_instructions(address, url)
+    end
+  end
+
+  defp deliver_magic_link_instructions(address, url) do
+    deliver(address, "Log in instructions", """
+
+    ==============================
+
+    Hi #{address},
 
     You can log into your account by visiting the URL below:
 

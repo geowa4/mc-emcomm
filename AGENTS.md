@@ -50,6 +50,13 @@ section referenced below before working in that area.
   `UserSessionController.verify_two_factor/2`; LiveViews never verify codes. The
   parked login in the session (`:pending_two_factor`) carries no secrets. Operator
   reset: `McEmcomm.Release.disable_totp/1` (DEPLOY.md § Runbook).
+- A user may hold several email addresses (`users_emails`, SPEC.md §29); look users
+  up with `Accounts.get_user_by_email/1`, never `Repo.get_by(User, email: ...)`.
+  Claiming an address another account holds merges that account in
+  (`McEmcomm.AccountMerge`). The emailed link works only from the session of the
+  account that asked for it, the add-email form answers identically whether or not
+  the address is taken, and an account with two-factor authentication on is never
+  absorbed — do not weaken any of these.
 
 ## MCP connector
 

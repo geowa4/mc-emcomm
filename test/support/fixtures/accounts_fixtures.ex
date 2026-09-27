@@ -120,6 +120,24 @@ defmodule McEmcomm.AccountsFixtures do
     attrs |> user_fixture() |> set_password() |> enable_totp_fixture()
   end
 
+  @doc """
+  Asks to add `email` to `user` and returns the token from the confirmation
+  (or merge) message mailed to that address.
+  """
+  def email_claim_token(user, email) do
+    extract_user_token(fn url ->
+      Accounts.deliver_additional_email_instructions(user, email, url)
+    end)
+  end
+
+  @doc "Adds a confirmed additional address to `user` through the emailed link."
+  def user_email_fixture(user, email \\ unique_user_email()) do
+    {:ok, user_email} =
+      Accounts.confirm_additional_email(user, email_claim_token(user, email))
+
+    user_email
+  end
+
   def offset_user_token(token, amount_to_add, unit) do
     dt = DateTime.add(DateTime.utc_now(:second), amount_to_add, unit)
 

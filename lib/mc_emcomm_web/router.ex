@@ -264,6 +264,7 @@ defmodule McEmcommWeb.Router do
       on_mount: [{McEmcommWeb.UserAuth, :require_authenticated}, McEmcommWeb.ActiveNet] do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
+      live "/users/settings/emails/:token", UserLive.EmailClaim, :show
       live "/users/settings/two-factor", UserLive.TwoFactor, :edit
     end
 

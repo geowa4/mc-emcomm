@@ -6,6 +6,7 @@ defmodule McEmcommWeb.UserLive.Settings do
   on_mount {McEmcommWeb.UserAuth, :require_sudo_mode}
 
   alias McEmcomm.Accounts
+  alias McEmcommWeb.ParamHelpers
 
   @impl true
   def render(assigns) do
@@ -14,7 +15,7 @@ defmodule McEmcommWeb.UserLive.Settings do
       <div class="text-center">
         <.header>
           Account
-          <:subtitle>Change the email address and password you use to log in</:subtitle>
+          <:subtitle>Manage the email addresses and password you use to log in</:subtitle>
         </.header>
       </div>
 
@@ -29,6 +30,71 @@ defmodule McEmcommWeb.UserLive.Settings do
         />
         <.button variant="primary" phx-disable-with="Changing...">Change Email</.button>
       </.form>
+
+      <div class="divider" />
+
+      <section id="additional-emails" class="space-y-4" aria-labelledby="additional-emails-heading">
+        <div>
+          <h2 id="additional-emails-heading" class="font-semibold">Additional email addresses</h2>
+          <p class="text-sm">
+            You can log in with any of these. Account mail goes to your primary address, <span
+              id="primary-email"
+              class="font-semibold"
+            >{@current_email}</span>.
+          </p>
+        </div>
+
+        <ul id="user-emails" phx-update="stream" class="space-y-2">
+          <li id="user-emails-empty" class="hidden only:block text-sm">
+            You have no additional addresses.
+          </li>
+          <li
+            :for={{id, user_email} <- @streams.user_emails}
+            id={id}
+            class="flex flex-wrap items-center gap-2"
+          >
+            <span class="grow break-all">{user_email.email}</span>
+            <.button
+              id={"make-primary-#{user_email.id}"}
+              phx-click="make_primary"
+              phx-value-id={user_email.id}
+              aria-label={"Make #{user_email.email} your primary address"}
+            >
+              Make primary
+            </.button>
+            <.button
+              id={"remove-email-#{user_email.id}"}
+              phx-click="remove_email"
+              phx-value-id={user_email.id}
+              data-confirm={"Remove #{user_email.email} from your account?"}
+              aria-label={"Remove #{user_email.email}"}
+            >
+              Remove
+            </.button>
+          </li>
+        </ul>
+
+        <.form
+          for={@add_email_form}
+          id="add_email_form"
+          phx-submit="add_email"
+          phx-change="validate_add_email"
+        >
+          <.input
+            field={@add_email_form[:email]}
+            type="email"
+            label="Add an email address"
+            autocomplete="email"
+            spellcheck="false"
+            required
+          />
+          <p class="text-sm">
+            We will send a confirmation link to the address. If it already belongs to another
+            account of yours, the link lets you merge that account into this one.
+          </p>
+          <.button variant="primary" phx-disable-with="Sending...">Add Email</.button>
+        </.form>
+      </section>
 
       <div class="divider" />
 
@@ -122,6 +188,8 @@ defmodule McEmcommWeb.UserLive.Settings do
       |> assign(:current_email, user.email)
       |> assign(:has_password?, is_binary(user.hashed_password))
       |> assign(:email_form, to_form(email_changeset))
+      |> assign(:add_email_form, to_form(Accounts.change_user_additional_email(user)))
+      |> stream(:user_emails, Accounts.list_user_emails(user))
       |> assign(:password_form, to_form(password_changeset))
       |> assign(:totp_enabled?, Accounts.totp_enabled?(user))
       |> assign(:trigger_submit, false)
@@ -156,6 +224,67 @@ defmodule McEmcommWeb.UserLive.Settings do
     end
   end
 
+  def handle_event("validate_add_email", %{"user_email" => params}, socket) do
+    add_email_form =
+      socket.assigns.current_scope.user
+      |> Accounts.change_user_additional_email(params)
+      |> Map.put(:action, :validate)
+      |> to_form()
+
+    {:noreply, assign(socket, add_email_form: add_email_form)}
+  end
+
+  def handle_event("add_email", %{"user_email" => params}, socket) do
+    user = socket.assigns.current_scope.user
+    true = Accounts.sudo_mode?(user)
+
+    case Accounts.change_user_additional_email(user, params) do
+      %{valid?: true} = changeset ->
+        email = Ecto.Changeset.get_field(changeset, :email)
+
+        {:noreply,
+         socket
+         |> flash_add_email_delivery(user, email)
+         |> assign(:add_email_form, to_form(Accounts.change_user_additional_email(user)))}
+
+      changeset ->
+        {:noreply, assign(socket, :add_email_form, to_form(changeset, action: :insert))}
+    end
+  end
+
+  def handle_event("remove_email", %{"id" => id}, socket) do
+    user = socket.assigns.current_scope.user
+    true = Accounts.sudo_mode?(user)
+
+    case Accounts.remove_user_email(user, ParamHelpers.id(id)) do
+      {:ok, user_email} ->
+        {:noreply,
+         socket
+         |> stream_delete(:user_emails, user_email)
+         |> put_flash(:info, "#{user_email.email} was removed from your account.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "That address could not be removed.")}
+    end
+  end
+
+  def handle_event("make_primary", %{"id" => id}, socket) do
+    user = socket.assigns.current_scope.user
+    true = Accounts.sudo_mode?(user)
+
+    case Accounts.make_email_primary(user, ParamHelpers.id(id)) do
+      {:ok, user} ->
+        # A full page load, so every assign derived from the user is rebuilt.
+        {:noreply,
+         socket
+         |> put_flash(:info, "#{user.email} is now your primary address.")
+         |> redirect(to: ~p"/users/settings")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "That address could not be made primary.")}
+    end
+  end
+
   def handle_event("validate_password", params, socket) do
     %{"user" => user_params} = params
 
@@ -184,6 +313,30 @@ defmodule McEmcommWeb.UserLive.Settings do
 
       changeset ->
         {:noreply, assign(socket, password_form: to_form(changeset, action: :insert))}
+    end
+  end
+
+  # The answer is the same whether or not the address belongs to another
+  # account, so the form cannot be used to find out which addresses have one.
+  defp flash_add_email_delivery(socket, user, email) do
+    case Accounts.deliver_additional_email_instructions(
+           user,
+           email,
+           &url(~p"/users/settings/emails/#{&1}")
+         ) do
+      {:ok, _email} ->
+        put_flash(socket, :info, "A confirmation link has been sent to #{email}.")
+
+      {:error, reason} ->
+        Logger.error(
+          "Could not deliver add-email instructions for user #{user.id}: #{inspect(reason)}"
+        )
+
+        put_flash(
+          socket,
+          :error,
+          "The confirmation email could not be sent. Please try again later."
+        )
     end
   end
 

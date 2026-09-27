@@ -6,7 +6,7 @@ defmodule McEmcomm.Accounts do
   import Ecto.Query, warn: false
   alias McEmcomm.Repo
 
-  alias McEmcomm.Accounts.{RecoveryCode, User, UserNotifier, UserToken}
+  alias McEmcomm.Accounts.{RecoveryCode, User, UserEmail, UserNotifier, UserToken}
 
   @totp_issuer "Monroe County ARES/RACES"
   @totp_code_format ~r/^\d{6}$/
@@ -14,7 +14,8 @@ defmodule McEmcomm.Accounts do
   ## Database getters
 
   @doc """
-  Gets a user by email.
+  Gets a user by any of their email addresses, primary or additional.
+  Deactivated accounts are never returned.
 
   ## Examples
 
@@ -27,11 +28,17 @@ defmodule McEmcomm.Accounts do
   """
   @spec get_user_by_email(String.t()) :: User.t() | nil
   def get_user_by_email(email) when is_binary(email) do
-    Repo.get_by(User, email: email)
+    Repo.one(
+      from u in User,
+        left_join: e in UserEmail,
+        on: e.user_id == u.id and e.email == ^email,
+        where: is_nil(u.deactivated_at),
+        where: u.email == ^email or not is_nil(e.id)
+    )
   end
 
   @doc """
-  Gets a user by email and password.
+  Gets a user by email and password. Any of the user's addresses works.
 
   ## Examples
 
@@ -45,7 +52,7 @@ defmodule McEmcomm.Accounts do
   @spec get_user_by_email_and_password(String.t(), String.t()) :: User.t() | nil
   def get_user_by_email_and_password(email, password)
       when is_binary(email) and is_binary(password) do
-    user = Repo.get_by(User, email: email)
+    user = get_user_by_email(email)
     if User.valid_password?(user, password), do: user
   end
 
@@ -161,6 +168,169 @@ defmodule McEmcomm.Accounts do
       else
         _ -> {:error, :transaction_aborted}
       end
+    end)
+  end
+
+  ## Additional email addresses
+
+  @doc """
+  Lists the user's additional (verified) addresses, oldest first. The
+  primary address is `user.email` and is not part of this list.
+  """
+  @spec list_user_emails(User.t()) :: [UserEmail.t()]
+  def list_user_emails(%User{id: user_id}) do
+    Repo.all(from e in UserEmail, where: e.user_id == ^user_id, order_by: [asc: e.id])
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for an address the user wants to add.
+
+  An address the user already has is refused. One that belongs to somebody
+  else is not: claiming it starts an account merge (`McEmcomm.AccountMerge`).
+  """
+  @spec change_user_additional_email(User.t(), map()) :: Ecto.Changeset.t()
+  def change_user_additional_email(%User{} = user, attrs \\ %{}) do
+    %UserEmail{user_id: user.id}
+    |> UserEmail.changeset(attrs)
+    |> Ecto.Changeset.validate_change(:email, fn :email, email ->
+      if own_address(user, email),
+        do: [email: "is already one of your addresses"],
+        else: []
+    end)
+  end
+
+  @doc ~S"""
+  Emails a confirmation link to an address the user wants to add, proving
+  they can read mail sent there. `email` must have passed
+  `change_user_additional_email/2`.
+
+  When the address already belongs to another account the message says so,
+  and that following the link merges the two accounts. The caller cannot
+  tell the two cases apart, so the form answers identically for both.
+
+  ## Examples
+
+      iex> deliver_additional_email_instructions(user, email, &url(~p"/users/settings/emails/#{&1}"))
+      {:ok, %{to: ..., body: ...}}
+
+  """
+  @spec deliver_additional_email_instructions(User.t(), String.t(), (String.t() -> String.t())) ::
+          {:ok, Swoosh.Email.t()} | {:error, term()}
+  def deliver_additional_email_instructions(%User{} = user, email, confirm_url_fun)
+      when is_binary(email) and is_function(confirm_url_fun, 1) do
+    {encoded_token, user_token} = UserToken.build_email_token(user, "add_email", email)
+    Repo.insert!(user_token)
+    url = confirm_url_fun.(encoded_token)
+
+    case get_user_by_email(email) do
+      nil -> UserNotifier.deliver_additional_email_instructions(user, email, url)
+      %User{} -> UserNotifier.deliver_merge_instructions(user, email, url)
+    end
+  end
+
+  @doc """
+  Looks up the add-email token the user was sent. The token must be the
+  logged-in user's own: a link opened from somebody else's session proves
+  nothing about them.
+  """
+  @spec fetch_email_claim(User.t(), String.t()) :: {:ok, UserToken.t()} | {:error, :invalid}
+  def fetch_email_claim(%User{id: user_id}, token) when is_binary(token) do
+    with {:ok, query} <- UserToken.verify_add_email_token_query(token),
+         %UserToken{user_id: ^user_id} = user_token <- Repo.one(query) do
+      {:ok, user_token}
+    else
+      _ -> {:error, :invalid}
+    end
+  end
+
+  @doc """
+  Confirms an address from its emailed token.
+
+  An address nobody holds is added to the user and the token is spent. One
+  that belongs to another account returns `{:merge, other_user}` and leaves
+  the token alone: it is spent by `McEmcomm.AccountMerge.merge/3` once the
+  user has reviewed the merge.
+  """
+  @spec confirm_additional_email(User.t(), String.t()) ::
+          {:ok, UserEmail.t()} | {:merge, User.t()} | {:error, :invalid}
+  def confirm_additional_email(%User{} = user, token) do
+    with {:ok, %UserToken{sent_to: email}} <- fetch_email_claim(user, token) do
+      case get_user_by_email(email) do
+        nil -> add_confirmed_email(user, email)
+        %User{id: id} when id == user.id -> {:error, :invalid}
+        %User{} = other -> {:merge, other}
+      end
+    end
+  end
+
+  defp add_confirmed_email(user, email) do
+    Repo.transact(fn ->
+      with {:ok, user_email} <-
+             %UserEmail{user_id: user.id} |> UserEmail.changeset(%{email: email}) |> Repo.insert(),
+           {_count, _result} <- delete_email_claims(user, email) do
+        {:ok, user_email}
+      else
+        _ -> {:error, :invalid}
+      end
+    end)
+  end
+
+  @doc "Deletes the user's add-email tokens for the address, spent or superseded."
+  @spec delete_email_claims(User.t(), String.t()) :: {non_neg_integer(), nil}
+  def delete_email_claims(%User{id: user_id}, email) do
+    Repo.delete_all(
+      from t in UserToken,
+        where: t.user_id == ^user_id and t.context == "add_email" and t.sent_to == ^email
+    )
+  end
+
+  @doc """
+  Removes one of the user's additional addresses. The primary address cannot
+  be removed; another one has to be made primary first.
+  """
+  @spec remove_user_email(User.t(), integer() | nil) ::
+          {:ok, UserEmail.t()} | {:error, :not_found}
+  def remove_user_email(%User{} = user, id) do
+    case get_user_email(user, id) do
+      nil -> {:error, :not_found}
+      user_email -> Repo.delete(user_email)
+    end
+  end
+
+  @doc """
+  Makes one of the user's additional addresses the primary one, where
+  account mail is sent. The old primary address stays on the account as an
+  additional address.
+  """
+  @spec make_email_primary(User.t(), integer() | nil) ::
+          {:ok, User.t()} | {:error, :not_found | Ecto.Changeset.t()}
+  def make_email_primary(%User{} = user, id) do
+    case get_user_email(user, id) do
+      nil -> {:error, :not_found}
+      user_email -> Repo.transact(fn -> swap_primary_email(user, user_email) end)
+    end
+  end
+
+  defp get_user_email(user, id) when is_integer(id) do
+    Repo.get_by(UserEmail, id: id, user_id: user.id)
+  end
+
+  defp get_user_email(_user, _id), do: nil
+
+  defp swap_primary_email(user, user_email) do
+    with {:ok, _user_email} <-
+           user_email |> Ecto.Changeset.change(email: user.email) |> Repo.update() do
+      user |> User.primary_email_changeset(user_email.email) |> Repo.update()
+    end
+  end
+
+  # The address as stored on the account when `email` is one of the user's
+  # own (addresses compare case-insensitively), otherwise nil.
+  defp own_address(%User{} = user, email) do
+    wanted = String.downcase(email)
+
+    Enum.find([user.email | Enum.map(list_user_emails(user), & &1.email)], fn address ->
+      String.downcase(address) == wanted
     end)
   end
 
@@ -308,14 +478,21 @@ defmodule McEmcomm.Accounts do
 
   @doc """
   Delivers the magic link login instructions to the given user.
+
+  ## Options
+
+    * `:to` - the address the user asked to log in with. When it is one of
+      their addresses the link is sent there; otherwise, and by default, it
+      goes to the primary address.
   """
-  @spec deliver_login_instructions(User.t(), (String.t() -> String.t())) ::
+  @spec deliver_login_instructions(User.t(), (String.t() -> String.t()), keyword()) ::
           {:ok, Swoosh.Email.t()} | {:error, term()}
-  def deliver_login_instructions(%User{} = user, magic_link_url_fun)
+  def deliver_login_instructions(%User{} = user, magic_link_url_fun, opts \\ [])
       when is_function(magic_link_url_fun, 1) do
-    {encoded_token, user_token} = UserToken.build_email_token(user, "login")
+    address = (opts[:to] && own_address(user, opts[:to])) || user.email
+    {encoded_token, user_token} = UserToken.build_email_token(user, "login", address)
     Repo.insert!(user_token)
-    UserNotifier.deliver_login_instructions(user, magic_link_url_fun.(encoded_token))
+    UserNotifier.deliver_login_instructions(user, magic_link_url_fun.(encoded_token), address)
   end
 
   @doc """

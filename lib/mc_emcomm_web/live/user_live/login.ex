@@ -115,7 +115,7 @@ defmodule McEmcommWeb.UserLive.Login do
 
   def handle_event("submit_magic", %{"user" => %{"email" => email}}, socket) do
     if user = Accounts.get_user_by_email(email) do
-      deliver_login_instructions(user)
+      deliver_login_instructions(user, email)
     end
 
     info =
@@ -129,8 +129,8 @@ defmodule McEmcommWeb.UserLive.Login do
 
   # The flash stays neutral either way so a delivery failure cannot reveal
   # whether the address is registered; the reason is only logged.
-  defp deliver_login_instructions(user) do
-    case Accounts.deliver_login_instructions(user, &url(~p"/users/log-in/#{&1}")) do
+  defp deliver_login_instructions(user, email) do
+    case Accounts.deliver_login_instructions(user, &url(~p"/users/log-in/#{&1}"), to: email) do
       {:ok, _email} ->
         :ok
 

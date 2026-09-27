@@ -1,6 +1,7 @@
 defmodule McEmcomm.Accounts.UserToken do
   use Ecto.Schema
   import Ecto.Query
+  alias McEmcomm.Accounts.UserEmail
   alias McEmcomm.Accounts.UserToken
 
   @hash_algorithm :sha256
@@ -10,6 +11,9 @@ defmodule McEmcomm.Accounts.UserToken do
   # since someone with access to the email may take over the account.
   @magic_link_validity_in_minutes 15
   @change_email_validity_in_days 7
+  # Following an add-email link can merge two accounts, so it is kept shorter
+  # than an email change.
+  @add_email_validity_in_hours 24
   @session_validity_in_days 14
 
   @type t :: %__MODULE__{}
@@ -62,6 +66,7 @@ defmodule McEmcomm.Accounts.UserToken do
       from token in by_token_and_context_query(token, "session"),
         join: user in assoc(token, :user),
         where: token.inserted_at > ago(@session_validity_in_days, "day"),
+        where: is_nil(user.deactivated_at),
         select: {%{user | authenticated_at: token.authenticated_at}, token.inserted_at}
 
     {:ok, query}
@@ -80,8 +85,8 @@ defmodule McEmcomm.Accounts.UserToken do
   Users can easily adapt the existing code to provide other types of delivery methods,
   for example, by phone numbers.
   """
-  def build_email_token(user, context) do
-    build_hashed_token(user, context, user.email)
+  def build_email_token(user, context, sent_to \\ nil) do
+    build_hashed_token(user, context, sent_to || user.email)
   end
 
   defp build_hashed_token(user, context, sent_to) do
@@ -113,9 +118,18 @@ defmodule McEmcomm.Accounts.UserToken do
 
         query =
           from token in by_token_and_context_query(hashed_token, "login"),
+            as: :token,
             join: user in assoc(token, :user),
+            as: :user,
             where: token.inserted_at > ago(^@magic_link_validity_in_minutes, "minute"),
-            where: token.sent_to == user.email,
+            where: is_nil(user.deactivated_at),
+            where:
+              token.sent_to == user.email or
+                exists(
+                  from e in UserEmail,
+                    where:
+                      e.user_id == parent_as(:user).id and e.email == parent_as(:token).sent_to
+                ),
             select: {user, token}
 
         {:ok, query}
@@ -144,6 +158,29 @@ defmodule McEmcomm.Accounts.UserToken do
         query =
           from token in by_token_and_context_query(hashed_token, context),
             where: token.inserted_at > ago(@change_email_validity_in_days, "day")
+
+        {:ok, query}
+
+      :error ->
+        :error
+    end
+  end
+
+  @doc """
+  Checks if the token is valid and returns its underlying lookup query.
+
+  The query returns the user_token found by the token, if any. It proves the
+  holder could read mail sent to `sent_to`; the caller must still check that
+  the token belongs to the logged-in user. The context is always "add_email".
+  """
+  def verify_add_email_token_query(token) do
+    case Base.url_decode64(token, padding: false) do
+      {:ok, decoded_token} ->
+        hashed_token = :crypto.hash(@hash_algorithm, decoded_token)
+
+        query =
+          from token in by_token_and_context_query(hashed_token, "add_email"),
+            where: token.inserted_at > ago(^@add_email_validity_in_hours, "hour")
 
         {:ok, query}
 

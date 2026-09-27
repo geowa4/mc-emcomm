@@ -1,6 +1,7 @@
 defmodule McEmcomm.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
+  import Ecto.Query, only: [from: 2]
 
   @type t :: %__MODULE__{}
 
@@ -15,6 +16,10 @@ defmodule McEmcomm.Accounts.User do
     field :totp_secret, :binary, redact: true
     field :totp_confirmed_at, :utc_datetime
     field :totp_last_used_at, :utc_datetime
+    field :deactivated_at, :utc_datetime
+
+    belongs_to :merged_into, __MODULE__
+    has_many :additional_emails, McEmcomm.Accounts.UserEmail
 
     timestamps(type: :utc_datetime)
   end
@@ -49,10 +54,23 @@ defmodule McEmcomm.Accounts.User do
       changeset
       |> unsafe_validate_unique(:email, McEmcomm.Repo)
       |> unique_constraint(:email)
+      |> validate_not_additional_email()
       |> validate_email_changed()
     else
       changeset
     end
+  end
+
+  # An address somebody holds as an additional one (`users_emails`) is taken
+  # just like a primary address is.
+  defp validate_not_additional_email(changeset) do
+    validate_change(changeset, :email, fn :email, email ->
+      if McEmcomm.Repo.exists?(from e in McEmcomm.Accounts.UserEmail, where: e.email == ^email) do
+        [email: {"has already been taken", [validation: :unsafe_unique, fields: [:email]]}]
+      else
+        []
+      end
+    end)
   end
 
   defp validate_email_changed(changeset) do
@@ -153,6 +171,33 @@ defmodule McEmcomm.Accounts.User do
   """
   def admin_changeset(user) do
     change(user, is_admin: true)
+  end
+
+  @doc """
+  Makes one of the user's additional addresses the primary one. The address
+  is already verified and already theirs, so nothing is cast or validated.
+  """
+  def primary_email_changeset(user, email) when is_binary(email) do
+    user
+    |> change(email: email)
+    |> unique_constraint(:email)
+  end
+
+  @doc """
+  Shuts the account down after it was merged into `survivor`
+  (`McEmcomm.AccountMerge`). The row stays so audit rows keep resolving, but
+  nothing can log in to it: the password and admin flag are dropped and the
+  primary address, which now belongs to the survivor, is replaced by a
+  placeholder under the reserved `.invalid` domain that no mail can reach.
+  """
+  def deactivate_changeset(user, %__MODULE__{id: survivor_id}) do
+    change(user,
+      email: "merged-user-#{user.id}@deactivated.invalid",
+      hashed_password: nil,
+      is_admin: false,
+      deactivated_at: DateTime.utc_now(:second),
+      merged_into_id: survivor_id
+    )
   end
 
   @doc """
