@@ -51,12 +51,13 @@ Three tiers exist on a single account: public (anonymous); member (authenticated
 | Net control role: take / vacate / assign | No | Yes | Yes |
 | Past nets | No | Yes | Yes |
 | Own profile, capabilities, courses, certifications, emergency contact | No | Yes (own) | Yes (own) |
+| Member directory: approved members' name, call sign, email, license class, positions, and home location, with a map `/app/directory` (§30) | No | Yes | Yes |
 | Catalog CRUD (capabilities, courses, certifications, default locations, documents) | No | No | Yes |
 | Membership approvals & audit; view emergency contacts | No | No | Yes |
 | Leadership positions: catalog, holders, order | No | No | Yes |
 | Account settings, password, email change, two-factor enrollment | Own (any authenticated user, sudo mode) | Own | Own |
 | LiveDashboard `/dev/dashboard` | No | No | Yes (every environment) |
-| MCP connector `/mcp` (§28): member-tier tools | No | Yes (scope `emcomm:member`, `emcomm:operations`) | Yes |
+| MCP connector `/mcp` (§28): member-tier tools, incl. the member directory | No | Yes (scope `emcomm:member`, `emcomm:operations`) | Yes |
 | MCP connector: administration tools | No | No | Yes (scope `emcomm:membership`) |
 | OAuth consent `/oauth/authorize` | No (log in first) | Own | Own |
 | Health endpoints, robots.txt, sitemap.xml | Yes | Yes | Yes |
@@ -152,7 +153,7 @@ All tables carry `id` (bigserial), `inserted_at`, `updated_at` (`utc_datetime`) 
 | `emergency_contact_phone` | string | nullable; ≤ 32; MUST match `^\+?(?=.*[0-9])[0-9 ().-]+$` |
 | `emergency_contact_relation` | string | nullable; ≤ 80 |
 
-Indexes: unique `user_id`; unique partial `call_sign`; GiST `qth_point`; btree `status`. There is **no `role` column**; leadership is relational (§7.19–§7.20). The emergency contact is optional as a whole, but once any of its three fields is present the name and phone MUST be required; blank and whitespace-only values MUST be stored as null.
+Indexes: unique `user_id`; unique partial `call_sign`; GiST `qth_point`; btree `status`; partial btree `(name, id)` where `status = 'approved'` (`members_directory_name_index`, the directory's name order, §30). There is **no `role` column**; leadership is relational (§7.19–§7.20). The emergency contact is optional as a whole, but once any of its three fields is present the name and phone MUST be required; blank and whitespace-only values MUST be stored as null.
 
 ### 7.3 `membership_audit`
 
@@ -284,7 +285,7 @@ Indexes: `net_session_id`; `member_id`; partial `(net_session_id, call_sign)` wh
 
 ### 7.24 Migration history
 
-Pre-launch history was squashed into one baseline (`20260831000000_create_initial_schema`) that creates the schema in its intended shape. Five expand-only migrations followed: `20260903111135_add_totp_to_users`, `20260903140316_add_notify_on_new_member_to_positions`, `20260904000133_add_emergency_contact_to_members`, `20260905204308_create_oauth_tables` (§7.25–§7.27), and `20260905204309_add_idempotency_key_to_net_checkins` (the column plus a concurrently built partial unique index, run outside a transaction). `20260908185657_create_operation_rsvps` (§7.28) added the brand-new RSVP table with its indexes built in-transaction, since nothing reads it during the rollout. `20260927185812_add_user_emails_and_account_merge` (§7.29, §29) added the brand-new `users_emails` table the same way, plus two nullable `users` columns the old code ignores. From here on every change MUST follow the expand-contract rules in CONTRIBUTING.md § Database & migrations (blue-green runs old and new code against one database; concurrent indexes outside a transaction; `NOT VALID` then `VALIDATE` for check constraints; migrations run in production only via `McEmcomm.Release.migrate/0`).
+Pre-launch history was squashed into one baseline (`20260831000000_create_initial_schema`) that creates the schema in its intended shape. Five expand-only migrations followed: `20260903111135_add_totp_to_users`, `20260903140316_add_notify_on_new_member_to_positions`, `20260904000133_add_emergency_contact_to_members`, `20260905204308_create_oauth_tables` (§7.25–§7.27), and `20260905204309_add_idempotency_key_to_net_checkins` (the column plus a concurrently built partial unique index, run outside a transaction). `20260908185657_create_operation_rsvps` (§7.28) added the brand-new RSVP table with its indexes built in-transaction, since nothing reads it during the rollout. `20260927185812_add_user_emails_and_account_merge` (§7.29, §29) added the brand-new `users_emails` table the same way, plus two nullable `users` columns the old code ignores. `20260927203010_add_directory_name_index_to_members` (§7.2, §30) added one concurrently built partial index, outside a transaction. From here on every change MUST follow the expand-contract rules in CONTRIBUTING.md § Database & migrations (blue-green runs old and new code against one database; concurrent indexes outside a transaction; `NOT VALID` then `VALIDATE` for check constraints; migrations run in production only via `McEmcomm.Release.migrate/0`).
 
 ### 7.25 `oauth_clients`
 
@@ -353,6 +354,7 @@ Pipelines: `:browser` (accepts html, session, live flash, root layout, CSRF, sec
 | `/a/:public_id/s` | live | browser, record_sighting | `:sighting` — `mount_current_scope` | `SightingLive.Show` | public, noindex |
 | `/app` | live | browser, require_authenticated_user | `:member` — `MemberAuth :require_member` | `AppLive.Dashboard` | member/admin |
 | `/app/profile` | live | idem | `:member` | `AppLive.Profile` | member/admin |
+| `/app/directory` | live | idem | `:member` | `AppLive.Directory` | member/admin |
 | `/app/operations`, `/app/operations/:id` | live | idem | `:member` | `OperationLive.Index`, `Show` | member/admin |
 | `/app/inventory`, `/app/inventory/:public_id` | live | idem | `:member` | `InventoryLive.Index`, `Show` | member/admin (admin sees more) |
 | `/app/net`, `/app/net/:id` | live | idem | `:member` | `NetLive.Console`, `Show` | member/admin |
@@ -413,7 +415,7 @@ The LiveView MUST accept only the sighting that this session's scan of **this** 
 
 ### 9.4 Member dashboard (`/app`)
 
-Links to My Profile, Operations, Inventory, and Net Console. Every `/app` page MUST redirect a user without an approved profile to `/`.
+Links to My Profile, Member Directory (`#dashboard-directory`, §30), Operations, Inventory, and Net Console. Every `/app` page MUST redirect a user without an approved profile to `/`.
 
 ### 9.5 Profile (`/app/profile`)
 
@@ -568,7 +570,7 @@ Idempotent dev seeds (`priv/repo/seeds.exs`, run by `mix ecto.setup` and `mix de
 
 ## 20. Privacy, retention & deletion
 
-Member PII MUST never render on public routes; the only member data on a public page is the name and call sign of approved leadership holders. Emergency contacts are visible to the member and to admins only. Sighting IP/UA/client-hint/geolocation data is visible ONLY to admins and MUST be excluded from member-facing queries at the query layer. Raw sighting telemetry is retained for `MC_EMCOMM_SIGHTING_RAW_RETENTION_DAYS` (default 90), after which `McEmcomm.RetentionScrubber` — a supervised GenServer on an hourly `Process.send_after` timer, NO Oban — MUST null `remote_ip`, `user_agent`, the three client hints, `accept_language`, `referer`, `point`, `accuracy`, `altitude`, `heading`, `speed` and set `scrubbed_at`, retaining the parsed browser/OS/device columns, the client environment, `geo_denied`, the timestamps, and the whole submission group.
+Member PII MUST never render on public routes; the only member data on a public page is the name and call sign of approved leadership holders. Approved members see one another's name, call sign, primary email address, license class, positions, and home location in the member directory (§30, on the web and through the MCP `search_members` tool) and nothing more: the street address, additional email addresses, training records, and membership status history stay with the member and admins. Emergency contacts are visible to the member and to admins only. Sighting IP/UA/client-hint/geolocation data is visible ONLY to admins and MUST be excluded from member-facing queries at the query layer. Raw sighting telemetry is retained for `MC_EMCOMM_SIGHTING_RAW_RETENTION_DAYS` (default 90), after which `McEmcomm.RetentionScrubber` — a supervised GenServer on an hourly `Process.send_after` timer, NO Oban — MUST null `remote_ip`, `user_agent`, the three client hints, `accept_language`, `referer`, `point`, `accuracy`, `altitude`, `heading`, `speed` and set `scrubbed_at`, retaining the parsed browser/OS/device columns, the client environment, `geo_denied`, the timestamps, and the whole submission group.
 
 Member deletion (`Members.delete_member/1`) MUST: purge the member's Tigris objects (course evidence, task books, certificates); rely on `delete_all` for audit rows about the member, positions, capability/course/certification records, RSVPs, and attendance; de-link sightings (`member_id` → null) and net check-ins (`member_id` → null, `call_sign` text kept); vacate net control; leave the `users` row untouched so audit rows the person wrote about others keep their actor; and refuse with `{:error, :has_started_net_sessions}` when the member started any net, so net history is never orphaned.
 
@@ -615,6 +617,7 @@ Changes after the initial implementation, in order, with the specification they 
 | 2026-09-08 | Members are emailed when their membership is approved or reactivated | §4, §27 |
 | 2026-09-10 | Profile course and certification rows bind `phx-change` so chosen files upload; empty catalogs show an empty state (admins linked to the catalog pages) | §9.5 |
 | 2026-09-27 | Users can hold several email addresses and log in with any of them; claiming an address that belongs to another account merges that account in after a review page, and deactivates it | §4, §7.1, §7.29, §9.2, §27, §29 |
+| 2026-09-27 | Member directory: approved members on a map and in a list searched by name, call sign, or email, sorted, and paged; the MCP `list_members` tool became the member-tier `search_members` | §3, §7.2, §7.24, §8, §9.4, §20, §28, §30 |
 
 Two themes run through the history and are now requirements rather than afterthoughts: **authorization is enforced in the query and the context, not only in the template** (every security fix moved a check down a layer), and **every pointer-driven interaction has a keyboard and screen-reader equivalent** (§23).
 
@@ -752,9 +755,10 @@ A pending, rejected, or inactive member and a user without a profile can hold no
 | `mark_op_attendance` (idempotent) | operations · approved profile | `Operations.record_attendance/4` (`:manual`) |
 | `create_op`, `update_op`, `add_op_location` | operations · admin | `Operations.create_operation_with_locations/2`, `update_operation/2`, `create_operation_location/1` |
 | `delete_op`, `remove_op_location` (destructive) | operations · admin | `Operations.delete_operation/1`, `delete_operation_location/1` |
-| `list_pending_members`, `list_members`, `get_member` (read) | membership · admin | `Members.list_pending_members/0`, `list_members/1`, `get_member/1` + `list_audit_for_member/1` |
+| `list_pending_members`, `get_member` (read) | membership · admin | `Members.list_pending_members/0`, `get_member/1` + `list_audit_for_member/1` |
 | `invite_member` (approves a pending member with that address instead) | membership · admin | `Members.invite_member/2` |
 | `approve_member`, `transition_member` | membership · admin | `Members.transition_status/4` |
+| `search_members` (read; replaced `list_members`) | member; a `status` other than `approved` additionally needs admin and the `emcomm:membership` scope | `Members.list_directory/1` (§30): `query`, `sort` (`name`, `call_sign`), `status`, `cursor`; returns `members`, `total_count`, `next_cursor`, paged in SQL |
 | `get_my_profile` (read), `update_my_profile` | member · approved profile | `Members.get_member/1`, `update_profile/2`, plus the capability/course/certification lists |
 | `list_assets`, `get_asset` (read) | member | `Assets.list_assets/1`, `get_asset/1`, `get_asset_by_public_id/1`, `Sightings.list_for_asset_member_view/1` |
 | `create_asset`, `update_asset` | membership · admin | `Assets.create_asset/1`, `update_asset/2` |
@@ -786,6 +790,23 @@ The prompt-level `close_op` has no domain equivalent (operations are deleted, ne
 
 A merge cannot be undone from the UI.
 
+## 30. Member directory
+
+`/app/directory` (`AppLive.Directory`, `:member` live_session) lets approved members and admins find one another. It lists **approved members only**; pending, rejected, and inactive members MUST never appear in the list or on the map.
+
+**What it shows.** Name, call sign, the account's primary email address (a `mailto:` link; additional addresses, §29, are not shown), license class, positions held, and the home location (`qth_point`) as coordinates rounded to four decimal places, or "Not set". `Members.list_directory/1` and `Members.list_directory_locations/1` select only those columns, and of the account only `id` and `email`, so the street address, the emergency contact, and the rest of the `users` row never reach the page (§20); the directory MUST NOT be widened in the template alone.
+
+**Search, order, and page live in the URL** (`q`, `order`, `page`; defaults are omitted), so a view can be linked to and survives a reload. `#directory-search-form` pushes `search` on change (debounced 300 ms) and on submit, which patches the URL and starts again from page 1.
+- *Search* (`#directory-search`) matches letters contained in the name, the call sign, or the primary email address, case-insensitively (additional addresses, §29, are never searched, since a match would reveal one); `%`, `_`, and `\` are matched literally; the term is trimmed and capped at 100 characters.
+- *Order* (`#directory-order`): `name` (default), `name-desc`, `call-sign`, `call-sign-desc`. Members without a call sign come last in both call-sign orders. An unknown value falls back to `name`. The id breaks ties in the direction of the sort, so the name orders read straight off `members_directory_name_index` (§7.2); the call-sign orders are served by a sort, since the unique call-sign index leaves out members without one.
+- *Page*: 25 members a page. A page past the end shows the last page and anything that is not a positive integer shows the first. `#directory-pagination` (a `<nav>`, present only when there is more than one page) holds real links, `#directory-previous-page` and `#directory-next-page`, around `#directory-page` ("Page 2 of 3"); `#directory-count` (`role="status"`) reads "Showing 26 to 50 of 61 members."
+
+**Map** (`#directory-map`, `static_map`, §12). One marker for every approved member who matches the search and has set a home location, titled "<call sign> — <name>" (the name alone without a call sign). The map follows the search but never the page: with no search it shows every approved member with a home location. `#directory-map-summary` says how many of the matching members are on it, and the list carries the same locations as text (§23).
+
+When nobody matches, `#directory-empty` replaces the table and offers `#directory-clear-search`.
+
+**MCP.** `search_members` (§28) is the same directory for Claude clients: the same search, the `name` and `call_sign` orders, and the same fields (`id`, `name`, `call_sign`, `email`, `license_class`, `positions`, `home_location`, `status`), 50 to a page with `total_count`. `Members.list_directory/1` takes a `:status` for it, which only an admin whose token carries `emcomm:membership` may set to anything but `approved`; the web directory never passes one.
+
 ## Appendix A — Template baseline
 
 The project was cloned from the `geowa4/base-phoenix` template, which provided: Elixir 1.20 / OTP 28; Bandit; Ecto + PostgreSQL 17; `phx.gen.auth` with magic-link and password authentication using Argon2id; Resend/Swoosh for outbound email plus a signature-verified inbound webhook (its `/inbox` demo LiveView has since been removed); health endpoints and a readiness probe; Prometheus metrics on a private port via PromEx; OpenTelemetry for Phoenix, LiveView, Bandit, and Ecto; JSON logs with trace correlation; the five-layer `mix precommit` gate; Dialyzer in CI; Fly.io blue-green deployment with a release migrator; `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` and `usage_rules` sync; Tidewave MCP in development; `mise.toml`; a self-deleting rename task; the Sprites cloud dev VM tasks; and a default branch of `trunk`.
@@ -807,12 +828,13 @@ The test suite asserts against these ids; renaming one is a contract change and 
 **Layout**: `#skip-to-content`, `#main-content`, `#nav-home`, `#mobile-nav-home`, `#nav-admin`, `#mobile-nav-admin`, `#mobile-menu`, `#mobile-menu-button`, `#user-menu`, `#user-menu-button`, `#user-menu-portal`, `#user-menu-profile`, `#user-menu-settings`, `#user-menu-log-out`, `#theme-toggle`, `#mobile-theme-toggle`, `#site-footer`, `#header-emblem`, `#header-brand`, `#flash-group`, `#client-error`, `#server-error`.
 **Public**: `#leadership-list`, `#position-<id>`, `#weekly-net`, `#repeaters`, `#social-links`, `#drive-folder-link`, `#members-only-note`, `#copy-ics-btn`, `#copy-ics-status`, `#member-operations-link`, `#hero-logo`.
 **Auth**: `#registration_form`, `#login_form`, `#login_form_magic`, `#login_form_magic_email`, `#login_form_password`, `#local-mail-notice`, `#confirmation_form`, `#email_form`, `#password_form`, `#user_current_password`, `#user_password-toggle`, `#settings-two-factor-link`, `#settings-two-factor-status`, `#two-factor-status`, `#two-factor-begin`, `#two-factor-cancel`, `#two-factor-qr`, `#two-factor-secret`, `#two_factor_confirm_form`, `#two-factor-recovery-codes`, `#two-factor-recovery-codes-done`, `#recovery-code-<n>`, `#two-factor-recovery-count`, `#two-factor-regenerate`, `#two-factor-disable`, `#two_factor_form`, `#user_code`, `#two-factor-use-recovery`, `#two-factor-use-totp`, `#two-factor-enabled`, `#two-factor-enrolling`, `#two-factor-disabled`, `#two-factor-back`, `#settings-two-factor`, `#additional-emails`, `#primary-email`, `#user-emails`, `#user-emails-empty`, `#user_emails-<id>`, `#make-primary-<id>`, `#remove-email-<id>`, `#add_email_form`, `#merge-review`, `#merge-blocked`, `#merge-other-email`, `#merge-effects`, `#merge-adopts-profile`, `#merge-gains-approved`, `#merge-gains-positions`, `#merge-gains-admin`, `#merge-form`, `#merge-group-<group>`, `#merge-item-<key>` (`:` in a key rendered as `-`), `#merge-no-items`, `#merge-submit`, `#merge-cancel`, `#merge-back`.
+**Member directory**: `#dashboard-directory`, `#directory-search-form`, `#directory-search`, `#directory-order`, `#directory-map`, `#directory-map-summary`, `#directory-count`, `#directory-empty`, `#directory-clear-search`, `#directory-members`, `#directory-member-<id>`, `#directory-pagination`, `#directory-previous-page`, `#directory-page`, `#directory-next-page`.
 **Profile**: `#profile-form`, `#emergency-contact`, `#qth-location`, `#qth-map`, `#qth-map-coordinates`, `#capabilities-section`, `#capability-<id>`, `#capability-name-<id>`, `#capability-description-<id>`, `#courses-section`, `#course-form-<id>`, `#course-completed-on-<id>`, `#certifications-section`, `#certification-form-<id>`, `#certification-issued-on-<id>`.
 **Admin**: `#pending-members-section`, `#pending-members`, `#pending-members-<id>`, `#pending-members-empty`, `#members`, `#members-<id>`, `#positions-form-<id>`, `#positions-popover-<id>`, `#emergency-contact-<id>`, `#reason-modal`, `#reason-form`, `#audit-modal`, `#invite-member`, `#invite-modal`, `#invite-form`, `#position-modal`, `#position-form`, `#position-row-<id>`, `#positions-rows`, `#positions-reorder-help`, `#move-up-<id>`, `#move-down-<id>`, `#change-holder-<id>`, `#holder-modal`, `#holder-search-form`, `#holder-results`, `#holder-results-region`, `#capability-form`, `#course-form`, `#certification-form`, `#asset-form`, `#document-form`, `#default-location-form`, `#default-location-map`, `#default-location-map-coordinates`, `#default-location-pending-point`, `#operation-form`, `#location-form`, `#location-map`, `#location-map-coordinates`, `#location-pending-point`, `#attachment-form`, `#attachment-description`, `#operations`, `#copy-operation`, `#copy-operation-<id>`, `#copy-source-note`, `#copy-locations`, `#copy-attachments`, `#qr-code`, `#capabilities`, `#courses`, `#certifications`, `#default-locations`, `#documents`.
 **Inventory, operations, and sightings**: `#assets`, `#sightings`, `#asset-map`, `#map-filter`, `#map-filter-mode`, `#map-filter-since`, `#operation-map`, `#rsvp-counts`, `#rsvp-count-yes`, `#rsvp-count-maybe`, `#rsvp-count-no`, `#rsvp-form`, `#rsvp-submit`, `#rsvp-status`, `#rsvp-closed`, `#rsvps`, `#rsvp-<id>`, `#rsvps-empty`, `#sighting-client`, `#sighting-form`, `#sighting-submitted`.
 **OAuth consent**: `#consent-granted`, `#consent-withheld`, `#consent-no-access`, `#consent-redirect-host`, `#consent-approve`, `#consent-deny`, `#consent-error`.
 **Nets**: `#start-net-form`, `#start-net-aprs-keyword`, `#start-net-operation`, `#checkin-form`, `#checkins`, `#checkin-row-<id>`, `#checkin-aprs-<id>`, `#checkout-checkin-<id>`, `#edit-checkin-<id>`, `#edit-checkin-form`, `#edit-checkin-modal`, `#edit-checkin-location`, `#checkin-location`, `#net-map`, `#net-control`, `#take-net-control`, `#vacate-net-control`, `#change-net-control`, `#ncs-modal`, `#ncs-search-form`, `#ncs-results`, `#ncs-results-region`, `#net-operation`, `#edit-net-operation`, `#net-operation-form`, `#net-operation-select`, `#net-name-form`, `#edit-net-name`, `#net-aprs-keyword`, `#edit-net-aprs-keyword`, `#net-aprs-keyword-form`, `#net-aprs-keyword-input`, `#edit-checkin-call-sign`, `#edit-checkin-notes`.
 
-**Client → server events**: `client_env`, `geolocation`, `geolocation_denied`, `submit` (sighting); `point_selected`, `set_point` / `set_qth_point` (map pickers); `reorder`, `move` (positions); `toggle_capability`, `save_course`, `save_certification` (profile); `check_in`, `check_out`, `update_checkin`, `take_net_control`, `vacate_net_control`, `assign_net_control`, `assign_operation`, `rename_session`, `end_session` (nets); `download` (resources), `download_attachment`, `rsvp`, `mark_attendance` (operations); `approve`, `deny` (OAuth consent); `validate_add_email`, `add_email`, `remove_email`, `make_primary` (account); `merge` (merge review). **Server → client events**: `checkin_saved`, `picker:set_point`. **Connect params**: `_csrf_token`, `tz_offset_minutes`.
+**Client → server events**: `client_env`, `geolocation`, `geolocation_denied`, `submit` (sighting); `point_selected`, `set_point` / `set_qth_point` (map pickers); `reorder`, `move` (positions); `toggle_capability`, `save_course`, `save_certification` (profile); `check_in`, `check_out`, `update_checkin`, `take_net_control`, `vacate_net_control`, `assign_net_control`, `assign_operation`, `rename_session`, `end_session` (nets); `download` (resources), `download_attachment`, `rsvp`, `mark_attendance` (operations); `approve`, `deny` (OAuth consent); `validate_add_email`, `add_email`, `remove_email`, `make_primary` (account); `merge` (merge review); `search` (member directory). **Server → client events**: `checkin_saved`, `picker:set_point`. **Connect params**: `_csrf_token`, `tz_offset_minutes`.
 
 **PubSub**: see §14.

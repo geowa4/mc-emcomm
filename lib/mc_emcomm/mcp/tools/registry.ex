@@ -42,11 +42,11 @@ defmodule McEmcomm.MCP.Tools.Registry do
     Tools.InviteMember,
     Tools.ApproveMember,
     Tools.TransitionMember,
-    Tools.ListMembers,
     Tools.GetMember,
-    # Profile (emcomm:member)
+    # Profile and member directory (emcomm:member)
     Tools.GetMyProfile,
     Tools.UpdateMyProfile,
+    Tools.SearchMembers,
     # Equipment and catalogs (reads emcomm:member, writes emcomm:membership)
     Tools.ListAssets,
     Tools.GetAsset,

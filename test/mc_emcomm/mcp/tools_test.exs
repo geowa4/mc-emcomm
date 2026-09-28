@@ -358,6 +358,108 @@ defmodule McEmcomm.MCP.ToolsTest do
     end
   end
 
+  describe "member directory" do
+    test "any approved member searches approved members by name or call sign", ctx do
+      other = McEmcommFixtures.member_fixture(%{name: "Blake Brown", call_sign: "W2BBB"})
+      position = McEmcommFixtures.position_fixture(%{name: "Directory Steward"})
+      {:ok, _member} = Members.assign_position(other, position)
+
+      {:ok, _member} =
+        Members.update_profile(other, %{
+          license_class: :general,
+          qth_point: McEmcommFixtures.geo_point(-77.7, 43.2),
+          qth_address: "1 Hidden Lane",
+          emergency_contact_name: "Casey Contact",
+          emergency_contact_phone: "585-555-0100"
+        })
+
+      McEmcommFixtures.pending_member_fixture(%{name: "Blake Pending"})
+
+      assert %{"members" => [found], "total_count" => 1, "next_cursor" => nil} =
+               call!(ctx.member_ctx, "search_members", %{"query" => "blake"})
+
+      assert found == %{
+               "id" => other.id,
+               "name" => "Blake Brown",
+               "call_sign" => "W2BBB",
+               "email" => other.user.email,
+               "license_class" => "general",
+               "positions" => ["Directory Steward"],
+               "home_location" => %{"lat" => 43.2, "lng" => -77.7},
+               "status" => "approved"
+             }
+
+      assert %{"members" => [%{"id" => id}]} =
+               call!(ctx.member_ctx, "search_members", %{"query" => "w2bb"})
+
+      assert id == other.id
+
+      assert %{"members" => [%{"id" => ^id}]} =
+               call!(ctx.member_ctx, "search_members", %{"query" => other.user.email})
+    end
+
+    test "lists every approved member without a query, in the order asked for", ctx do
+      McEmcommFixtures.member_fixture(%{name: "Avery Adams", call_sign: "W2ZZZ"})
+
+      by_name = call!(ctx.member_ctx, "search_members")
+      assert Enum.map(by_name["members"], & &1["name"]) == ["Avery Adams", "Test Member"]
+      assert by_name["total_count"] == 2
+
+      by_call = call!(ctx.member_ctx, "search_members", %{"sort" => "call_sign"})
+      assert Enum.map(by_call["members"], & &1["call_sign"]) == ["W2NET", "W2ZZZ"]
+    end
+
+    test "pages with a cursor", ctx do
+      for n <- 10..60, do: McEmcommFixtures.member_fixture(%{name: "Pager #{n}"})
+
+      first = call!(ctx.member_ctx, "search_members", %{"query" => "pager"})
+      assert length(first["members"]) == 50
+      assert first["total_count"] == 51
+      assert is_binary(first["next_cursor"])
+
+      second =
+        call!(ctx.member_ctx, "search_members", %{
+          "query" => "pager",
+          "cursor" => first["next_cursor"]
+        })
+
+      assert Enum.map(second["members"], & &1["name"]) == ["Pager 60"]
+      assert second["next_cursor"] == nil
+
+      past = McEmcomm.MCP.Cursor.encode(100)
+
+      assert %{"members" => [], "next_cursor" => nil} =
+               call!(ctx.member_ctx, "search_members", %{"query" => "pager", "cursor" => past})
+
+      for cursor <- ["nonsense", McEmcomm.MCP.Cursor.encode(7)] do
+        assert error!(ctx.member_ctx, "search_members", %{"cursor" => cursor}) =~ "cursor"
+      end
+    end
+
+    test "only administrators holding the membership scope list other statuses", ctx do
+      pending = McEmcommFixtures.pending_member_fixture(%{name: "Parker Pending"})
+
+      assert error!(ctx.member_ctx, "search_members", %{"status" => "pending"}) =~
+               "administrators"
+
+      narrow = context(ctx.admin, [Scopes.member()])
+      assert error!(narrow, "search_members", %{"status" => "pending"}) =~ "administrators"
+      assert %{"members" => [_member]} = call!(narrow, "search_members")
+
+      assert %{"members" => [%{"id" => id, "status" => "pending"}]} =
+               call!(ctx.admin_ctx, "search_members", %{"status" => "pending"})
+
+      assert id == pending.id
+    end
+
+    test "a pending member cannot search the directory", _ctx do
+      pending = McEmcommFixtures.pending_member_fixture()
+
+      assert error!(context(pending.user, [Scopes.member()]), "search_members") =~
+               "approved member"
+    end
+  end
+
   describe "membership" do
     test "admins approve, transition, list, and inspect members; members get a tool error", ctx do
       pending = McEmcommFixtures.pending_member_fixture(%{call_sign: "W2PEND"})
@@ -400,8 +502,12 @@ defmodule McEmcomm.MCP.ToolsTest do
 
       assert [%{"reason" => "Moved out of county"} | _] = detail["audit"]
 
-      listed = call!(ctx.admin_ctx, "list_members", %{"status" => "inactive"})
+      listed = call!(ctx.admin_ctx, "search_members", %{"status" => "inactive"})
       assert Enum.map(listed["members"], & &1["id"]) == [pending.id]
+    end
+
+    test "list_members is gone; search_members replaced it", ctx do
+      assert {:error, :unknown_tool} = Registry.call("list_members", %{}, ctx.admin_ctx)
     end
 
     test "admins invite a member by email, who is approved at once", ctx do

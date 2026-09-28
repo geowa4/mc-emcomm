@@ -277,12 +277,7 @@ defmodule McEmcomm.Members do
         []
 
       term ->
-        pattern =
-          "%" <>
-            (term
-             |> String.replace("\\", "\\\\")
-             |> String.replace("%", "\\%")
-             |> String.replace("_", "\\_")) <> "%"
+        pattern = contains_pattern(term)
 
         Member
         |> where([m], m.status == :approved)
@@ -292,6 +287,137 @@ defmodule McEmcomm.Members do
         |> Repo.all()
     end
   end
+
+  # An ILIKE pattern matching anything that contains `term` literally.
+  defp contains_pattern(term) do
+    "%" <>
+      (term
+       |> String.replace("\\", "\\\\")
+       |> String.replace("%", "\\%")
+       |> String.replace("_", "\\_")) <> "%"
+  end
+
+  @directory_fields [:id, :user_id, :name, :call_sign, :license_class, :qth_point, :status]
+  @directory_sorts [:name, :call_sign]
+  @directory_per_page 25
+  @directory_search_max_length 100
+
+  @doc "The columns the member directory can be sorted by."
+  def directory_sorts, do: @directory_sorts
+
+  @doc """
+  One page of the member directory (§30): approved members only, carrying
+  just the fields the directory shows (#{Enum.map_join(@directory_fields, ", ", &"`#{&1}`")}),
+  their positions, and the primary email address of their account (on
+  `user`, which carries nothing but `id` and `email`), so nothing else about
+  a member reaches the page.
+
+  Options:
+
+    * `:status` — the membership status to list, `:approved` by default.
+      Any other status is for administrators; the caller is responsible
+      for having checked that.
+    * `:search` — letters the name, call sign, or primary email address
+      must contain, case-insensitively; blank matches everyone. Additional
+      addresses (§29) are not shown, so they are not searched either: a
+      match would give one away.
+    * `:sort` — `:name` (default) or `:call_sign`; members without a call
+      sign come last either way
+    * `:direction` — `:asc` (default) or `:desc`
+    * `:page` — 1-based; a page past the end is answered with the last page
+    * `:per_page` — defaults to #{@directory_per_page}
+
+  Anything else given for `:sort` or `:direction` falls back to the default.
+  """
+  @spec list_directory(keyword()) :: %{
+          entries: [Member.t()],
+          page: pos_integer(),
+          per_page: pos_integer(),
+          total_count: non_neg_integer(),
+          total_pages: pos_integer()
+        }
+  def list_directory(opts \\ []) do
+    per_page = opts[:per_page] || @directory_per_page
+    query = directory_query(opts[:search], opts[:status])
+
+    total_count = Repo.aggregate(query, :count)
+    total_pages = max(1, ceil(total_count / per_page))
+    page = (opts[:page] || 1) |> max(1) |> min(total_pages)
+
+    entries =
+      query
+      |> order_by(^directory_order(opts[:sort], opts[:direction]))
+      |> limit(^per_page)
+      |> offset(^((page - 1) * per_page))
+      |> select([m], struct(m, ^@directory_fields))
+      |> preload(positions: ^positions_query(), user: ^directory_user_query())
+      |> Repo.all()
+
+    %{
+      entries: entries,
+      page: page,
+      per_page: per_page,
+      total_count: total_count,
+      total_pages: total_pages
+    }
+  end
+
+  @doc """
+  Every approved member matching `:search` who has set a QTH point, by name,
+  for the directory map (§30). Unlike `list_directory/1` this is not paged:
+  the map shows everyone the search matches.
+  """
+  @spec list_directory_locations(keyword()) :: [Member.t()]
+  def list_directory_locations(opts \\ []) do
+    opts[:search]
+    |> directory_query(:approved)
+    |> where([m], not is_nil(m.qth_point))
+    |> order_by([m], asc: m.name, asc: m.id)
+    |> select([m], struct(m, [:id, :name, :call_sign, :qth_point]))
+    |> Repo.all()
+  end
+
+  # `approved` is written into the query, rather than bound, so the planner
+  # can match it to the partial `members_directory_name_index`.
+  defp directory_query(search, status) when status in [nil, :approved] do
+    Member
+    |> where([m], m.status == :approved)
+    |> filter_directory_search(search)
+  end
+
+  defp directory_query(search, status) when status in [:pending, :rejected, :inactive] do
+    Member
+    |> where([m], m.status == ^status)
+    |> filter_directory_search(search)
+  end
+
+  defp directory_user_query, do: from(u in User, select: struct(u, [:id, :email]))
+
+  defp filter_directory_search(query, search) when is_binary(search) do
+    case search |> String.trim() |> String.slice(0, @directory_search_max_length) do
+      "" ->
+        query
+
+      term ->
+        pattern = contains_pattern(term)
+
+        query
+        |> join(:inner, [m], u in assoc(m, :user), as: :user)
+        |> where(
+          [m, user: u],
+          ilike(m.name, ^pattern) or ilike(m.call_sign, ^pattern) or ilike(u.email, ^pattern)
+        )
+    end
+  end
+
+  defp filter_directory_search(query, _search), do: query
+
+  # The id breaks ties in the direction of the sort, so the name order can be
+  # read straight off `members_directory_name_index` in either direction.
+  defp directory_order(:call_sign, :desc), do: [desc_nulls_last: :call_sign, desc: :id]
+  defp directory_order(:call_sign, _direction), do: [asc_nulls_last: :call_sign, asc: :id]
+  defp directory_order(_sort, :desc), do: [desc: :name, desc: :id]
+  defp directory_order(_sort, _direction), do: [asc: :name, asc: :id]
 
   @doc """
   Makes the member the holder of the position, keeping their other

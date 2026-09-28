@@ -281,6 +281,38 @@ defmodule McEmcomm.MCP.Schemas do
     )
   end
 
+  def directory_member do
+    object(
+      %{
+        "id" => id("Member id."),
+        "name" => string("Name."),
+        "call_sign" => nullable_string("Call sign."),
+        "email" => string("Primary email address."),
+        "license_class" => license_class(),
+        "positions" => array(string("Leadership position name.")),
+        "home_location" => nullable(point(), "Home location (QTH), or null when not set."),
+        "status" => string("Membership status.", enum: ~w(pending approved rejected inactive))
+      },
+      ~w(id name call_sign email license_class positions home_location status)
+    )
+  end
+
+  @doc "A page of the member directory, with the number of members the search matched."
+  def directory_page do
+    page = page(directory_member(), "members")
+
+    %{
+      page
+      | "properties" =>
+          Map.put(page["properties"], "total_count", %{
+            "type" => "integer",
+            "minimum" => 0,
+            "description" => "How many members matched, across all pages."
+          }),
+        "required" => page["required"] ++ ["total_count"]
+    }
+  end
+
   def member do
     summary = member_summary()
 

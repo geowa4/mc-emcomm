@@ -20,8 +20,8 @@ defmodule McEmcomm.OAuth.Scopes do
 
   @descriptions %{
     @member =>
-      "Run and log nets, view and edit your own profile, and read the equipment " <>
-        "inventory and training catalogs.",
+      "Run and log nets, view and edit your own profile, search the member directory, " <>
+        "and read the equipment inventory and training catalogs.",
     @operations =>
       "Read operations and their locations, attachments, RSVPs, and attendance, " <>
         "RSVP, and mark your own attendance. Administrators may also create and " <>

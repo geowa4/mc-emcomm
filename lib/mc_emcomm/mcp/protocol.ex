@@ -266,8 +266,8 @@ defmodule McEmcomm.MCP.Protocol do
   defp instructions do
     "Monroe County ARES/RACES member portal. Tools act as the signed-in member and are " <>
       "limited to what that member may do on the website: any approved member can run nets " <>
-      "and read operations, equipment, and catalogs; administrators can also manage members, " <>
-      "operations, and catalogs. Ids returned by list tools are the ids other tools expect."
+      "and read operations, equipment, catalogs, and the member directory; administrators " <>
+      "can also manage members, operations, and catalogs. Ids returned by list tools are the ids other tools expect."
   end
 
   @doc "A JSON-RPC success response."

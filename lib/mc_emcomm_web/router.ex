@@ -112,6 +112,7 @@ defmodule McEmcommWeb.Router do
       on_mount: [{McEmcommWeb.MemberAuth, :require_member}, McEmcommWeb.ActiveNet] do
       live "/", AppLive.Dashboard, :show
       live "/profile", AppLive.Profile, :show
+      live "/directory", AppLive.Directory, :index
       live "/operations", OperationLive.Index, :index
       live "/operations/:id", OperationLive.Show, :show
       live "/inventory", InventoryLive.Index, :index

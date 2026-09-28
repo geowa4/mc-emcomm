@@ -20,6 +20,16 @@ defmodule McEmcommWeb.AppLive.Dashboard do
           </div>
         </.link>
         <.link
+          id="dashboard-directory"
+          navigate={~p"/app/directory"}
+          class="card bg-base-100 shadow-sm border border-base-300"
+        >
+          <div class="card-body">
+            <h2 class="card-title">Member Directory</h2>
+            <p>Find members by name, call sign, or email, and see them on a map.</p>
+          </div>
+        </.link>
+        <.link
           navigate={~p"/app/operations"}
           class="card bg-base-100 shadow-sm border border-base-300"
         >

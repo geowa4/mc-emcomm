@@ -138,6 +138,23 @@ defmodule McEmcomm.MCP.Tools.Present do
     }
   end
 
+  @doc """
+  A member as the directory shows them (`Members.list_directory/1`): what
+  approved members may know about one another, and nothing else.
+  """
+  def directory_member(%Member{} = member) do
+    %{
+      "id" => member.id,
+      "name" => member.name,
+      "call_sign" => member.call_sign,
+      "email" => member.user.email,
+      "license_class" => member.license_class && Atom.to_string(member.license_class),
+      "positions" => positions(member),
+      "home_location" => point(member.qth_point),
+      "status" => Atom.to_string(member.status)
+    }
+  end
+
   @doc "The administrator's view of a member: everything on `/admin/members`."
   def member(%Member{} = member, audit) do
     member
